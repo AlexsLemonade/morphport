@@ -13,7 +13,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { PCCMA-NF  } from './workflows/pccma-nf'
+include { PCCMA  } from './workflows/pccma'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pccma-nf_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccma-nf_pipeline'
 /*
@@ -25,7 +25,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccm
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow ALEXSLEMONADE_PCCMA-NF {
+workflow PCCMA_NF {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -35,7 +35,7 @@ workflow ALEXSLEMONADE_PCCMA-NF {
     //
     // WORKFLOW: Run pipeline
     //
-    PCCMA-NF (
+    PCCMA (
         samplesheet
     )
 }
@@ -66,7 +66,7 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    ALEXSLEMONADE_PCCMA-NF (
+    PCCMA_NF (
         PIPELINE_INITIALISATION.out.samplesheet
     )
     //
