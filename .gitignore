@@ -7,3 +7,6 @@ testing/
 testing*
 *.pyc
 null/
+# pixi environments
+.pixi/*
+!.pixi/config.toml
