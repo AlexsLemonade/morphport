@@ -2,5 +2,8 @@
     "editor.formatOnSave": true,
     "markdown.styles": ["public/vscode_markdown.css"],
     "nextflow.formatting.harshilAlignment": true,
-    "nextflow.formatting.sortDeclarations": true
+    "nextflow.formatting.sortDeclarations": true,
+    "[nextflow-config]": {
+        "editor.formatOnSave": false
+    }
 }
