@@ -25,7 +25,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccm
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow PCCMA_NF {
+workflow ALEXSLEMONADE_PCCMA {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -66,7 +66,7 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    PCCMA_NF (
+    ALEXSLEMONADE_PCCMA (
         PIPELINE_INITIALISATION.out.samplesheet
     )
     //
