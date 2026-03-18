@@ -1,12 +1,18 @@
 {
     "-profile test": {
         "content": [
-            null,
+            {
+                "Workflow": {
+                    "AlexsLemonade/pccma-nf": "v0.1.0dev"
+                }
+            },
+
             [
-                "pipeline_info"
+                "pipeline_info",
+                "pipeline_info/pccma-nf_software_versions.yml"
             ],
             [
-                
+
             ]
         ],
         "meta": {
