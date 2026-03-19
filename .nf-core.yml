@@ -33,7 +33,7 @@ lint:
 
 template:
   org: AlexsLemonade
-  name: pccma-nf
+  name: pccma
   description: Downstream analysis of Cell Painting data to prepare for the PCCMA
     portal
   author: Joshua Shapiro
