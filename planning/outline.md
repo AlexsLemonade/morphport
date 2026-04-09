@@ -29,7 +29,7 @@ The primary packages expected to be used are:
 Data downloaded from the Cell Painting Gallery (CPG) (or equivalent) after processing with CytoTable, plus some additional annotation files, will be the primary inputs to the pipeline.
 The expected inputs are:
 
-- **Per-cell parquet files** — one or more parquet files per plate (e.g., normalized, feature-selected variants), organized on CPG as `workspace/profiles/<batch>/<plate>/<plate_name>.parquet`; each row is a single cell with morphological feature columns
+- **Per-cell parquet files** — one or more parquet files per plate, organized on CPG as `workspace/profiles/<batch>/<plate>/<plate_name>.parquet`; each row is a single cell with morphological feature columns. These files are assumed to have already been normalized per-plate against DMSO (or equivalent negative control) wells on the same plate, as is standard for CytoTable-processed Cell Painting data.
 - **Per-well parquet or csv files** — summary statistics aggregated to the well level (one row per well); location TBD (Usually in `workspace/backend/` as CSVs on CPG, but parquet output location needs to be confirmed)
 - _(possibly)_ **OME-Arrow files** — alternative format that includes per-cell images alongside morphological features
 - **Samplesheet** — List of plate files to use, including information about batch, timepoint, and other relevant metadata.
@@ -75,13 +75,30 @@ Each invocation produces a filtered parquet file and a per-plate QC report.
   - `(metadata, filtered_parquet_file, platemap_file)` tuples (one per input file, bad wells/cells excluded)
   - Per-plate QC report with pass/fail counts and other relevant metrics
 
+### Normalize to U2OS (batch normalization)
+
+Although the input parquet files are already per-plate normalized against DMSO controls, systematic technical variation can still differ across batches (e.g., differences in reagent lots, imaging conditions, or operator effects across experimental runs).
+To correct for this between-batch variation, each batch is normalized using U2OS cells as a reference.
+U2OS is a well-characterized human osteosarcoma cell line that is assumed to be present in every batch.
+
+Plates are grouped by batch, and within each batch, the DMSO wells on U2OS plates are used to compute a reference profile; all plates in the batch are then normalized relative to that reference using pycytominer's `normalize()` function.
+The output is a set of batch-normalized per-plate parquet files.
+After this step, plates from different batches are combined via `collect()` and passed to the partition step.
+
+- **Input:**
+  - All `(metadata, filtered_parquet_file, platemap_file)` tuples for a given batch (grouped by batch key via `groupTuple`)
+  - U2OS cell line designation (used to identify the reference plates within the batch)
+- **Output:**
+  - `(metadata, batch_normalized_parquet_file, platemap_file)` tuples (one per input plate, now batch-normalized)
+  - Per-batch normalization report (U2OS reference profile used, plates normalized)
+
 ### Reorganize / partition data
 
-All QC-filtered plate files are collected and partitioned in a single process invocation using DuckDB.
+All batch-normalized plate files are collected across batches and partitioned in a single process invocation using DuckDB.
 DuckDB joins each plate file with its corresponding platemap and writes a globally partitioned dataset in one pass, outputting exactly one parquet file per `(cell_line, compound, timepoint)` combination.
 
 - **Input:**
-  - All `(metadata, filtered_parquet_file, platemap_file)` tuples collected into a single list via `collect()`
+  - All `(metadata, batch_normalized_parquet_file, platemap_file)` tuples collected into a single list via `collect()`
 - **Output:**
   - Hive-partitioned parquet files under `partitions/cell_line=X/compound=Y/timepoint=Z/` (one file per condition)
 
