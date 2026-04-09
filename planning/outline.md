@@ -10,6 +10,56 @@ This pipeline processes Cell Painting morphological profiling data from CytoTabl
 There are two parallel input pathways: **per-cell** (primary, more complex) and **per-well summary statistics**.
 A third possible input format is **OME-Arrow**, which bundles per-cell morphological features together with cell images.
 
+```mermaid
+flowchart TD
+    subgraph IN["Inputs"]
+        SS["Samplesheet"]
+        CPQ["Per-cell parquet files"]
+        WPQ["Per-well parquet files"]
+        PM["Plate metadata"]
+        CA["Compound annotations"]
+        OA["OME-Arrow files *(coming)*"]
+    end
+
+    subgraph CELL["Per-cell pathway"]
+        direction TB
+        VI_C["Validate & ingest"]
+        P_C["Reorganize / partition"]
+        QC_C["QC, filter & merge"]
+        VI_C --> P_C --> QC_C
+    end
+
+    subgraph WELL["Per-well pathway"]
+        direction TB
+        VI_W["Validate & ingest"]
+        P_W["Reorganize / partition"]
+        QC_W["QC, filter & merge"]
+        VI_W --> P_W --> QC_W
+    end
+
+    subgraph VIZ["Build visualizations — one set per grouping (± edge wells)"]
+        direction LR
+        VIZ_C1["Cell line × compound\n(per-cell)"]
+        VIZ_W1["Cancer type\n(untreated, per-well)"]
+        VIZ_W2["Cell line × MOA\n(per-well)"]
+        VIZ_W3["Cell line × target\n(per-well)"]
+        VIZ_W4["Compound × cell lines\n(per-well)"]
+    end
+
+    SS & CPQ & PM --> VI_C
+    SS & WPQ & PM --> VI_W
+    OA -.-> VI_C
+    PM & CA --> REF["Generate reference\n& annotation lists"]
+
+    QC_C --> VIZ_C1
+    QC_W --> VIZ_W1 & VIZ_W2 & VIZ_W3 & VIZ_W4
+    REF --> VIZ_C1 & VIZ_W1 & VIZ_W2 & VIZ_W3 & VIZ_W4
+
+    QC_C & QC_W --> SIM["Consensus similarity matrices"]
+    REF --> SIM
+    SIM --> MAP["mAP scoring"]
+```
+
 ## Inputs
 
 Data downloaded from the Cell Painting Gallery (CPG) (or equivalent) after processing with CytoTable, plus some additional annotation files, will be the primary inputs to the pipeline.
