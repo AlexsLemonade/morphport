@@ -75,11 +75,9 @@ Each invocation produces a filtered parquet file and a per-plate QC report.
   - `(metadata, filtered_parquet_file, platemap_file)` tuples (one per input file, bad wells/cells excluded)
   - Per-plate QC report with pass/fail counts and other relevant metrics
 
-### Normalize to U2OS (batch normalization)
+### Batch normalization
 
-Although the input parquet files are already per-plate normalized against DMSO controls, systematic technical variation can still differ across batches (e.g., differences in reagent lots, imaging conditions, or operator effects across experimental runs).
-To correct for this between-batch variation, each batch is normalized using U2OS cells as a reference.
-U2OS is a well-characterized human osteosarcoma cell line that is assumed to be present in every batch.
+While plates are (most likely) already normalized, each batch will still need to be normalized (presumably using U2OS cells as a reference).
 
 Plates are grouped by batch, and within each batch, the DMSO wells on U2OS plates are used to compute a reference profile; all plates in the batch are then normalized relative to that reference using pycytominer's `normalize()` function.
 The output is a set of batch-normalized per-plate parquet files.
@@ -192,7 +190,7 @@ I had a rough flowchart made by Claude; this is just for experimentation as I am
 ```mermaid
 flowchart TD
     subgraph IN["Inputs"]
-        SS["Samplesheet\n(incl. platemap paths)"]
+        SS["Samplesheet"]
         CPQ["Per-cell parquet files"]
         WPQ["Per-well parquet files"]
         CA["Compound annotations"]
@@ -201,39 +199,32 @@ flowchart TD
 
     subgraph CELL["Per-cell pathway"]
         direction TB
-        VI_C["Validate & ingest\n(Nextflow workflow logic)"]
-        QC_C["QC & filter\n(per plate file)"]
-        P_C["Reorganize / partition\n(DuckDB, collect())"]
-        VI_C --> QC_C --> P_C
+        VI_C["Validate & ingest"]
+        QC_C["QC & filter"]
+        N_C["Normalize to U2OS"]
+        P_C["Reorganize / partition"]
+        VI_C --> QC_C --> N_C --> P_C
     end
 
     subgraph WELL["Per-well pathway"]
         direction TB
-        VI_W["Validate & ingest\n(Nextflow workflow logic)"]
-        QC_W["QC & filter\n(per plate file)"]
-        P_W["Reorganize / partition\n(DuckDB, collect())"]
-        VI_W --> QC_W --> P_W
-    end
-
-    subgraph VIZ["Build visualizations — re-grouped at workflow level (± edge wells)"]
-        direction LR
-        VIZ_C1["Cell line × compound\n(per-cell)"]
-        VIZ_W1["Cancer type\n(untreated, per-well)"]
-        VIZ_W2["Cell line × MOA\n(per-well)"]
-        VIZ_W3["Cell line × target\n(per-well)"]
-        VIZ_W4["Compound × cell lines\n(per-well)"]
+        VI_W["Validate & ingest"]
+        QC_W["QC & filter"]
+        N_W["Normalize to U2OS"]
+        P_W["Reorganize / partition"]
+        VI_W --> QC_W --> N_W --> P_W
     end
 
     SS & CPQ --> VI_C
     SS & WPQ --> VI_W
     OA -.-> VI_C
-    SS & CA --> REF["Generate reference\n& annotation lists"]
+    SS & CA --> REF["Generate reference & annotation lists"]
 
-    P_C --> VIZ_C1
-    P_W --> VIZ_W1 & VIZ_W2 & VIZ_W3 & VIZ_W4
-    REF --> VIZ_C1 & VIZ_W1 & VIZ_W2 & VIZ_W3 & VIZ_W4
+    P_C & P_W --> GRP["Construct analysis groupings"]
+    REF --> GRP
 
-    P_C & P_W --> SIM["Consensus similarity matrices"]
-    REF --> SIM
+    GRP --> FS["Feature selection"]
+    FS --> VIZ["Create visualizations"]
+    FS --> SIM["Consensus similarity matrices"]
     SIM --> MAP["mAP scoring"]
 ```
