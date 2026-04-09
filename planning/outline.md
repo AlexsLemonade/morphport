@@ -121,9 +121,7 @@ These reference files are used by later steps to define analysis groupings, labe
   - `target_dict.tsv` — target → compound mapping (filtered to dataset compounds)
   - These outputs should also exist as Groovy objects in the Nextflow workflow for use in downstream steps without needing to read from disk
 
-### Build visualizations
-
-To support exploratory analysis and quality checking, this step generates low-dimensional embeddings and cluster assignments for each analysis grouping.
+### Construct analysis groupings
 
 The per-condition partition files are keyed by `(cell_line, compound, timepoint)`, but each visualization grouping requires a _different_ aggregation of those files.
 Before invoking the visualization process, the workflow re-groups the partition-file channel by joining with the reference/annotation lists and applying a new `groupTuple` key for each grouping type:
@@ -137,19 +135,42 @@ Before invoking the visualization process, the workflow re-groups the partition-
 - **Per-cell groupings:**
   - All conditions (compound + untreated) within a cell line
 
-Each grouping is then `combine`d with `[true, false]` to produce two channel items — one with edge wells included and one without — before being passed to the visualization process.
-This means a single visualization process handles all grouping types; the variation is entirely in how the input channel is constructed in the workflow.
+Each grouping is then `combine()`d with `[true, false]` to produce two channel items, one with edge wells included and one without, before being passed to the feature selection and visualisation processes.
+This will let us pass all of the desired groupings to a uniform set of processes.
 
-The visualization process creates a UMAP embedding and a hierarchical clustering representation (Newick or JSON format) for each input grouping.
+The grouping metadata including whether edge wells are included will be consolidated into a single map that is passed alongside the partition files, so that the visualization and similarity steps can operate based on the grouping metadata rather than needing to hardcode any grouping-specific logic.
+
+This will all happen within the workflow logic rather than as separate processes.
+
+### Feature selection
+
+Feature selection is performed once per grouping × edge-well combination, producing a feature list that is passed alongside the original (full) partition files to all downstream processes.
+The full parquet data is never modified — downstream steps simply filter to the selected columns on read.
+This preserves the complete dataset for user downloads while ensuring that visualizations and similarity scoring use a consistent, analysis-appropriate feature set for each grouping.
+
+Feature selection runs on the combined data for each grouping (all partition files for that grouping assembled together), selecting features that are informative across the conditions in that grouping.
+Different groupings may yield different selected feature sets, which is intentional — the features relevant to comparing MOAs within a cell line are not necessarily the same as those relevant to comparing cell lines across a compound.
+pycytominer's `feature_select()` function will be used, with the specific operations (variance threshold, correlation filter, drop outliers, etc.) to be determined.
 
 - **Input:**
-  - Channel of re-grouped `(grouping_metadata, [partition_files], include_edge_wells)` tuples (constructed at workflow level from partition step output + reference lists)
+  - `(grouping_metadata, [partition_files])` tuples from the analysis grouping step
+- **Output:**
+  - `(grouping_metadata, feature_list_file, [partition_files])` tuples — the feature list (a text file of selected column names) is added to the tuple and carried forward to downstream steps
+
+### Create visualizations
+
+The visualization process creates a UMAP embedding and a hierarchical clustering representation (Newick or JSON format) for each input grouping.
+It reads the partition files, filters to the selected features, and operates on that reduced view.
+
+- **Input:**
+  - `(grouping_metadata, feature_list_file, [partition_files])` tuples from feature selection
 - **Output:**
   - Channel of `(grouping_metadata, value_matrix, umap_file, clustering_file)` tuples, one per grouping × edge-well setting
 
 ### Consensus similarity matrices
 
-We will compute similarity matrices for each cell line across compounds and for each compound across cell lines, using the QC-filtered data.
+We will compute similarity matrices for each cell line across compounds and for each compound across cell lines.
+These steps receive the same `(grouping_metadata, feature_list_file, [partition_files])` tuples as the visualization step, and likewise filter to selected features on read.
 Detail to come.
 
 ### Mean Average Precision (mAP) scoring
