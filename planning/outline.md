@@ -88,7 +88,7 @@ The step produces a filtered version of the partitioned data in which flagged we
   - channel of reorganized per-cell parquet files (from reorganize/partition step)
   - QC metric files providing well-level pass/fail or numeric quality scores (from per-well data or external QC pipeline)
 - **Output:**
-  - Nextflow channel `(cell_line, compound, timepoint, [filtered_parquet_files])` (bad wells and/or cells excluded)
+  - Nextflow channel `(cell_line, compound, timepoint, merged_parquet_file)` — per-plate files are merged into a single parquet file per condition after filtering (bad wells and/or cells excluded)
   - QC summary report with per-plate and per-well pass/fail counts and other relevant metrics
 
 ### Build visualizations
@@ -114,7 +114,7 @@ For individual cell visualizations, we will create the following sets:
 Each analysis will be done with and without edge wells included.
 
 - **Input:**
-  - channel of QC-filtered per-cell or per-well parquet files (from QC step)
+  - channel of merged per-condition parquet files (from QC step)
 - **Output:**
   - Channel of [metadata (including info on groupings and whether edge wells are included), value matrix, UMAP embedding file, hierarchical clustering file] tuples, one per analysis grouping
 
