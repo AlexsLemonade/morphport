@@ -10,6 +10,20 @@ This pipeline processes Cell Painting morphological profiling data from CytoTabl
 There are two parallel input pathways: **per-cell** (primary, more complex) and **per-well summary statistics**.
 A third possible input format is **OME-Arrow**, which bundles per-cell morphological features together with cell images.
 
+## Key Python Packages
+
+Most processing steps are implemented in Python.
+The primary packages expected to be used are:
+
+- **[polars](https://pola.rs/)** / **[pyarrow](https://arrow.apache.org/docs/python/)** — parquet I/O and data manipulation
+- **[pycytominer](https://github.com/cytomining/pycytominer)** — core morphological profiling operations: feature selection, normalization, aggregation, and consensus profile generation
+- **[OME-Arrow](https://github.com/WayScience/ome-arrow)** — reading OME-Arrow files that bundle per-cell images with morphological features
+- **[coSMicQC](https://github.com/WayScience/coSMicQC)** — QC filtering of wells and cells based on CellProfiler-derived metrics
+- **[copairs](https://github.com/cytomining/copairs)** — pairwise similarity comparisons and mAP scoring
+- **[umap-learn](https://umap-learn.readthedocs.io/)** — UMAP dimensionality reduction for visualizations
+- **[scipy](https://scipy.org/)** — hierarchical clustering (for dendrogram / Newick output in visualizations)
+- **[duckdb](https://duckdb.org/)** — efficient multi-file parquet joins and partitioned writes for the reorganization step
+
 ## Inputs
 
 Data downloaded from the Cell Painting Gallery (CPG) (or equivalent) after processing with CytoTable, plus some additional annotation files, will be the primary inputs to the pipeline.
@@ -31,35 +45,47 @@ The pipeline takes a samplesheet listing the batches and plates to be processed,
 It should discover all parquet files matching the expected `workspace/profiles/<batch>/<plate>/` subdirectory pattern and cross-references them against the samplesheet to verify that every expected plate has at least one corresponding file.
 Any plates listed in the samplesheet but missing from disk should raise a warning or error.
 
-The output is a Nextflow channel in which each element pairs a parquet file path with a metadata map (batch, plate, timepoint, etc.) derived from the samplesheet.
+This step is implemented primarily as workflow logic (using `Channel.fromPath`, `splitCsv`, and Groovy operations) rather than a Nextflow process.
+The samplesheet should include the path for the corresponding platemap file.
+
+The output is a Nextflow channel in which each element pairs a parquet file path with a metadata map (batch, plate, timepoint, platemap path, etc.) derived from the samplesheet.
 
 - **Input:**
-  - Samplesheet (CSV) listing batches and plates to include
+  - Samplesheet (CSV) listing batches and plates to include, with platemap path per plate
   - Per-cell parquet files under `workspace/profiles/<batch>/<plate>/`
   - Per-well parquet files (location TBD)
-  - Plate metadata files under `workspace/metadata/` that can be joined to the samplesheet entries based on batch and plate identifiers
 - **Output:**
-  - Validated Nextflow channel of `(metadata, parquet_file)` tuples, one entry per plate file
+  - Validated Nextflow channel of `(metadata, parquet_file, platemap_file)` tuples, one entry per plate file
   - Pipeline-level summary of plates found vs. expected
+
+### QC and filter cells / wells
+
+This step applies QC metrics (e.g., from WayLab / coSMicQC) to flag and remove low-quality wells and/or individual cells.
+QC criteria may include cell count thresholds, out-of-focus scores, segmentation quality flags, or other plate-level anomaly metrics.
+(Note that this is earlier than the QC step in the whiteboard image, as I think we can filter without needing to do any per-condition grouping first.)
+
+QC runs **per plate file** (one process invocation per plate parquet file), before any partitioning.
+Running QC at this stage preserves the full plate context needed for plate-level metric computation — for example, identifying bad wells by comparing them against all other wells on the same plate.
+Each invocation produces a filtered parquet file and a per-plate QC report.
+
+- **Input:**
+  - `(metadata, parquet_file, platemap_file)` tuples from ingest step
+  - QC parameters/thresholds
+- **Output:**
+  - `(metadata, filtered_parquet_file, platemap_file)` tuples (one per input file, bad wells/cells excluded)
+  - Per-plate QC report with pass/fail counts and other relevant metrics
 
 ### Reorganize / partition data
 
-The per-plate parquet files from CytoTable contain all cells for a given plate, which can include multiple conditions in terms of treatment or cell line.
-This step joins each parquet file with its plate metadata and re-partitions the combined data so that downstream analyses can operate on biologically meaningful subsets.
-
-Cells are grouped by the combination of cell line, compound, and timepoint, and each partition is written out as its own parquet file.
-This reorganization is the foundation for all subsequent per-condition analyses, which will operate on repartitioned files rather than the original per-plate files.
-
-An initial process will output tuples of cell line, compound, timepoint, and the corresponding partitioned parquet file path.
-These will then be grouped into a second channel keyed by `(cell_line, compound, timepoint)` so that all files corresponding to the same condition are grouped together for downstream processing.
-We should not need to explicitly regroup the files into single files per condition at this stage; rather, the channel grouping will allow downstream steps to process all relevant files together without needing to merge them on disk.
+All QC-filtered plate files are collected and partitioned in a single process invocation using DuckDB.
+DuckDB joins each plate file with its corresponding platemap and writes a globally partitioned dataset in one pass, outputting exactly one parquet file per `(cell_line, compound, timepoint)` combination.
 
 - **Input:**
-  - Per-cell or per-well parquet files (from ingest inputs step)
-  - Plate metadata (from samplesheet)
+  - All `(metadata, filtered_parquet_file, platemap_file)` tuples collected into a single list via `collect()`
 - **Output:**
-  - Nextflow channel of `(cell_line, compound, timepoint, [partitioned_parquet_files])` tuples where the metadata includes cell line and compound information.
-  - We may want to include a list of metadata tuples as well for each of the partitioned files?
+  - Hive-partitioned parquet files under `partitions/cell_line=X/compound=Y/timepoint=Z/` (one file per condition)
+
+This output can be transformed into a Nextflow channel of `(cell_line, compound, timepoint, partition_file)` tuples discovered via `Channel.fromPath` + `map`
 
 ### Generate reference / annotation lists
 
@@ -78,45 +104,31 @@ These reference files are used by later steps to define analysis groupings, labe
   - `target_dict.tsv` — target → compound mapping (filtered to dataset compounds)
   - These outputs should also exist as Groovy objects in the Nextflow workflow for use in downstream steps without needing to read from disk
 
-### QC and filter cells / wells
-
-This step applies QC metrics (e.g., from WayLab / coSMicQC) to flag and remove low-quality wells and/or individual cells.
-QC criteria may include cell count thresholds, out-of-focus scores, segmentation quality flags, or other plate-level anomaly metrics.
-The step produces a filtered version of the partitioned data in which flagged wells are excluded, along with a per-plate QC report summarizing pass/fail counts so that the extent of data loss can be audited.
-
-- **Input:**
-  - channel of reorganized per-cell parquet files (from reorganize/partition step)
-  - QC metric files providing well-level pass/fail or numeric quality scores (from per-well data or external QC pipeline)
-- **Output:**
-  - Nextflow channel `(cell_line, compound, timepoint, merged_parquet_file)` — per-plate files are merged into a single parquet file per condition after filtering (bad wells and/or cells excluded)
-  - QC summary report with per-plate and per-well pass/fail counts and other relevant metrics
-
 ### Build visualizations
 
-To support exploratory analysis and quality checking, this step generates low-dimensional embeddings and cluster assignments for each analysis partition.
+To support exploratory analysis and quality checking, this step generates low-dimensional embeddings and cluster assignments for each analysis grouping.
 
-The visualization step will take in a set of of parquet files that include all cells or wells for a given condition of interest, e.g., untreated cells from all cancer types (a more complete list will appear below).
-The input data will have the form of a matrix of well or cell × feature values.
+The per-condition partition files are keyed by `(cell_line, compound, timepoint)`, but each visualization grouping requires a _different_ aggregation of those files.
+Before invoking the visualization process, the workflow re-groups the partition-file channel by joining with the reference/annotation lists and applying a new `groupTuple` key for each grouping type:
 
-This process will create a UMAP embedding of the wells or cells, as well as a representation of the hierarchical clustering structure of the data (Newick or JSON format).
+- **Per-well groupings** (joining with cancer type and MOA/target annotations):
+  - All cell lines of the same cancer type (untreated only)
+  - All compounds with the same MOA within a cell line
+  - All compounds with the same target within a cell line
+  - All cell lines for a given compound
 
-For bulk/per well analyses, we will create the following sets of visualizations:
+- **Per-cell groupings:**
+  - All conditions (compound + untreated) within a cell line
 
-- All samples for a given cancer type (untreated only)
-- Each cell line for each mechanism of action (MOA) (all compounds with the same MOA within a cell line)
-- Each cell line for each drug target (all compounds with the same target)
-- Each compound across all cell lines (all samples treated with a given compound across cell lines)
+Each grouping is then `combine`d with `[true, false]` to produce two channel items — one with edge wells included and one without — before being passed to the visualization process.
+This means a single visualization process handles all grouping types; the variation is entirely in how the input channel is constructed in the workflow.
 
-For individual cell visualizations, we will create the following sets:
-
-- Each cell line for each compound (plus untreated)
-
-Each analysis will be done with and without edge wells included.
+The visualization process creates a UMAP embedding and a hierarchical clustering representation (Newick or JSON format) for each input grouping.
 
 - **Input:**
-  - channel of merged per-condition parquet files (from QC step)
+  - Channel of re-grouped `(grouping_metadata, [partition_files], include_edge_wells)` tuples (constructed at workflow level from partition step output + reference lists)
 - **Output:**
-  - Channel of [metadata (including info on groupings and whether edge wells are included), value matrix, UMAP embedding file, hierarchical clustering file] tuples, one per analysis grouping
+  - Channel of `(grouping_metadata, value_matrix, umap_file, clustering_file)` tuples, one per grouping × edge-well setting
 
 ### Consensus similarity matrices
 
@@ -131,7 +143,7 @@ Detail to come.
 
 ## OME-Arrow Data _(coming)_
 
-If input data is provided in OME-Arrow format as expected, we may want to adapt to use that to keep files together. But for now we will focus on parquet inputs and outputs.
+If input data is provided in OME-Arrow format as expected, we may want to adapt to use that to keep files together. But for now I focused on parquet inputs and outputs.
 
 A question I only just realized is whether well data would also be in OME-arrow format, or just the per-cell data.
 
@@ -142,31 +154,30 @@ I had a rough flowchart made by Claude; this is just for experimentation as I am
 ```mermaid
 flowchart TD
     subgraph IN["Inputs"]
-        SS["Samplesheet"]
+        SS["Samplesheet\n(incl. platemap paths)"]
         CPQ["Per-cell parquet files"]
         WPQ["Per-well parquet files"]
-        PM["Plate metadata"]
         CA["Compound annotations"]
         OA["OME-Arrow files *(coming)*"]
     end
 
     subgraph CELL["Per-cell pathway"]
         direction TB
-        VI_C["Validate & ingest"]
-        P_C["Reorganize / partition"]
-        QC_C["QC, filter & merge"]
-        VI_C --> P_C --> QC_C
+        VI_C["Validate & ingest\n(Nextflow workflow logic)"]
+        QC_C["QC & filter\n(per plate file)"]
+        P_C["Reorganize / partition\n(DuckDB, collect())"]
+        VI_C --> QC_C --> P_C
     end
 
     subgraph WELL["Per-well pathway"]
         direction TB
-        VI_W["Validate & ingest"]
-        P_W["Reorganize / partition"]
-        QC_W["QC, filter & merge"]
-        VI_W --> P_W --> QC_W
+        VI_W["Validate & ingest\n(Nextflow workflow logic)"]
+        QC_W["QC & filter\n(per plate file)"]
+        P_W["Reorganize / partition\n(DuckDB, collect())"]
+        VI_W --> QC_W --> P_W
     end
 
-    subgraph VIZ["Build visualizations — one set per grouping (± edge wells)"]
+    subgraph VIZ["Build visualizations — re-grouped at workflow level (± edge wells)"]
         direction LR
         VIZ_C1["Cell line × compound\n(per-cell)"]
         VIZ_W1["Cancer type\n(untreated, per-well)"]
@@ -175,16 +186,16 @@ flowchart TD
         VIZ_W4["Compound × cell lines\n(per-well)"]
     end
 
-    SS & CPQ & PM --> VI_C
-    SS & WPQ & PM --> VI_W
+    SS & CPQ --> VI_C
+    SS & WPQ --> VI_W
     OA -.-> VI_C
-    PM & CA --> REF["Generate reference\n& annotation lists"]
+    SS & CA --> REF["Generate reference\n& annotation lists"]
 
-    QC_C --> VIZ_C1
-    QC_W --> VIZ_W1 & VIZ_W2 & VIZ_W3 & VIZ_W4
+    P_C --> VIZ_C1
+    P_W --> VIZ_W1 & VIZ_W2 & VIZ_W3 & VIZ_W4
     REF --> VIZ_C1 & VIZ_W1 & VIZ_W2 & VIZ_W3 & VIZ_W4
 
-    QC_C & QC_W --> SIM["Consensus similarity matrices"]
+    P_C & P_W --> SIM["Consensus similarity matrices"]
     REF --> SIM
     SIM --> MAP["mAP scoring"]
 ```
