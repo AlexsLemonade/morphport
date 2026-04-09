@@ -83,6 +83,10 @@ Plates are grouped by batch, and within each batch, the DMSO wells on U2OS plate
 The output is a set of batch-normalized per-plate parquet files.
 After this step, plates from different batches are combined via `collect()` and passed to the partition step.
 
+One question remaining is how this will work with the per-well data.
+Is there enough data there to do meaningful batch normalization?
+Or do we build the per-well profiles at this point rather than using the ones that were pre-computed?
+
 - **Input:**
   - All `(metadata, filtered_parquet_file, platemap_file)` tuples for a given batch (grouped by batch key via `groupTuple`)
   - U2OS cell line designation (used to identify the reference plates within the batch)
