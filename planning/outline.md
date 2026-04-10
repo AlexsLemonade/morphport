@@ -34,7 +34,7 @@ The expected inputs are:
 - _(possibly)_ **OME-Arrow files** — alternative format that includes per-cell images alongside morphological features
 - **Samplesheet** — List of plate files to use, including information about batch, timepoint, and other relevant metadata.
 - **Plate metadata** — Platemap files with per-well metadata (cell line, compound, concentration, etc.) that can be joined to the per-cell and per-well data based on plate and well identifiers.
-  These should be found in the `workspace/metadata` directory on CPG
+These should be found in the `workspace/metadata` directory on CPG
 - **Compound annotation files** — MOA (mechanism of action) and target dictionaries mapping compound names to biological annotations
 
 ## Processing steps
@@ -42,7 +42,7 @@ The expected inputs are:
 ### Validate and ingest inputs
 
 The pipeline takes a samplesheet listing the batches and plates to be processed, along with the root path to the Cell Painting Gallery data.
-It should discover all parquet files matching the expected `workspace/profiles/<batch>/<plate>/` subdirectory pattern and cross-references them against the samplesheet to verify that every expected plate has at least one corresponding file.
+It should discover all parquet files matching the expected `workspace/profiles/<batch>/<plate>/` subdirectory pattern and cross-reference them against the samplesheet to verify that every expected plate has at least one corresponding file.
 Any plates listed in the samplesheet but missing from disk should raise a warning or error.
 
 This step is implemented primarily as workflow logic (using `Channel.fromPath`, `splitCsv`, and Groovy operations) rather than a Nextflow process.
@@ -140,14 +140,15 @@ Before invoking the visualization process, the workflow re-groups the partition-
 Each grouping is then `combine()`d with `[true, false]` to produce two channel items, one with edge wells included and one without, before being passed to the feature selection and visualisation processes.
 This will let us pass all of the desired groupings to a uniform set of processes.
 
-The grouping metadata including whether edge wells are included will be consolidated into a single map that is passed alongside the partition files, so that the visualization and similarity steps can operate based on the grouping metadata rather than needing to hardcode any grouping-specific logic.
+The grouping metadata (including whether edge wells are included) will be consolidated into a single map that is passed alongside the partition files.
+This way the visualization and similarity steps can operate based on the grouping metadata rather than needing to hardcode any grouping-specific logic.
 
 This will all happen within the workflow logic rather than as separate processes.
 
 ### Feature selection
 
 Feature selection is performed once per grouping × edge-well combination, producing a feature list that is passed alongside the original (full) partition files to all downstream processes.
-The full parquet data is never modified — downstream steps simply filter to the selected columns on read.
+The full parquet data is never modified — downstream steps simply filter to the selected columns (i.e., morphological features of interest) on read.
 This preserves the complete dataset for user downloads while ensuring that visualizations and similarity scoring use a consistent, analysis-appropriate feature set for each grouping.
 
 Feature selection runs on the combined data for each grouping (all partition files for that grouping assembled together), selecting features that are informative across the conditions in that grouping.
