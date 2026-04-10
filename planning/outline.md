@@ -7,34 +7,35 @@ For reference, here is an image of the whiteboard we created when working throug
 ## Pipeline Outline
 
 This pipeline processes Cell Painting morphological profiling data from CytoTable through QC, dimensionality reduction, and similarity-based scoring.
-There are two parallel input pathways: **per-cell** (primary, more complex) and **per-well summary statistics**.
-A third possible input format is **OME-Arrow**, which bundles per-cell morphological features together with cell images.
+The primary input is **per-cell** parquet files (or potentially other formats, but we will assume parquet for now, with conversion to parquet if we need to).
+Well-level summary statistics will be derived from the per-cell data within the pipeline as needed (in contrast to the description on the whiteboard, which shows them as separate inputs).
+It is likely we will also get `OME-Arrow` files, which bundle per-cell morphological features together with cell images.
+These should be convertible to `OME-parquet` format, which I think will let us still use some of the on-disk capabilities of duckDB, but we will see what is needed on that front.
 
 ## Key Python Packages
 
 Most processing steps are implemented in Python.
 The primary packages expected to be used are:
 
-- **[polars](https://pola.rs/)** / **[pyarrow](https://arrow.apache.org/docs/python/)** — parquet I/O and data manipulation
-- **[pycytominer](https://github.com/cytomining/pycytominer)** — core morphological profiling operations: feature selection, normalization, aggregation, and consensus profile generation
-- **[OME-Arrow](https://github.com/WayScience/ome-arrow)** — reading OME-Arrow files that bundle per-cell images with morphological features
-- **[coSMicQC](https://github.com/WayScience/coSMicQC)** — QC filtering of wells and cells based on CellProfiler-derived metrics
-- **[copairs](https://github.com/cytomining/copairs)** — pairwise similarity comparisons and mAP scoring
-- **[umap-learn](https://umap-learn.readthedocs.io/)** — UMAP dimensionality reduction for visualizations
-- **[scipy](https://scipy.org/)** — hierarchical clustering (for dendrogram / Newick output in visualizations)
-- **[duckdb](https://duckdb.org/)** — efficient multi-file parquet joins and partitioned writes for the reorganization step
+- **[polars](https://pola.rs/)** / **[pyarrow](https://arrow.apache.org/docs/python/)** -- parquet I/O and data manipulation
+- **[pycytominer](https://github.com/cytomining/pycytominer)** -- core morphological profiling operations: feature selection, normalization, aggregation, and consensus profile generation
+- **[OME-Arrow](https://github.com/WayScience/ome-arrow)** -- reading OME-Arrow files that bundle per-cell images with morphological features
+- **[coSMicQC](https://github.com/WayScience/coSMicQC)** -- QC filtering of wells and cells based on CellProfiler-derived metrics
+- **[copairs](https://github.com/cytomining/copairs)** -- pairwise similarity comparisons and mAP scoring
+- **[umap-learn](https://umap-learn.readthedocs.io/)** -- UMAP dimensionality reduction for visualizations
+- **[scipy](https://scipy.org/)** -- hierarchical clustering (for dendrogram / Newick output in visualizations)
+- **[duckdb](https://duckdb.org/)** -- efficient multi-file parquet joins and partitioned writes for the reorganization step
 
 ## Inputs
 
 Data downloaded from the Cell Painting Gallery (CPG) (or equivalent) after processing with CytoTable, plus some additional annotation files, will be the primary inputs to the pipeline.
 The expected inputs are:
 
-- **Per-cell parquet files** — one or more parquet files per plate, organized on CPG as `workspace/profiles/<batch>/<plate>/<plate_name>.parquet`; each row is a single cell with morphological feature columns. These files are assumed to have already been normalized per-plate against DMSO (or equivalent negative control) wells on the same plate, as is standard for CytoTable-processed Cell Painting data.
-- **Per-well parquet or csv files** — summary statistics aggregated to the well level (one row per well); location TBD (Usually in `workspace/backend/` as CSVs on CPG, but parquet output location needs to be confirmed)
+- **Per-cell parquet files** — one or more parquet files per plate, organized on CPG as `workspace/profiles/<batch>/<plate>/<plate_name>.parquet`; each row is a single cell with morphological feature columns. If these files are already normalized, that is great, but we may need to add per-plate normalization as a step in the pipeline on import.
 - _(possibly)_ **OME-Arrow files** — alternative format that includes per-cell images alongside morphological features
-- **Samplesheet** — List of plate files to use, including information about batch, timepoint, and other relevant metadata.
-- **Plate metadata** — Platemap files with per-well metadata (cell line, compound, concentration, etc.) that can be joined to the per-cell and per-well data based on plate and well identifiers.
-These should be found in the `workspace/metadata` directory on CPG
+- **Platemap files** — Platemap files with per-well metadata (cell line, compound, concentration, etc.) that can be joined to the per-cell data based on plate and well identifiers.
+  These should be found in the `workspace/metadata/` directory on CPG
+- **Samplesheet** — Table with one row per plate, including the location of plate data files, the associated platemap file, and other associated metadata such as batch, timepoint, etc.
 - **Compound annotation files** — MOA (mechanism of action) and target dictionaries mapping compound names to biological annotations
 
 ## Processing steps
@@ -53,7 +54,6 @@ The output is a Nextflow channel in which each element pairs a parquet file path
 - **Input:**
   - Samplesheet (CSV) listing batches and plates to include, with platemap path per plate
   - Per-cell parquet files under `workspace/profiles/<batch>/<plate>/`
-  - Per-well parquet files (location TBD)
 - **Output:**
   - Validated Nextflow channel of `(metadata, parquet_file, platemap_file)` tuples, one entry per plate file
   - Pipeline-level summary of plates found vs. expected
@@ -63,6 +63,8 @@ The output is a Nextflow channel in which each element pairs a parquet file path
 This step applies QC metrics (e.g., from WayLab / coSMicQC) to flag and remove low-quality wells and/or individual cells.
 QC criteria may include cell count thresholds, out-of-focus scores, segmentation quality flags, or other plate-level anomaly metrics.
 (Note that this is earlier than the QC step in the whiteboard image, as I think we can filter without needing to do any per-condition grouping first.)
+
+If we need to perform per-plate normalization, this would be done at this stage as well.
 
 QC runs **per plate file** (one process invocation per plate parquet file), before any partitioning.
 Running QC at this stage preserves the full plate context needed for plate-level metric computation — for example, identifying bad wells by comparing them against all other wells on the same plate.
@@ -77,15 +79,14 @@ Each invocation produces a filtered parquet file and a per-plate QC report.
 
 ### Batch normalization
 
-While plates are (most likely) already normalized, each batch will still need to be normalized (presumably using U2OS cells as a reference).
+We may also want to perform batch normalization among plates within a batch.
+However, this remains an open scientific question at the moment.
+We may want to have the option to run with or without batch normalization at this point, and perhaps experiment with different normalization approaches.
+Alternatvely, we can branch here, with and without batch normalization, and carry both versions through the rest of the pipeline for comparison.
 
 Plates are grouped by batch, and within each batch, the DMSO wells on U2OS plates are used to compute a reference profile; all plates in the batch are then normalized relative to that reference using pycytominer's `normalize()` function.
 The output is a set of batch-normalized per-plate parquet files.
 After this step, plates from different batches are combined via `collect()` and passed to the partition step.
-
-One question remaining is how this will work with the per-well data.
-Is there enough data there to do meaningful batch normalization?
-Or do we build the per-well profiles at this point rather than using the ones that were pre-computed?
 
 - **Input:**
   - All `(metadata, filtered_parquet_file, platemap_file)` tuples for a given batch (grouped by batch key via `groupTuple`)
@@ -94,17 +95,33 @@ Or do we build the per-well profiles at this point rather than using the ones th
   - `(metadata, batch_normalized_parquet_file, platemap_file)` tuples (one per input plate, now batch-normalized)
   - Per-batch normalization report (U2OS reference profile used, plates normalized)
 
-### Reorganize / partition data
+### Compute well-level summaries
 
-All batch-normalized plate files are collected across batches and partitioned in a single process invocation using DuckDB.
-DuckDB joins each plate file with its corresponding platemap and writes a globally partitioned dataset in one pass, outputting exactly one parquet file per `(cell_line, compound, timepoint)` combination.
+Well-level summary profiles are aggregated from the batch-normalized per-plate files using pycytominer's `aggregate()` function (median aggregation by default).
+This step runs **per plate file** — one process invocation per plate, in parallel with (but independent of) the downstream partition step — and produces a per-plate well-summary file with one row per well.
+Aggregation happens here, before partitioning, because it is naturally a per-plate operation: each well belongs to exactly one plate, so grouping cells by well within a plate file is the correct scope.
+Computing well summaries at this stage also reduces the data volume that must flow through the DuckDB partition step.
 
 - **Input:**
-  - All `(metadata, batch_normalized_parquet_file, platemap_file)` tuples collected into a single list via `collect()`
+  - `(metadata, batch_normalized_parquet_file, platemap_file)` tuples (one per plate, from batch normalization)
 - **Output:**
-  - Hive-partitioned parquet files under `partitions/cell_line=X/compound=Y/timepoint=Z/` (one file per condition)
+  - `(metadata, well_summary_file, platemap_file)` tuples (one per plate, one row per well)
+  - These flow into the partition step alongside the per-cell files
 
-This output can be transformed into a Nextflow channel of `(cell_line, compound, timepoint, partition_file)` tuples discovered via `Channel.fromPath` + `map`
+### Reorganize / partition data
+
+Per-cell and well-summary plate files are each collected across batches and partitioned using the same DuckDB process, likely as two separate channel items that invoke the same process independently.
+DuckDB joins each set of plate files with their corresponding platemaps and writes a globally partitioned dataset, outputting one parquet file per `(cell_line, compound, timepoint)` combination.
+Both the per-cell and well-summary data use the same partition keys, keeping the two datasets structurally parallel and making it straightforward to pair them in downstream grouping steps.
+
+- **Input:**
+  - All `(metadata, batch_normalized_parquet_file, platemap_file)` tuples collected into a single list via `collect()` (per-cell)
+  - All `(metadata, well_summary_file, platemap_file)` tuples collected into a single list via `collect()` (well-summary)
+- **Output:**
+  - Per-cell hive-partitioned parquet files under `partitions/cells/cell_line=X/compound=Y/timepoint=Z/`
+  - Well-summary hive-partitioned parquet files under `partitions/wells/cell_line=X/compound=Y/timepoint=Z/`
+
+Each output is transformed into a Nextflow channel of `(cell_line, compound, timepoint, partition_file)` tuples discovered via `Channel.fromPath` + `map`.
 
 ### Generate reference / annotation lists
 
@@ -126,9 +143,10 @@ These reference files are used by later steps to define analysis groupings, labe
 ### Construct analysis groupings
 
 The per-condition partition files are keyed by `(cell_line, compound, timepoint)`, but each visualization grouping requires a _different_ aggregation of those files.
-Before invoking the visualization process, the workflow re-groups the partition-file channel by joining with the reference/annotation lists and applying a new `groupTuple` key for each grouping type:
+Before invoking the visualization process, the workflow re-groups the partition-file channel by joining with the reference/annotation lists and applying a new `groupTuple` key for each grouping type.
+Well-summary groupings draw from the well-summary partition channel; per-cell groupings draw from the per-cell partition channel.
 
-- **Per-well groupings** (joining with cancer type and MOA/target annotations):
+- **Well-summary groupings** (joining with cancer type and MOA/target annotations):
   - All cell lines of the same cancer type (untreated only)
   - All compounds with the same MOA within a cell line
   - All compounds with the same target within a cell line
@@ -153,7 +171,7 @@ This preserves the complete dataset for user downloads while ensuring that visua
 
 Feature selection runs on the combined data for each grouping (all partition files for that grouping assembled together), selecting features that are informative across the conditions in that grouping.
 Different groupings may yield different selected feature sets, which is intentional — the features relevant to comparing MOAs within a cell line are not necessarily the same as those relevant to comparing cell lines across a compound.
-pycytominer's `feature_select()` function will be used, with the specific operations (variance threshold, correlation filter, drop outliers, etc.) to be determined.
+pycytominer's `feature_select()` function will likely be used, with the specific operations (variance threshold, correlation filter, drop outliers, etc.) to be determined.
 
 - **Input:**
   - `(grouping_metadata, [partition_files])` tuples from the analysis grouping step
@@ -185,8 +203,8 @@ Detail to come.
 ## OME-Arrow Data _(coming)_
 
 If input data is provided in OME-Arrow format as expected, we may want to adapt to use that to keep files together. But for now I focused on parquet inputs and outputs.
-
-A question I only just realized is whether well data would also be in OME-arrow format, or just the per-cell data.
+It seems like we can convert OME-Arrow files to OME-parquet format, which would let us keep the rest of the pipeline focused on parquet-based processing.
+Alternatively, we might run through with smaller parquet files (no images) and then rejoin them with the OME-Arrow files at the end for user download, or for any visualizations that want to include images.
 
 ## Flowchart
 
@@ -197,7 +215,6 @@ flowchart TD
     subgraph IN["Inputs"]
         SS["Samplesheet"]
         CPQ["Per-cell parquet files"]
-        WPQ["Per-well parquet files"]
         CA["Compound annotations"]
         OA["OME-Arrow files *(coming)*"]
     end
@@ -207,25 +224,17 @@ flowchart TD
         VI_C["Validate & ingest"]
         QC_C["QC & filter"]
         N_C["Normalize to U2OS"]
-        P_C["Reorganize / partition"]
-        VI_C --> QC_C --> N_C --> P_C
-    end
-
-    subgraph WELL["Per-well pathway"]
-        direction TB
-        VI_W["Validate & ingest"]
-        QC_W["QC & filter"]
-        N_W["Normalize to U2OS"]
-        P_W["Reorganize / partition"]
-        VI_W --> QC_W --> N_W --> P_W
+        WSM["Aggregate to well level"]
+        P["Reorganize / partition\n(cells & wells)"]
+        VI_C --> QC_C --> N_C --> WSM & P
+        WSM --> P
     end
 
     SS & CPQ --> VI_C
-    SS & WPQ --> VI_W
     OA -.-> VI_C
     SS & CA --> REF["Generate reference & annotation lists"]
 
-    P_C & P_W --> GRP["Construct analysis groupings"]
+    P --> GRP["Construct analysis groupings"]
     REF --> GRP
 
     GRP --> FS["Feature selection"]
