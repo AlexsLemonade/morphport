@@ -226,9 +226,9 @@ flowchart TD
         direction TB
         VI_C["Validate & ingest"]
         QC_C["QC & filter"]
-        N_C["Normalize to U2OS"]
+        N_C["Batch normalization (optional)"]
         WSM["Aggregate to well level"]
-        P["Reorganize / partition\n(cells & wells)"]
+        P["Reorganize / partition (cells & wells)"]
         VI_C --> QC_C --> N_C --> WSM & P
         WSM --> P
     end
@@ -243,5 +243,5 @@ flowchart TD
     GRP --> FS["Feature selection"]
     FS --> VIZ["Create visualizations"]
     FS --> SIM["Consensus similarity matrices"]
-    SIM --> MAP["mAP scoring"]
+    FS --> MAP["mAP scoring"]
 ```
