@@ -7,7 +7,7 @@ For reference, here is an image of the whiteboard we created when working throug
 ## Pipeline Outline
 
 This pipeline processes Cell Painting morphological profiling data from CytoTable through QC, dimensionality reduction, and similarity-based scoring.
-The primary input is **per-cell** parquet files (or potentially other formats, but we will assume parquet for now, with conversion to parquet if we need to).
+The primary input is **per-cell** sqlite files (or potentially other formats as this might be changing to parquet in some versions, but we will assume sqlite for now).
 Well-level summary statistics will be derived from the per-cell data within the pipeline as needed (in contrast to the description on the whiteboard, which shows them as separate inputs).
 It is likely we will also get `OME-Arrow` files, which bundle per-cell morphological features together with cell images.
 These should be convertible to `OME-parquet` format, which I think will let us still use some of the on-disk capabilities of duckDB, but we will see what is needed on that front.
@@ -31,11 +31,11 @@ The primary packages expected to be used are:
 Data downloaded from the Cell Painting Gallery (CPG) (or equivalent) after processing with CytoTable, plus some additional annotation files, will be the primary inputs to the pipeline.
 The expected inputs are:
 
-- **Per-cell parquet files** — one or more parquet files per plate, organized on CPG as `workspace/profiles/<batch>/<plate>/<plate_name>.parquet`; each row is a single cell with morphological feature columns. If these files are already normalized, that is great, but we may need to add per-plate normalization as a step in the pipeline on import.
+- **Per-cell sqlite files** — one sqlite file per plate, organized on CPG as `workspace/backend/`.
 - _(possibly)_ **OME-Arrow files** — alternative format that includes per-cell images alongside morphological features
 - **Platemap files** — Platemap files with per-well metadata (cell line, compound, concentration, etc.) that can be joined to the per-cell data based on plate and well identifiers.
   These should be found in the `workspace/metadata/` directory on CPG
-- **Samplesheet** — Table with one row per plate, including the location of plate data files, the associated platemap file, and other associated metadata such as batch, timepoint, etc.
+- **Samplesheet** — Table with one row per plate, including the location of plate data file, the associated platemap file, and other associated metadata such as batch, timepoint, etc.
 - **Compound annotation files** — MOA (mechanism of action) and target dictionaries mapping compound names to biological annotations
 
 ## Processing steps
@@ -43,19 +43,19 @@ The expected inputs are:
 ### Validate and ingest inputs
 
 The pipeline takes a samplesheet listing the batches and plates to be processed, along with the root path to the Cell Painting Gallery data.
-It should discover all parquet files matching the expected `workspace/profiles/<batch>/<plate>/` subdirectory pattern and cross-reference them against the samplesheet to verify that every expected plate has at least one corresponding file.
+It should check for all sqlite files matching the expected `workspace/backend/<batch>/<plate>/` subdirectory pattern and cross-reference them against the samplesheet to verify that every expected plate has at least one corresponding file.
 Any plates listed in the samplesheet but missing from disk should raise a warning or error.
 
 This step is implemented primarily as workflow logic (using `Channel.fromPath`, `splitCsv`, and Groovy operations) rather than a Nextflow process.
 The samplesheet should include the path for the corresponding platemap file.
 
-The output is a Nextflow channel in which each element pairs a parquet file path with a metadata map (batch, plate, timepoint, platemap path, etc.) derived from the samplesheet.
+The output is a Nextflow channel in which each element pairs each plate data file and platemap file with a metadata map (batch, plate, timepoint, platemap path, etc.) derived from the samplesheet.
 
 - **Input:**
   - Samplesheet (CSV) listing batches and plates to include, with platemap path per plate
-  - Per-cell parquet files under `workspace/profiles/<batch>/<plate>/`
+  - Per-cell sqlite files under `workspace/backend/`
 - **Output:**
-  - Validated Nextflow channel of `(metadata, parquet_file, platemap_file)` tuples, one entry per plate file
+  - Validated Nextflow channel of `(metadata, sqlite_file, platemap_file)` tuples, one entry per plate file
   - Pipeline-level summary of plates found vs. expected
 
 ### QC and filter cells / wells
@@ -64,14 +64,16 @@ This step applies QC metrics (e.g., from WayLab / coSMicQC) to flag and remove l
 QC criteria may include cell count thresholds, out-of-focus scores, segmentation quality flags, or other plate-level anomaly metrics.
 (Note that this is earlier than the QC step in the whiteboard image, as I think we can filter without needing to do any per-condition grouping first.)
 
+At this stage we will also convert the per-cell data from sqlite to parquet format, which is more efficient for downstream processing.
+
 If we need to perform per-plate normalization, this would be done at this stage as well.
 
-QC runs **per plate file** (one process invocation per plate parquet file), before any partitioning.
+QC runs **per plate file** (one process invocation per plate sqlite file), before any partitioning.
 Running QC at this stage preserves the full plate context needed for plate-level metric computation — for example, identifying bad wells by comparing them against all other wells on the same plate.
 Each invocation produces a filtered parquet file and a per-plate QC report.
 
 - **Input:**
-  - `(metadata, parquet_file, platemap_file)` tuples from ingest step
+  - `(metadata, sqlite_file, platemap_file)` tuples from ingest step
   - QC parameters/thresholds
 - **Output:**
   - `(metadata, filtered_parquet_file, platemap_file)` tuples (one per input file, bad wells/cells excluded)
@@ -82,7 +84,7 @@ Each invocation produces a filtered parquet file and a per-plate QC report.
 We may also want to perform batch normalization among plates within a batch.
 However, this remains an open scientific question at the moment.
 We may want to have the option to run with or without batch normalization at this point, and perhaps experiment with different normalization approaches.
-Alternatvely, we can branch here, with and without batch normalization, and carry both versions through the rest of the pipeline for comparison.
+Alternatively, we can branch here, with and without batch normalization, and carry both versions through the rest of the pipeline for comparison.
 
 Plates are grouped by batch, and within each batch, the DMSO wells on U2OS plates are used to compute a reference profile; all plates in the batch are then normalized relative to that reference using pycytominer's `normalize()` function.
 The output is a set of batch-normalized per-plate parquet files.
@@ -214,7 +216,8 @@ I had a rough flowchart made by Claude; this is just for experimentation as I am
 flowchart TD
     subgraph IN["Inputs"]
         SS["Samplesheet"]
-        CPQ["Per-cell parquet files"]
+        CPQ["Per-cell sqlite files"]
+        PM["Platemap files"]
         CA["Compound annotations"]
         OA["OME-Arrow files *(coming)*"]
     end
@@ -230,7 +233,7 @@ flowchart TD
         WSM --> P
     end
 
-    SS & CPQ --> VI_C
+    SS & CPQ & PM --> VI_C
     OA -.-> VI_C
     SS & CA --> REF["Generate reference & annotation lists"]
 
