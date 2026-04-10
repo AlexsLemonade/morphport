@@ -10,21 +10,21 @@ This pipeline processes Cell Painting morphological profiling data from CytoTabl
 The primary input is **per-cell** sqlite files (or potentially other formats as this might be changing to parquet in some versions, but we will assume sqlite for now).
 Well-level summary statistics will be derived from the per-cell data within the pipeline as needed (in contrast to the description on the whiteboard, which shows them as separate inputs).
 It is likely we will also get `OME-Arrow` files, which bundle per-cell morphological features together with cell images.
-These should be convertible to `OME-parquet` format, which I think will let us still use some of the on-disk capabilities of duckDB, but we will see what is needed on that front.
+These should be convertible to `OME-parquet` format, which I think will let us still use some of the on-disk capabilities of DuckDB, but we will see what is needed on that front.
 
 ## Key Python Packages
 
 Most processing steps are implemented in Python.
 The primary packages expected to be used are:
 
-- **[polars](https://pola.rs/)** / **[pyarrow](https://arrow.apache.org/docs/python/)** -- parquet I/O and data manipulation
-- **[pycytominer](https://github.com/cytomining/pycytominer)** -- core morphological profiling operations: feature selection, normalization, aggregation, and consensus profile generation
+- **[CytoTable](https://github.com/cytomining/cytotable)** -- reading Cell Painting data from sqlite files, and conversion to parquet format.
+- **[Pycytominer](https://github.com/cytomining/pycytominer)** -- core morphological profiling operations: feature selection, normalization, aggregation, and consensus profile generation
 - **[OME-Arrow](https://github.com/WayScience/ome-arrow)** -- reading OME-Arrow files that bundle per-cell images with morphological features
 - **[coSMicQC](https://github.com/WayScience/coSMicQC)** -- QC filtering of wells and cells based on CellProfiler-derived metrics
 - **[copairs](https://github.com/cytomining/copairs)** -- pairwise similarity comparisons and mAP scoring
 - **[umap-learn](https://umap-learn.readthedocs.io/)** -- UMAP dimensionality reduction for visualizations
 - **[scipy](https://scipy.org/)** -- hierarchical clustering (for dendrogram / Newick output in visualizations)
-- **[duckdb](https://duckdb.org/)** -- efficient multi-file parquet joins and partitioned writes for the reorganization step
+- **[DuckDB](https://duckdb.org/)** -- efficient multi-file parquet joins and partitioned writes for the reorganization step
 
 ## Inputs
 
@@ -58,22 +58,35 @@ The output is a Nextflow channel in which each element pairs each plate data fil
   - Validated Nextflow channel of `(metadata, sqlite_file, platemap_file)` tuples, one entry per plate file
   - Pipeline-level summary of plates found vs. expected
 
+### Convert to parquet format
+
+Before any processing, the per-cell data is converted from sqlite to parquet format.
+The sqlite files from CellProfiler can be in a couple of formats, so the very first step is going to be to make sure everything is in a consistent parquet format that we can work with for the rest of the pipeline.
+
+For this we will use CytoTable to ensure that all of the data is collated and written out in a consistent parquet format.
+This step runs **per plate file** (one process invocation per plate sqlite file), and produces a parquet file with one row per cell and columns for all morphological features and metadata (plate, well, cell ID, etc.).
+The output parquet file is passed forward to the QC step.
+
+- **Input:**
+  - `(metadata, sqlite_file, platemap_file)` tuples from ingest step
+  - Any parameters needed for the conversion (e.g., expected column names, feature prefixes to include/exclude, etc.)
+- **Output:**
+  - `(metadata, parquet_file, platemap_file)` tuples (one per input file, with the per-cell data now in parquet format)
+
 ### QC and filter cells / wells
 
 This step applies QC metrics (e.g., from WayLab / coSMicQC) to flag and remove low-quality wells and/or individual cells.
 QC criteria may include cell count thresholds, out-of-focus scores, segmentation quality flags, or other plate-level anomaly metrics.
 (Note that this is earlier than the QC step in the whiteboard image, as I think we can filter without needing to do any per-condition grouping first.)
 
-At this stage we will also convert the per-cell data from sqlite to parquet format, which is more efficient for downstream processing.
-
 If we need to perform per-plate normalization, this would be done at this stage as well.
 
-QC runs **per plate file** (one process invocation per plate sqlite file), before any partitioning.
+QC runs **per plate file** (one process invocation per plate parquet file), before any partitioning.
 Running QC at this stage preserves the full plate context needed for plate-level metric computation — for example, identifying bad wells by comparing them against all other wells on the same plate.
 Each invocation produces a filtered parquet file and a per-plate QC report.
 
 - **Input:**
-  - `(metadata, sqlite_file, platemap_file)` tuples from ingest step
+  - `(metadata, parquet_file, platemap_file)` tuples from conversion step
   - QC parameters/thresholds
 - **Output:**
   - `(metadata, filtered_parquet_file, platemap_file)` tuples (one per input file, bad wells/cells excluded)
@@ -158,6 +171,7 @@ Well-summary groupings draw from the well-summary partition channel; per-cell gr
   - All conditions (compound + untreated) within a cell line
 
 Each grouping is then `combine()`d with `[true, false]` to produce two channel items, one with edge wells included and one without, before being passed to the feature selection and visualisation processes.
+
 This will let us pass all of the desired groupings to a uniform set of processes.
 
 The grouping metadata (including whether edge wells are included) will be consolidated into a single map that is passed alongside the partition files.
@@ -174,6 +188,8 @@ This preserves the complete dataset for user downloads while ensuring that visua
 Feature selection runs on the combined data for each grouping (all partition files for that grouping assembled together), selecting features that are informative across the conditions in that grouping.
 Different groupings may yield different selected feature sets, which is intentional — the features relevant to comparing MOAs within a cell line are not necessarily the same as those relevant to comparing cell lines across a compound.
 pycytominer's `feature_select()` function will likely be used, with the specific operations (variance threshold, correlation filter, drop outliers, etc.) to be determined.
+
+We will also want to create illumination channel-specific feature lists, so that we can run feature selection on each channel independently.
 
 - **Input:**
   - `(grouping_metadata, [partition_files])` tuples from the analysis grouping step
@@ -216,7 +232,7 @@ I had a rough flowchart made by Claude; this is just for experimentation as I am
 flowchart TD
     subgraph IN["Inputs"]
         SS["Samplesheet"]
-        CPQ["Per-cell sqlite files"]
+        CSQL["Per-cell sqlite files"]
         PM["Platemap files"]
         CA["Compound annotations"]
         OA["OME-Arrow files *(coming)*"]
@@ -225,16 +241,20 @@ flowchart TD
     subgraph CELL["Per-cell pathway"]
         direction TB
         VI_C["Validate & ingest"]
+        CPQ["Convert to parquet"]
         QC_C["QC & filter"]
         N_C["Batch normalization (optional)"]
-        WSM["Aggregate to well level"]
-        P["Reorganize / partition (cells & wells)"]
-        VI_C --> QC_C --> N_C --> WSM & P
-        WSM --> P
+        VI_C --> CPQ --> QC_C --> N_C
     end
 
-    SS & CPQ & PM --> VI_C
+    SS & CSQL & PM --> VI_C
     OA -.-> VI_C
+
+    WSM["Aggregate to well level"]
+    P["Reorganize / partition (cells & wells)"]
+    N_C --> WSM & P
+    WSM --> P
+
     SS & CA --> REF["Generate reference & annotation lists"]
 
     P --> GRP["Construct analysis groupings"]
