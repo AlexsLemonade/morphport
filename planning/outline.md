@@ -75,7 +75,7 @@ The output parquet file is passed forward to the QC step.
 
 ### QC and filter cells / wells
 
-This step applies QC metrics (e.g., from WayLab / coSMicQC) to flag and remove low-quality wells and/or individual cells.
+This step applies QC metrics (e.g., from Way Lab / coSMicQC) to flag and remove low-quality wells and/or individual cells.
 QC criteria may include cell count thresholds, out-of-focus scores, segmentation quality flags, or other plate-level anomaly metrics.
 (Note that this is earlier than the QC step in the whiteboard image, as I think we can filter without needing to do any per-condition grouping first.)
 
