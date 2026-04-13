@@ -27,7 +27,7 @@ process CYTOTABLE_CONVERT {
         source_path="${sqlite}",
         dest_path="${meta.plate_id}.parquet",
         dest_datatype="parquet",
-        preset="cellprofiler_sqlite_pycytominer",  # formats output for pycytominer compatibility
+        preset="${meta.cytotable_preset}",
     )
     # nf-core convention: emit software versions for pipeline provenance tracking
     import sys

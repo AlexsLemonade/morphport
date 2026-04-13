@@ -21,7 +21,7 @@ input:
         type: map
         description: |
           Groovy Map containing plate metadata,
-          e.g. [ plate_id:'UL000109', batch:'Batch1_20221004' ]
+          e.g. [ plate_id:'UL000109', batch:'Batch1_20221004', cytotable_preset:'cellprofiler_sqlite_cpg0016_jump' ]
     - sqlite:
         type: file
         description: CellProfiler SQLite file

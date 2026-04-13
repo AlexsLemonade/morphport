@@ -23,14 +23,10 @@ workflow PCCMA {
     ch_versions = channel.empty()
 
     // TODO: Replace with samplesheet-derived channel (see planning/outline.md ingest step)
-    ch_sqlite = Channel.of(
+    ch_sqlite = channel.of(
         [
-            [plate_id: 'UL000109', batch: 'Batch1_20221004'],
-            file('s3://cellpainting-gallery/cpg0016-jump/source_1/workspace/backend/Batch1_20221004/UL000109/UL000109.sqlite')
-        ],
-        [
-            [plate_id: 'UL001647', batch: 'Batch2_20221006'],
-            file('s3://cellpainting-gallery/cpg0016-jump/source_1/workspace/backend/Batch2_20221006/UL001647/UL001647.sqlite')
+            [plate_id: 'UL000109', batch: 'Batch1_20221004', cytotable_preset: 'cellprofiler_sqlite_cpg0016_jump'],
+            file("${projectDir}/data/cpg0016-jump/source_1/workspace/backend/Batch1_20221004/UL000109/UL000109.sqlite")
         ]
     )
 
@@ -40,7 +36,7 @@ workflow PCCMA {
     //
     // Collate and save software versions
     //
-    def topic_versions = Channel.topic("versions")
+    def topic_versions = channel.topic("versions")
         .distinct()
         .branch { entry ->
             versions_file: entry instanceof Path
