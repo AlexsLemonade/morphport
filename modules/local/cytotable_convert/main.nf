@@ -3,7 +3,10 @@ process CYTOTABLE_CONVERT {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    container "community.wave.seqera.io/library/pip_cytotable:2c29a8bfc594d5ea"
+    // containers from https://seqera.io/containers (Wave community registry)
+    container "${ task.arch == 'arm64' ?
+        'community.wave.seqera.io/library/pip_cytotable:79a45963512d0772' :
+        'community.wave.seqera.io/library/pip_cytotable:2c29a8bfc594d5ea' }"
 
     input:
     tuple val(meta), path(sqlite)
