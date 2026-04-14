@@ -25,8 +25,8 @@ workflow PCCMA {
     // TODO: Replace with samplesheet-derived channel (see planning/outline.md ingest step)
     ch_sqlite = channel.of(
         [
-            [plate_id: 'UL000109', batch: 'Batch1_20221004', cytotable_preset: 'cellprofiler_sqlite_cpg0016_jump'],
-            file("${projectDir}/data/cpg0016-jump/source_1/workspace/backend/Batch1_20221004/UL000109/UL000109.sqlite")
+            [plate_id: 'BR00126114', batch: '2021_08_23_Batch12', cytotable_preset: 'cellprofiler_sqlite_cpg0016_jump'],
+            file("${projectDir}/data/cpg0016-jump/source_3/workspace/backend/2021_08_23_Batch12/BR00126114/BR00126114.sqlite")
         ]
     )
 
