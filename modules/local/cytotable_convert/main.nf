@@ -12,24 +12,5 @@ process CYTOTABLE_CONVERT {
     path "versions.yml",                        emit: versions
 
     script:
-    """
-    #!/usr/bin/env python3
-    import cytotable
-    cytotable.convert(
-        source_path="${sqlite}",
-        dest_path="${meta.plate_id}.parquet",
-        dest_datatype="parquet",
-        preset="${meta.cytotable_preset}",
-    )
-    # nf-core convention: emit software versions for pipeline provenance tracking
-    import sys
-    import duckdb
-    import pyarrow
-    with open("versions.yml", "w") as f:
-        f.write('"${task.process}":\\n')
-        f.write(f"    python: {sys.version.split()[0]}\\n")
-        f.write(f"    cytotable: {cytotable.__version__}\\n")
-        f.write(f"    duckdb: {duckdb.__version__}\\n")
-        f.write(f"    pyarrow: {pyarrow.__version__}\\n")
-    """
+    template 'cytotable_convert.py'
 }
