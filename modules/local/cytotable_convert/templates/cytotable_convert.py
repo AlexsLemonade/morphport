@@ -24,7 +24,7 @@ cytotable.convert(
 
 with open("versions.yml", "w") as f:
     f.write(
-        "\n".join(
+        "\\n".join(
             [
                 '"${task.process}":',
                 f"    python: {sys.version.split()[0]}",
@@ -33,5 +33,5 @@ with open("versions.yml", "w") as f:
                 f"    pyarrow: {pyarrow.__version__}",
             ]
         )
-        + "\n"
+        + "\\n"
     )
