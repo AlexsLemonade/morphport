@@ -42,6 +42,11 @@ output:
           description: File containing software versions
           pattern: "versions.yml"
 
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
 authors:
   - "@jashapiro"
 maintainers:
