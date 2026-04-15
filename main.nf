@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    AlexsLemonade/pccma
+    AlexsLemonade/pccma-nf
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     Github : https://github.com/AlexsLemonade/pccma-nf
 ----------------------------------------------------------------------------------------
@@ -14,8 +14,8 @@
 */
 
 include { PCCMA  } from './workflows/pccma'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pccma_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccma_pipeline'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pccma-nf_pipeline'
+include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccma-nf_pipeline'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE

@@ -9,7 +9,7 @@
 
             [
                 "pipeline_info",
-                "pipeline_info/pccma_software_versions.yml"
+                "pipeline_info/pccma-nf_software_versions.yml"
             ],
             [
 
