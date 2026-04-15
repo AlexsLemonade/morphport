@@ -14,7 +14,7 @@ process CYTOTABLE_CONVERT {
 
     output:
     tuple val(meta), path("${meta.plate_id}.parquet"), emit: parquet
-    path "versions.yml", emit: versions
+    path "versions.yml", emit: versions, topic: versions
 
     script:
     template 'cytotable_convert.py'

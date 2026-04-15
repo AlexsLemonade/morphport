@@ -36,11 +36,10 @@ output:
           type: file
           description: Per-cell parquet file with morphological features
           pattern: "*.parquet"
-  - versions:
-      - "versions.yml":
-          type: file
-          description: File containing software versions
-          pattern: "versions.yml"
+versions:
+  - versions.yml:
+      type: file
+      description: YAML file containing versions of tools used in the module
 
 extra:
   additional-platforms:

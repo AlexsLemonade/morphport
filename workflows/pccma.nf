@@ -20,8 +20,6 @@ workflow PCCMA {
     ch_samplesheet // channel: samplesheet read in from --input
     main:
 
-    ch_versions = channel.empty()
-
     // TODO: Replace with samplesheet-derived channel (see planning/outline.md ingest step)
     ch_sqlite = channel.of(
         [
@@ -37,7 +35,6 @@ workflow PCCMA {
     )
 
     CYTOTABLE_CONVERT(ch_sqlite)
-    ch_versions = ch_versions.mix(CYTOTABLE_CONVERT.out.versions.first())
 
     //
     // Collate and save software versions
@@ -59,7 +56,7 @@ workflow PCCMA {
             "${process}:\n${tool_versions.join('\n')}"
         }
 
-    softwareVersionsToYAML(ch_versions.mix(topic_versions.versions_file))
+    softwareVersionsToYAML(topic_versions.versions_file)
         .mix(topic_versions_string)
         .collectFile(
             storeDir: "${params.outdir}/pipeline_info",
@@ -70,7 +67,7 @@ workflow PCCMA {
 
 
     emit:
-    versions       = ch_versions                 // channel: [ path(versions.yml) ]
+    versions       = ch_collated_versions
 
 }
 
