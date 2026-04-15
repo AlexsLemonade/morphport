@@ -30,6 +30,9 @@ lint:
     - assets/multiqc_config.yml
     - conf/igenomes.config
     - conf/igenomes_ignored.config
+  actions_nf_test: false
+  pipeline_name_conventions: false
+  readme: false
 
 template:
   org: AlexsLemonade
