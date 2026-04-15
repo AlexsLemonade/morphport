@@ -4,6 +4,7 @@
     "nextflow.formatting.harshilAlignment": true,
     "nextflow.formatting.sortDeclarations": true,
     "[nextflow-config]": {
-        "editor.formatOnSave": false
-    }
+        "editor.formatOnSave": true
+    },
+    "nextflow.files.exclude": [".git", ".nf-test", "work", ".pixi"]
 }
