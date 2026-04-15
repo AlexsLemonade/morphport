@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
+"""
+This script template converts a CellProfiler SQLite database to Parquet format using the cytotable library.
+It is designed to be run as part of a Nextflow workflow, with parameters passed in from the workflow.
+"""
+
 import os
 import sys
 
 import duckdb
 import pyarrow
+from parsl import Config
+from parsl.executors import ThreadPoolExecutor
 
 # Limit threads used by DuckDB instances
 # Must be set before importing cytotable
@@ -17,11 +24,12 @@ cytotable.convert(
     dest_datatype="parquet",
     preset="${meta.cytotable_preset}",
     chunksize=100_000,  # Tune this based on memory constraints and performance testing
+    parsl_config=Config(
+        executors=[ThreadPoolExecutor(max_threads=int("${task.cpus}"))]
+    ),
 )
 
-# nf-core convention: emit core software versions for pipeline provenance tracking
-
-
+# for nf-core software version tracking
 with open("versions.yml", "w") as f:
     f.write(
         "\\n".join(
