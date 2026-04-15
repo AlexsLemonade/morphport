@@ -4,7 +4,6 @@ This script template converts a CellProfiler SQLite database to Parquet format u
 It is designed to be run as part of a Nextflow workflow, with parameters passed in from the workflow.
 """
 
-import math
 import os
 import sys
 
@@ -13,14 +12,12 @@ import pyarrow
 from parsl import Config
 from parsl.executors import HighThroughputExecutor
 
-# Set multiprocessing thread allocation
+# Set multiprocessing and thread allocation
 # Redundant int("${}") conversion to fool python linters/formatters
-cpus = int("${task.cpus}")
+parsl_workers = int("${task.cpus}")
+# allow 2 duckdb and pyarrow threads per worker
+# this seems to work reasonably well to match CPU usage to the allocated cpus, at least in local testing
 subprocess_threads = 2
-# allow double the cpus for total threads
-parsl_workers = math.ceil(2 * cpus / subprocess_threads)
-
-# Assign subprocess threads for pyarrow and duckdb (via cytotable)
 pyarrow.set_cpu_count(subprocess_threads)
 pyarrow.set_io_thread_count(subprocess_threads)
 os.environ["CYTOTABLE_MAX_THREADS"] = str(subprocess_threads)
@@ -33,7 +30,7 @@ cytotable.convert(
     dest_path="${meta.plate_id}.parquet",
     dest_datatype="parquet",
     preset="${meta.cytotable_preset}",
-    chunksize=100_000,  # Tune this based on memory constraints and performance testing
+    chunksize=100_000,
     parsl_config=Config(
         executors=[HighThroughputExecutor(max_workers_per_node=parsl_workers)]
     ),
