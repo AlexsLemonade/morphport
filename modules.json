@@ -1,5 +1,5 @@
 {
-    "name": "AlexsLemonade/pccma-nf",
+    "name": "AlexsLemonade/pccma",
     "homePage": "https://github.com/AlexsLemonade/pccma-nf",
     "repos": {
         "https://github.com/nf-core/modules.git": {
