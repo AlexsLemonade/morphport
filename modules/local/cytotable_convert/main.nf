@@ -17,7 +17,7 @@ process CYTOTABLE_CONVERT {
     path "versions.yml", emit: versions
 
     script:
-    template('cytotable_convert.py')
+    template 'cytotable_convert.py'
 
     stub:
     """
