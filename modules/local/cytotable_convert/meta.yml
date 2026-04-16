@@ -1,0 +1,52 @@
+name: cytotable_convert
+description: Converts CellProfiler SQLite files to parquet format using CytoTable
+keywords:
+  - cell painting
+  - cytotable
+  - parquet
+  - sqlite
+  - cellprofiler
+tools:
+  - cytotable:
+      description: >
+        CytoTable converts morphological profiling readouts from CellProfiler into
+        analysis-ready parquet format.
+      homepage: https://github.com/cytomining/cytotable
+      documentation: https://cytomining.github.io/CytoTable/
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing plate metadata,
+          e.g. [ plate_id:'UL000109', batch:'Batch1_20221004', cytotable_preset:'cellprofiler_sqlite_cpg0016_jump' ]
+    - sqlite:
+        type: file
+        description: CellProfiler SQLite file
+        pattern: "*.sqlite"
+
+output:
+  - parquet:
+      - meta:
+          type: map
+          description: Groovy Map containing plate metadata
+      - "*.parquet":
+          type: file
+          description: Per-cell parquet file with morphological features
+          pattern: "*.parquet"
+versions:
+  - versions.yml:
+      type: file
+      description: YAML file containing versions of tools used in the module
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"

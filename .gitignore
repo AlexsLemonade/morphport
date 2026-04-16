@@ -11,3 +11,7 @@ null/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+results_test/
+
+.claude/settings.local.json

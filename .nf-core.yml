@@ -30,10 +30,14 @@ lint:
     - assets/multiqc_config.yml
     - conf/igenomes.config
     - conf/igenomes_ignored.config
+  actions_nf_test: false
+  main_nf_include_versions: false
+  pipeline_name_conventions: false
+  readme: false
 
 template:
   org: AlexsLemonade
-  name: pccma-nf
+  name: pccma
   description: Downstream analysis of Cell Painting data to prepare for the PCCMA
     portal
   author: Joshua Shapiro

@@ -1,0 +1,10 @@
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.14
+  - python-duckdb==1.5.2
+  - pyarrow==23.0.1
+  - pip
+  - pip:
+      - cytotable==1.2.0
