@@ -103,8 +103,7 @@ def validatePlateDirs(ch) {
         }
         else if (meta.plate_dir && meta.cytotable_preset.contains("csv")) {
             // check for expected CSV files
-            // TODO: make sure this list is the complete set of expected CSV files for the cytotable conversion step
-            def expected_csvs = ["Cells.csv", "Cytoplasm.csv", "Nuclei.csv"]
+            def expected_csvs = ["Cells.csv", "Cytoplasm.csv", "Nuclei.csv", "Image.csv"]
             def missing = expected_csvs.findAll { csv_file -> !file("${meta.plate_dir}/${csv_file}").exists() }
             if (missing) {
                 errors << "Expected CSV files not found for plate '${meta.plate_id}' at ${meta.plate_dir}: ${missing.join(', ')}"
