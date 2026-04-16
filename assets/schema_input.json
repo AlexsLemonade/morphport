@@ -45,8 +45,12 @@
             },
             "cytotable_preset": {
                 "type": "string",
-                "pattern": "^\\S+$",
-                "errorMessage": "CytoTable preset name cannot contain spaces",
+                "enum": [
+                    "cellprofiler_csv",
+                    "cellprofiler_sqlite",
+                    "cellprofiler_sqlite_cpg0016_jump",
+                    "cellprofiler_sqlite_pycytominer"
+                ],
                 "meta": ["cytotable_preset"],
                 "default": "cellprofiler_sqlite_cpg0016_jump"
             }

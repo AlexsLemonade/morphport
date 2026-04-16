@@ -33,16 +33,24 @@ def validatePlateDirs(ch) {
     }
 
     processed.each { meta ->
-        if (meta.plate_dir) {
+        if (meta.plate_dir && meta.cytotable_preset.contains("sqlite")) {
             def sqlite_files = file("${meta.plate_dir}/*.sqlite")
             if (sqlite_files.isEmpty()) {
                 errors << "No sqlite file found for plate '${meta.plate_id}' at ${meta.plate_dir}"
+            }
+        } else if (meta.plate_dir && meta.cytotable_preset.contains("csv")) {
+            def expected_csvs = ["Cells.csv", "Cytoplasm.csv", "Nuclei.csv"]
+            def missing = expected_csvs
+                .findAll { csv_file -> !file("${meta.plate_dir}/${csv_file}").exists() }
+            if (missing) {
+                errors << "Expected CSV files not found for plate '${meta.plate_id}' at ${meta.plate_dir}: ${missing.join(', ')}"
             }
         }
     }
 
     if (errors) {
-        log.error("Samplesheet validation failed:\n" + errors.collect { "  - ${it}" }.join("\n"))
+        log.error("Samplesheet validation failed:\n" +
+            errors.collect { err -> "  - ${err}" }.join("\n"))
         System.exit(1)
     }
 
