@@ -10,7 +10,7 @@ process CYTOTABLE_CONVERT {
     }
 
     input:
-    tuple val(meta), path(sqlite)
+    tuple val(meta), path(plate_dir)
 
     output:
     tuple val(meta), path("${meta.plate_id}.parquet"), emit: parquet
