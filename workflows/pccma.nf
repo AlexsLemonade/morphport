@@ -15,26 +15,24 @@ include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable_convert'
 */
 
 workflow PCCMA {
-
     take:
     ch_samplesheet // channel: samplesheet read in from --input
+
     main:
 
-    // TODO: Replace with samplesheet-derived channel (see planning/outline.md ingest step)
-    ch_sqlite = channel.of(
-        [
-            [
-                plate_id: 'BR00126114',
-                project: "cpg0016-jump",
-                source: "source_4",
-                batch: '2021_08_23_Batch12',
-                cytotable_preset: 'cellprofiler_sqlite_cpg0016_jump'
-            ],
-            file("${projectDir}/data/cpg0016-jump/source_4/workspace/backend/2021_08_23_Batch12/BR00126114/")
-        ]
-    )
+    ch_validated = ch_samplesheet
+        .map { meta -> [meta, file(meta.plate_dir)] }
+        .branch { it ->
+            skip_cytotable: it[0].cytotable_preset == 'skip'
+            convert: true
+        }
 
-    CYTOTABLE_CONVERT(ch_sqlite)
+    ch_parquet = ch_validated.skip_cytotable.map { meta, plate_dir ->
+        [meta, file("${plate_dir}/*.parquet")[0]]
+    }
+
+    CYTOTABLE_CONVERT(ch_validated.convert)
+    ch_parquet = ch_parquet.mix(CYTOTABLE_CONVERT.out.parquet)
 
     //
     // Collate and save software versions
@@ -48,9 +46,9 @@ workflow PCCMA {
 
     def topic_versions_string = topic_versions.versions_tuple
         .map { process, tool, version ->
-            [ process[process.lastIndexOf(':')+1..-1], "  ${tool}: ${version}" ]
+            [process[process.lastIndexOf(':') + 1..-1], "  ${tool}: ${version}"]
         }
-        .groupTuple(by:0)
+        .groupTuple(by: 0)
         .map { process, tool_versions ->
             tool_versions.unique().sort()
             "${process}:\n${tool_versions.join('\n')}"
@@ -60,19 +58,12 @@ workflow PCCMA {
         .mix(topic_versions_string)
         .collectFile(
             storeDir: "${params.outdir}/pipeline_info",
-            name:  'pccma_software_'  + 'versions.yml',
+            name: 'pccma_software_' + 'versions.yml',
             sort: true,
-            newLine: true
-        ).set { ch_collated_versions }
-
+            newLine: true,
+        )
+        .set { ch_collated_versions }
 
     emit:
-    versions       = ch_collated_versions
-
+    versions = ch_collated_versions
 }
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    THE END
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/

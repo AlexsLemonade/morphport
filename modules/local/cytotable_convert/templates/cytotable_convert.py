@@ -26,7 +26,7 @@ os.environ["CYTOTABLE_MAX_THREADS"] = str(subprocess_threads)
 import cytotable  # noqa: E402
 
 cytotable.convert(
-    source_path="${sqlite}",
+    source_path="${plate_dir}",
     dest_path="${meta.plate_id}.parquet",
     dest_datatype="parquet",
     preset="${meta.cytotable_preset}",
