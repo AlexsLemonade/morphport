@@ -20,7 +20,7 @@ workflow PCCMA {
 
     main:
 
-    ch_validated = validatePlateDirs(ch_samplesheet)
+    ch_validated = ch_samplesheet
         .map { meta -> [meta, file(meta.plate_dir)] }
         .branch { it ->
             skip_cytotable: it[0].cytotable_preset == 'skip'
@@ -66,63 +66,4 @@ workflow PCCMA {
 
     emit:
     versions = ch_collated_versions
-}
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    FUNCTIONS
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-
-def validatePlateDirs(ch) {
-    // function to validate that we have plate directories for all samples,
-    // and that they contain the expected files for downstream steps
-    // based on the cytotable conversion preset
-
-    // resolve plate_dir for CPG projects that omit it in the samplesheet
-    def ch_platedirs = ch.map { meta ->
-        def plate_dir = meta.plate_dir
-        if (!plate_dir) {
-            if (meta.project =~ /^cpg\d{4}/) {
-                plate_dir = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/backend/${meta.batch}/${meta.plate_id}"
-            }
-            else {
-                error("Plate '${meta.plate_id}': project '${meta.project}'" +
-                    " does not match the expected CPG format (e.g. cpg0016-jump)." +
-                    " Provide 'plate_dir' explicitly in the samplesheet.")
-            }
-        }
-        meta + [plate_dir: plate_dir]
-    }
-
-    // check that plate directories contain the expected files, collecting all errors
-    ch_platedirs.toList().subscribe { metas ->
-        def errors = []
-        metas.each { meta ->
-            if (meta.cytotable_preset.contains("sqlite")) {
-                def sqlite_files = file("${meta.plate_dir}/*.sqlite")
-                if (sqlite_files.isEmpty()) {
-                    errors << "No sqlite file found for plate '${meta.plate_id}' at ${meta.plate_dir}"
-                }
-            }
-            else if (meta.cytotable_preset == "skip") {
-                // skip cytotable conversion, but check that we have one parquet file for later steps
-                def parquet_files = file("${meta.plate_dir}/*.parquet")
-                if (parquet_files.isEmpty()) {
-                    errors << "No parquet file found for plate '${meta.plate_id}' at ${meta.plate_dir}"
-                }
-                else if (parquet_files.size() > 1) {
-                    errors << "Multiple parquet files found for plate '${meta.plate_id}' at ${meta.plate_dir}: ${parquet_files.collect { it.name }.join(', ')}"
-                }
-            }
-        }
-        if (errors) {
-            log.error(
-                "Samplesheet validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
-            )
-            System.exit(1)
-        }
-    }
-
-    return ch_platedirs
 }

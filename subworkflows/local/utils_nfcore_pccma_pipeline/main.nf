@@ -82,6 +82,9 @@ workflow PIPELINE_INITIALISATION {
     channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
         .map { row -> row[0] }
+        .toList()
+        .map { metas -> validateInputSamplesheet(metas) }
+        .flatMap { it }
         .set { ch_samplesheet }
 
     emit:
@@ -144,16 +147,53 @@ workflow PIPELINE_COMPLETION {
 //
 // Validate channels from input samplesheet
 //
-def validateInputSamplesheet(input) {
-    def (metas, fastqs) = input[1..2]
+def validateInputSamplesheet(metas) {
+    def errors = []
 
-    // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
-    def endedness_ok = metas.collect{ meta -> meta.single_end }.unique().size == 1
-    if (!endedness_ok) {
-        error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
+    def metas_with_platedir = metas.collect { meta ->
+        // resolve plate_dir for CPG projects that omit it in the samplesheet
+        def plate_dir = meta.plate_dir
+        if (!plate_dir) {
+            if (meta.project =~ /^cpg\d{4}/) {
+                plate_dir = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/backend/${meta.batch}/${meta.plate_id}"
+            }
+            else {
+                errors << ("Plate '${meta.plate_id}': project '${meta.project}'" +
+                    " does not match the expected CPG format (e.g. cpg0016-jump)." +
+                    " Provide 'plate_dir' explicitly in the samplesheet.")
+            }
+        }
+        // check that plate directories contain the expected files
+        if (plate_dir) {
+            if (meta.cytotable_preset.contains("sqlite")) {
+                def sqlite_files = file("${plate_dir}/*.sqlite")
+                if (sqlite_files.isEmpty()) {
+                    errors << "No sqlite file found for plate '${meta.plate_id}' at ${plate_dir}"
+                }
+            }
+            else if (meta.cytotable_preset == "skip") {
+                // skip cytotable conversion, but check that we have one parquet file for later steps
+                def parquet_files = file("${plate_dir}/*.parquet")
+                if (parquet_files.isEmpty()) {
+                    errors << "No parquet file found for plate '${meta.plate_id}' at ${plate_dir}"
+                }
+                else if (parquet_files.size() > 1) {
+                    errors << "Multiple parquet files found for plate '${meta.plate_id}' at ${plate_dir}: ${parquet_files.collect { it.name }.join(', ')}"
+                }
+            }
+        }
+        // update the plate_dir and return
+        meta + [plate_dir: plate_dir]
     }
 
-    return [ metas[0], fastqs ]
+    if (errors) {
+        log.error(
+            "Samplesheet validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
+        )
+        System.exit(1)
+    }
+
+    return metas_with_platedir
 }
 //
 // Generate methods description for MultiQC
