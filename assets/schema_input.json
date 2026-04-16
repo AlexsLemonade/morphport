@@ -7,27 +7,42 @@
     "items": {
         "type": "object",
         "properties": {
-            "sample": {
+            "plate": {
                 "type": "string",
                 "pattern": "^\\S+$",
-                "errorMessage": "Sample name must be provided and cannot contain spaces",
-                "meta": ["id"]
+                "errorMessage": "Plate ID must be provided and cannot contain spaces",
+                "meta": ["plate_id"]
             },
-            "fastq_1": {
+            "project": {
                 "type": "string",
-                "format": "file-path",
-                "exists": true,
-                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 1 must be provided, cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^\\S+$",
+                "errorMessage": "Project name must be provided and cannot contain spaces",
+                "meta": ["project"]
             },
-            "fastq_2": {
+            "source": {
                 "type": "string",
-                "format": "file-path",
-                "exists": true,
-                "pattern": "^([\\S\\s]*\\/)?[^\\s\\/]+\\.f(ast)?q\\.gz$",
-                "errorMessage": "FastQ file for reads 2 cannot contain spaces and must have extension '.fq.gz' or '.fastq.gz'"
+                "pattern": "^\\S+$",
+                "errorMessage": "Source name must be provided and cannot contain spaces",
+                "meta": ["source"]
+            },
+            "batch": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "Batch name must be provided and cannot contain spaces",
+                "meta": ["batch"]
+            },
+            "platemap": {
+                "type": "string",
+                "meta": ["platemap"]
+            },
+            "cytotable_preset": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "CytoTable preset name cannot contain spaces",
+                "meta": ["cytotable_preset"],
+                "default": "cellprofiler_sqlite_cpg0016_jump"
             }
         },
-        "required": ["sample", "fastq_1"]
+        "required": ["plate", "project", "source", "batch"]
     }
 }

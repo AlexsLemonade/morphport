@@ -20,19 +20,15 @@ workflow PCCMA {
     ch_samplesheet // channel: samplesheet read in from --input
     main:
 
-    // TODO: Replace with samplesheet-derived channel (see planning/outline.md ingest step)
-    ch_sqlite = channel.of(
-        [
-            [
-                plate_id: 'BR00126114',
-                project: "cpg0016-jump",
-                source: "source_4",
-                batch: '2021_08_23_Batch12',
-                cytotable_preset: 'cellprofiler_sqlite_cpg0016_jump'
-            ],
-            file("${projectDir}/data/cpg0016-jump/source_4/workspace/backend/2021_08_23_Batch12/BR00126114/")
-        ]
-    )
+    ch_sqlite = ch_samplesheet
+        .map { meta ->
+            def s3_dir = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/backend/${meta.batch}/${meta.plate_id}"
+            def sqlite_files = file("${s3_dir}/*.sqlite")
+            if (sqlite_files.isEmpty()) {
+                error("No sqlite file found for plate '${meta.plate_id}' at ${s3_dir}")
+            }
+            [ meta, file(s3_dir) ]
+        }
 
     CYTOTABLE_CONVERT(ch_sqlite)
 
