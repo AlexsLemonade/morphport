@@ -101,12 +101,22 @@ def validatePlateDirs(ch) {
                 errors << "No sqlite file found for plate '${meta.plate_id}' at ${meta.plate_dir}"
             }
         }
-        else if (meta.plate_dir && meta.cytotable_preset.contains("csv")) {
+        else if (meta.plate_dir && meta.cytotable_preset == "cellprofiler_csv") {
             // check for expected CSV files
             def expected_csvs = ["Cells.csv", "Cytoplasm.csv", "Nuclei.csv", "Image.csv"]
             def missing = expected_csvs.findAll { csv_file -> !file("${meta.plate_dir}/${csv_file}").exists() }
             if (missing) {
                 errors << "Expected CSV files not found for plate '${meta.plate_id}' at ${meta.plate_dir}: ${missing.join(', ')}"
+            }
+        }
+        else if (meta.plate_dir && meta.cytotable_preset == "cellprofiler_csv_collated") {
+            // check that there is exactly one pre-collated CSV file
+            def csv_files = file("${meta.plate_dir}/*.csv")
+            if (csv_files.isEmpty()) {
+                errors << "No CSV file found for plate '${meta.plate_id}' at ${meta.plate_dir}"
+            }
+            else if (csv_files.size() > 1) {
+                errors << "Multiple CSV files found for plate '${meta.plate_id}' at ${meta.plate_dir}: ${csv_files.collect { it.name }.join(', ')}"
             }
         }
         else if (meta.plate_dir && meta.cytotable_preset == "skip") {
