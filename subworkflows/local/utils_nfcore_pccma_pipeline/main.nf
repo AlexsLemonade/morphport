@@ -187,10 +187,9 @@ def validateInputSamplesheet(metas) {
     }
 
     if (errors) {
-        log.error(
+        error(
             "Samplesheet validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
         )
-        System.exit(1)
     }
 
     return metas_with_platedir
