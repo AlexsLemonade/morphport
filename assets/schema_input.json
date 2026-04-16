@@ -49,7 +49,8 @@
                     "cellprofiler_csv",
                     "cellprofiler_sqlite",
                     "cellprofiler_sqlite_cpg0016_jump",
-                    "cellprofiler_sqlite_pycytominer"
+                    "cellprofiler_sqlite_pycytominer",
+                    "skip"
                 ],
                 "meta": ["cytotable_preset"],
                 "default": "cellprofiler_sqlite_cpg0016_jump"
