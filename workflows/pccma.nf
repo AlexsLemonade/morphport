@@ -10,6 +10,47 @@ include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable_convert'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FUNCTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+def validatePlateDirs(ch) {
+    def metas = ch.toList().get()
+    def errors = []
+
+    def processed = metas.collect { meta ->
+        def plate_dir = meta.plate_dir
+        if (!plate_dir) {
+            if (meta.project =~ /^cpg\d{4}/) {
+                plate_dir = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/backend/${meta.batch}/${meta.plate_id}"
+            } else {
+                errors << "Plate '${meta.plate_id}': project '${meta.project}'" +
+                    " does not match the expected CPG format (e.g. cpg0016-jump)." +
+                    " Provide 'plate_dir' explicitly in the samplesheet."
+            }
+        }
+        meta + [plate_dir: plate_dir ?: ""]
+    }
+
+    processed.each { meta ->
+        if (meta.plate_dir) {
+            def sqlite_files = file("${meta.plate_dir}/*.sqlite")
+            if (sqlite_files.isEmpty()) {
+                errors << "No sqlite file found for plate '${meta.plate_id}' at ${meta.plate_dir}"
+            }
+        }
+    }
+
+    if (errors) {
+        log.error("Samplesheet validation failed:\n" + errors.collect { "  - ${it}" }.join("\n"))
+        System.exit(1)
+    }
+
+    return channel.fromList(processed)
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
@@ -20,15 +61,8 @@ workflow PCCMA {
     ch_samplesheet // channel: samplesheet read in from --input
     main:
 
-    ch_sqlite = ch_samplesheet
-        .map { meta ->
-            def s3_dir = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/backend/${meta.batch}/${meta.plate_id}"
-            def sqlite_files = file("${s3_dir}/*.sqlite")
-            if (sqlite_files.isEmpty()) {
-                error("No sqlite file found for plate '${meta.plate_id}' at ${s3_dir}")
-            }
-            [ meta, file(s3_dir) ]
-        }
+    ch_sqlite = validatePlateDirs(ch_samplesheet)
+        .map { meta -> [ meta, file(meta.plate_dir) ] }
 
     CYTOTABLE_CONVERT(ch_sqlite)
 

@@ -31,8 +31,16 @@
                 "errorMessage": "Batch name must be provided and cannot contain spaces",
                 "meta": ["batch"]
             },
+            "plate_dir": {
+                "type": "string",
+                "format": "file-path",
+                "errorMessage": "Plate directory path must be a valid file path",
+                "meta": ["plate_dir"]
+            },
             "platemap": {
                 "type": "string",
+                "format": "file-path",
+                "errorMessage": "Platemap must be a valid file path",
                 "meta": ["platemap"]
             },
             "cytotable_preset": {
