@@ -150,7 +150,7 @@ workflow PIPELINE_COMPLETION {
 def validateInputSamplesheet(metas) {
     def errors = []
 
-    def metas_with_platedir = metas.collect { meta ->
+    def validated_metas = metas.collect { meta ->
         // resolve plate_dir for CPG projects that omit it in the samplesheet
         def plate_dir = meta.plate_dir
         if (!plate_dir) {
@@ -182,8 +182,34 @@ def validateInputSamplesheet(metas) {
                 }
             }
         }
-        // update the plate_dir and return
-        meta + [plate_dir: plate_dir]
+
+        // resolve platemap if not explicitly provided in the samplesheet
+        def platemap = meta.platemap
+        if (!platemap) {
+            def platemaps_base = null
+            if (meta.platemaps_dir) {
+                platemaps_base = meta.platemaps_dir
+            }
+            else if (meta.project =~ /^cpg\d{4}/) {
+                platemaps_base = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/metadata/platemaps"
+            }
+            else {
+                errors << ("Plate '${meta.plate_id}': no platemap provided and project '${meta.project}'" +
+                    " does not match the expected CPG format." +
+                    " Provide 'platemap' or 'platemaps_dir' in the samplesheet.")
+            }
+            if (platemaps_base) {
+                try {
+                    platemap = resolvePlatemapFromDir(meta.plate_id, meta.batch, platemaps_base)
+                }
+                catch (Exception e) {
+                    errors << "Plate '${meta.plate_id}': ${e.message}"
+                }
+            }
+        }
+
+        // update and return
+        meta + [plate_dir: plate_dir, platemap: platemap]
     }
 
     if (errors) {
@@ -192,7 +218,57 @@ def validateInputSamplesheet(metas) {
         )
     }
 
-    return metas_with_platedir
+    return validated_metas
+}
+
+//
+// Resolve the platemap file path for a plate from a platemaps directory tree.
+//
+// Reads {platemaps_base}/{batch}/barcode_platemap.csv to map the plate barcode
+// to a Plate_Map_Name, then returns the path to the corresponding .txt file at
+// {platemaps_base}/{batch}/platemap/{Plate_Map_Name}.txt.
+//
+// Returns the resolved platemap path as a String.
+// Throws an exception with a descriptive message if the barcode file, the plate
+// entry, or the platemap file cannot be found.
+//
+def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
+    def barcode_file = file("${platemaps_base}/${batch}/barcode_platemap.csv")
+    if (!barcode_file.exists()) {
+        throw new Exception("barcode_platemap.csv not found at ${barcode_file}")
+    }
+    def text = barcode_file.text
+    // strip UTF-8 BOM if present
+    if (text.startsWith('\uFEFF')) {
+        text = text.substring(1)
+    }
+    def lines = text.readLines()
+    if (lines.size() < 2) {
+        throw new Exception("barcode_platemap.csv has no data rows: ${barcode_file}")
+    }
+    def headers = lines[0].split(',')*.trim()
+    def barcode_idx = headers.indexOf('Assay_Plate_Barcode')
+    def platemap_idx = headers.indexOf('Plate_Map_Name')
+    if (barcode_idx < 0 || platemap_idx < 0) {
+        throw new Exception("barcode_platemap.csv at ${barcode_file} is missing expected columns 'Assay_Plate_Barcode' and/or 'Plate_Map_Name'")
+    }
+    def platemap_name = null
+    for (line in lines.drop(1)) {
+        def parts = line.split(',')*.trim()
+        if (parts.size() > barcode_idx && parts[barcode_idx] == plate_id) {
+            platemap_name = parts[platemap_idx]
+            break
+        }
+    }
+    if (!platemap_name) {
+        throw new Exception("plate '${plate_id}' not found in ${barcode_file}")
+    }
+    def platemap_file = file("${platemaps_base}/${batch}/platemap/${platemap_name}.txt")
+    if (!platemap_file.exists()) {
+        throw new Exception("platemap file not found at ${platemap_file}")
+    }
+    // return the resolved platemap path as a string for storage in the meta map
+    return platemap_file.toString()
 }
 //
 // Generate methods description for MultiQC

@@ -43,6 +43,12 @@
                 "errorMessage": "Platemap must be a valid file path",
                 "meta": ["platemap"]
             },
+            "platemaps_dir": {
+                "type": "string",
+                "format": "file-path",
+                "errorMessage": "Platemaps directory must be a valid path",
+                "meta": ["platemaps_dir"]
+            },
             "cytotable_preset": {
                 "type": "string",
                 "enum": [
