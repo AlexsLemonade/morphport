@@ -252,14 +252,11 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
     if (barcode_idx < 0 || platemap_idx < 0) {
         throw new Exception("barcode_platemap.csv at ${barcode_file} is missing expected columns 'Assay_Plate_Barcode' and/or 'Plate_Map_Name'")
     }
-    def platemap_name = null
-    for (line in lines.drop(1)) {
+    def match = lines.drop(1).find { line ->
         def parts = line.split(',')*.trim()
-        if (parts.size() > barcode_idx && parts[barcode_idx] == plate_id) {
-            platemap_name = parts[platemap_idx]
-            break
-        }
+        parts.size() > barcode_idx && parts[barcode_idx] == plate_id
     }
+    def platemap_name = match ? match.split(',')*.trim()[platemap_idx] : null
     if (!platemap_name) {
         throw new Exception("plate '${plate_id}' not found in ${barcode_file}")
     }
