@@ -6,6 +6,7 @@ It is designed to be run as part of a Nextflow workflow, with parameters passed 
 
 import os
 import sys
+import tempfile
 
 import duckdb
 import pyarrow
@@ -25,16 +26,18 @@ os.environ["CYTOTABLE_MAX_THREADS"] = str(subprocess_threads)
 # import after environment variable is set to ensure cytotable picks up the correct thread count
 import cytotable  # noqa: E402
 
-cytotable.convert(
-    source_path="${plate_dir}",
-    dest_path="${meta.plate_id}.parquet",
-    dest_datatype="parquet",
-    preset="${meta.cytotable_preset}",
-    chunksize=100_000,
-    parsl_config=Config(
-        executors=[HighThroughputExecutor(max_workers_per_node=parsl_workers)]
-    ),
-)
+with tempfile.TemporaryDirectory() as parsl_run_dir:
+    cytotable.convert(
+        source_path="${plate_dir}",
+        dest_path="${meta.plate_id}.parquet",
+        dest_datatype="parquet",
+        preset="${meta.cytotable_preset}",
+        chunksize=100_000,
+        parsl_config=Config(
+            executors=[HighThroughputExecutor(max_workers_per_node=parsl_workers)],
+            run_dir=parsl_run_dir,
+        ),
+    )
 
 # for nf-core software version tracking
 with open("versions.yml", "w") as f:
