@@ -1,4 +1,4 @@
-plate,project,source,batch,platemap,cytotable_preset
+plate,project,source,batch,platemap_file,cytotable_preset
 2024_02_02_B8A1R2_P3T2,cpg0020-varchamp,broad,2024_02_06_Batch_8,,cellprofiler_sqlite_cpg0016_jump
 2024_05_17_RC4_Ben_P05,cpg0026-lacoste_haghighi-rare-diseases,broad,2024_05_06_ResponseToReviewers,,cellprofiler_sqlite_cpg0016_jump
 2024_04_16_RC4_Xexp_FS_P06_R2,cpg0026-lacoste_haghighi-rare-diseases,broad,2024_05_06_ResponseToReviewers,,cellprofiler_sqlite_cpg0016_jump

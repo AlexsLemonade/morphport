@@ -184,8 +184,8 @@ def validateInputSamplesheet(metas) {
         }
 
         // resolve platemap if not explicitly provided in the samplesheet
-        def platemap = meta.platemap
-        if (!platemap) {
+        def platemap_path = meta.platemap_file
+        if (!platemap_path) {
             def platemaps_base = null
             if (meta.platemaps_dir) {
                 platemaps_base = meta.platemaps_dir
@@ -196,11 +196,11 @@ def validateInputSamplesheet(metas) {
             else {
                 errors << ("Plate '${meta.plate_id}': no platemap provided and project '${meta.project}'" +
                     " does not match the expected CPG format." +
-                    " Provide 'platemap' or 'platemaps_dir' in the samplesheet.")
+                    " Provide 'platemap_file' or 'platemaps_dir' in the samplesheet.")
             }
             if (platemaps_base) {
                 try {
-                    platemap = resolvePlatemapFromDir(meta.plate_id, meta.batch, platemaps_base)
+                    platemap_path = resolvePlatemapFromDir(meta.plate_id, meta.batch, platemaps_base)
                 }
                 catch (Exception e) {
                     errors << "Plate '${meta.plate_id}': ${e.message}"
@@ -209,7 +209,7 @@ def validateInputSamplesheet(metas) {
         }
 
         // update and return
-        meta + [plate_dir: plate_dir, platemap: platemap]
+        meta + [plate_dir: plate_dir, platemap_file: platemap_path]
     }
 
     if (errors) {
@@ -260,12 +260,12 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
     if (!platemap_name) {
         throw new Exception("plate '${plate_id}' not found in ${barcode_file}")
     }
-    def platemap_file = file("${platemaps_base}/${batch}/platemap/${platemap_name}.txt")
-    if (!platemap_file.exists()) {
-        throw new Exception("platemap file not found at ${platemap_file}")
+    def resolved = file("${platemaps_base}/${batch}/platemap/${platemap_name}.txt")
+    if (!resolved.exists()) {
+        throw new Exception("platemap file not found at ${resolved}")
     }
     // return the resolved platemap path as a string for storage in the meta map
-    return platemap_file.toString()
+    return resolved.toString()
 }
 //
 // Generate methods description for MultiQC
