@@ -1,18 +1,16 @@
 .nextflow*
-work/
-data/
-results/
 .DS_Store
-testing/
-testing*
 *.pyc
-null/
 .nf-test
 # pixi environments
 .pixi/*
 !.pixi/config.toml
 
-results_test/
-stub/output/
+work/
+data/
+results/
+stub/results/
+testing/
+testing*
 
 .claude/settings.local.json
