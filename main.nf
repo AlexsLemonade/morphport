@@ -51,11 +51,16 @@ workflow {
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
+    // When running with -stub, Nextflow injects 'true' as a positional arg.
+    // Remove only the first occurrence so other unexpected args still trigger warnings.
+    def pipeline_args = args.clone()
+    if (workflow.stubRun) { pipeline_args.remove('true') }
+
     PIPELINE_INITIALISATION (
         params.version,
         params.validate_params,
         params.monochrome_logs,
-        args,
+        pipeline_args,
         params.outdir,
         params.input,
         params.help,
