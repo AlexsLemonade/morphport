@@ -13,5 +13,6 @@ null/
 !.pixi/config.toml
 
 results_test/
+stub/output/
 
 .claude/settings.local.json
