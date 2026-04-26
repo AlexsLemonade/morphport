@@ -33,8 +33,8 @@
             },
             "plate_dir": {
                 "type": "string",
-                "format": "file-path",
-                "errorMessage": "Plate directory path must be a valid file path",
+                "format": "directory-path",
+                "errorMessage": "Plate directory must be a valid directory path",
                 "meta": ["plate_dir"]
             },
             "platemap_file": {
@@ -45,8 +45,8 @@
             },
             "platemaps_dir": {
                 "type": "string",
-                "format": "file-path",
-                "errorMessage": "Platemaps directory must be a valid path",
+                "format": "directory-path",
+                "errorMessage": "Platemaps directory must be a valid directory path",
                 "meta": ["platemaps_dir"]
             },
             "cytotable_preset": {
