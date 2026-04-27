@@ -5,15 +5,13 @@
 We are working from the Way Lab QC notebook at [`3.preprocessing_features/1.sc_quality_control.ipynb`](https://github.com/WayScience/pediatric_cancer_atlas_profiling/blob/main/3.preprocessing_features/1.sc_quality_control.ipynb) from the `pediatric_cancer_atlas_profiling` repository.
 That notebook processes per-plate parquet files (converted from SQLite by CytoTable) using [coSMicQC](https://github.com/WayScience/coSMicQC).
 
----
-
-## QC Criteria Applied in Reference
+### QC Criteria Applied in Reference
 
 All filtering is done at the **single-cell level** using `coSMicQC.find_outliers()`, which computes z-scores for specified features and flags cells exceeding given thresholds.
 Three distinct failure conditions are evaluated independently; any cell failing one or more is dropped.
 The main notebook does QC and includes visual reports for representative cells, but we are not planning to do that in the initial filtering here (though maybe as a separate report later).
 
-### 1. Clustered nuclei
+#### 1. Clustered nuclei
 
 Identifies overlapping nuclei that were misidentified as a single object.
 
@@ -34,7 +32,7 @@ This parameter may not apply to the full dataset as well, since it is being tune
 | --------------------------- | ------------------- | --------- |
 | `Nuclei_AreaShape_Solidity` | -1.6                | below     |
 
-### 3. Multi-nuclei cells
+#### 3. Multi-nuclei cells
 
 Identifies whole-cell segmentations containing multiple undetected nuclei (high total DNA intensity despite a single-cell segmentation).
 This happens when nuclei are discarded before segmentation, so the cells are segmented as a single object but in reality were based on multiple cells with multiple nuclei.
@@ -43,26 +41,17 @@ This happens when nuclei are discarded before segmentation, so the cells are seg
 | --------------------------------------------- | ------------------- | --------- |
 | `Cells_Intensity_IntegratedIntensity_CorrDNA` | 0.5                 | above     |
 
-### Combining and applying
-
-The three outlier DataFrames are concatenated, unique indices are extracted, and those rows are dropped from the original plate DataFrame.
-The cleaned DataFrame is saved as parquet; the outlier indices are saved for reference.
-In the reference dataset this removed ~11.6% of cells (33,565 of 288,657).
-
 ---
 
-## Applicability to This Pipeline
+## Pipeline plans:
 
-The reference notebook takes parquet files produced by CytoTable — which is exactly what the `cytotable_convert` module produces.
-The `find_outliers()` calls require only the morphological feature columns in that parquet file; no original images are needed for the filtering step itself.
-
-Inputs:
+### Inputs:
 
 - from the pipeline channel: `(metadata, parquet_file)` (output of `cytotable_convert`)
 - filter settings: A JSON file with the feature names and thresholds to apply, which can be generated from the reference notebook and tuned as needed.
   This allows the filtering logic to be decoupled from the specific thresholds, which may need to be adjusted for different datasets or cell types.
 
-### Filter settings JSON format
+#### Filter settings JSON format
 
 Each entry in the list represents one `find_outliers()` call, where all features within an entry are ANDed together (all must be outliers for a cell to be flagged).
 Entries are ORed — a cell failing any entry is removed.
@@ -84,16 +73,11 @@ This matches the coSMicQC convention directly, so threshold values can be passed
       "Nuclei_AreaShape_Solidity": -1.6
     }
   },
-  {
-    "name": "multi_nuclei_cells",
-    "thresholds": {
-      "Cells_Intensity_IntegratedIntensity_CorrDNA": 0.5
-    }
-  }
+  ...
 ]
 ```
 
-Outputs:
+### Outputs:
 
 - `(updated_metadata, filtered_parquet_file)` — cleaned per-cell parquet, bad cells removed; metadata updated with summary QC stats (see below)
 - `qc_summary.json` — full per-plate QC record combining the filter settings used and the results (cell counts before/after, per-condition failure counts); suitable for downstream aggregation and reporting
@@ -101,7 +85,7 @@ Outputs:
 
 The thresholds in the reference notebook were tuned for pilot data, and we want to make sure that we can adjust them easily as needed.
 
-### QC summary and metadata
+#### QC summary and metadata
 
 The `qc_summary.json` output embeds both the filter settings that were applied and the per-plate results in a single file, making it straightforward to reconstruct exactly what was run and compare results across threshold configurations.
 Key QC stats should also be added to the metadata map flowing forward through the pipeline.
@@ -110,16 +94,12 @@ The metadata fields to add are deliberately minimal — full detail lives in `qc
 
 - `qc_cells_input` — total cells before filtering
 - `qc_cells_output` — cells remaining after filtering
-- `qc_fraction_removed` — fraction removed (for easy threshold checks in workflow logic)
+- `qc_fraction_cells_removed` — fraction removed (for easy threshold checks in workflow logic)
 
-## QC Reporting
+### QC Report
 
-Report generation (the `CytoDataFrame`-based visual inspection from the original reference notebook) can be implemented as a **separate, optional process** for the following reasons:
-
-1. **Image dependency** — reports require original images, which will make things harder to start with (especially if only parquet/SQLite outputs were downloaded from CPG).
-2. **Scope** — the core QC process is a data transformation (parquet in → parquet out); mixing in image-dependent rendering violates that clean boundary.
-3. **Optionality** — visual QC reports are most useful during dataset exploration and threshold tuning, not in routine production runs; a separate process can be toggled off with a parameter flag.
-4. **Resource profile** — loading and rendering cell crops from images is memory-intensive and potentially slow; it should not block the rest of the pipeline.
+Report generation (the `CytoDataFrame`-based visual inspection from the original reference notebook) can be implemented as a **separate, optional process** to avoid complicating the core QC filtering logic and to allow it to be toggled on/off as needed.
+This saves us from having to worry about the images and compartment outlines in the core workflow, at least for now.
 
 ## Planned Processes
 
@@ -128,7 +108,6 @@ Report generation (the `CytoDataFrame`-based visual inspection from the original
 - **Input:**
   - `(metadata, parquet_file)`
   - filter settings JSON (see format above)
-- **Dependencies:** `coSMicQC`, `pandas`, `pyarrow`
 - **Outputs:**
   - `(updated_metadata, filtered_parquet_file)` — metadata updated with `qc_cells_input`, `qc_cells_output`, `qc_fraction_removed`
   - `qc_summary.json` — filter settings + per-condition results combined
@@ -144,11 +123,10 @@ Report generation (the `CytoDataFrame`-based visual inspection from the original
   The set of required compartments is derived by parsing the leading token of each feature name (e.g., `Nuclei_…` → Nuclei, `Cells_…` → Cells).
   For each compartment, `CytoDataFrame` needs the compartment-specific location and bounding box metadata columns to correctly position thumbnail crops.
   The script builds these column lists automatically from the compartment names rather than requiring them to be specified in the JSON.
-- **Dependencies:** `coSMicQC`, `cytodataframe`, `pandas`, `matplotlib`, `seaborn`
 - **Outputs:**
   - HTML or notebook report with embedded cell thumbnails for each failure category
   - Per-condition QC metric distribution plots
-- **Triggered only when** `params.qc_report = true` and image files are available.
+- **Triggered only when** `params.cosmicqc_report = true` and image files are available.
 
 ---
 
