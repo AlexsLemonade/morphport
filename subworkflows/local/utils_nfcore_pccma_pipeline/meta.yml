@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
+name: "UTILS_NFCORE_PCCMA_PIPELINE"
+description: Subworkflow with utility functions specific to the AlexsLemonade/pccma-nf pipeline, including samplesheet validation and pipeline initialisation/completion handling
+keywords:
+  - utility
+  - pipeline
+  - initialise
+  - samplesheet
+  - validation
+components:
+  - utils_nfschema_plugin
+  - utils_nfcore_pipeline
+  - utils_nextflow_pipeline
+input:
+  - version:
+      type: boolean
+      description: Display version and exit
+  - validate_params:
+      type: boolean
+      description: Validate parameters against the schema at runtime
+  - monochrome_logs:
+      type: boolean
+      description: Do not use coloured log outputs
+  - nextflow_cli_args:
+      type: list
+      description: List of positional nextflow CLI args
+  - outdir:
+      type: string
+      description: The output directory where results will be saved
+  - input:
+      type: string
+      description: Path to input samplesheet CSV
+  - help:
+      type: boolean
+      description: Display help message and exit
+  - help_full:
+      type: boolean
+      description: Show the full help message
+  - show_hidden:
+      type: boolean
+      description: Show hidden parameters in the help message
+output:
+  - samplesheet:
+      type: channel
+      description: |
+        Channel of validated metadata maps, one per plate, with plate_dir and
+        platemap_file resolved and added to each map
+  - versions:
+      type: channel
+      description: Channel of software versions
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
