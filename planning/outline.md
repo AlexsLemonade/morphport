@@ -68,10 +68,10 @@ This step runs **per plate file** (one process invocation per plate sqlite file)
 The output parquet file is passed forward to the QC step.
 
 - **Input:**
-  - `(metadata, sqlite_file, platemap_file)` tuples from ingest step
+  - `(metadata, sqlite_file)` tuples from ingest step
   - Any parameters needed for the conversion (e.g., expected column names, feature prefixes to include/exclude, etc.)
 - **Output:**
-  - `(metadata, parquet_file, platemap_file)` tuples (one per input file, with the per-cell data now in parquet format)
+  - `(metadata, parquet_file)` tuples (one per input file, with the per-cell data now in parquet format)
 
 ### QC and filter cells / wells
 
@@ -86,7 +86,7 @@ Running QC at this stage preserves the full plate context needed for plate-level
 Each invocation produces a filtered parquet file and a per-plate QC report.
 
 - **Input:**
-  - `(metadata, parquet_file, platemap_file)` tuples from conversion step
+  - `(metadata, parquet_file, platemap_file)` tuples from conversion step, with platemap file added based on metadata
   - QC parameters/thresholds
 - **Output:**
   - `(metadata, filtered_parquet_file, platemap_file)` tuples (one per input file, bad wells/cells excluded)
