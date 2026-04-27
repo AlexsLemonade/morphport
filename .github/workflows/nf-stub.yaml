@@ -2,9 +2,9 @@ name: Check nextflow stub
 
 on:
   pull_request:
-    # branches:
-    #   - main
-    #   - dev
+    branches:
+      - main
+      - dev
     paths-ignore:
       - "docs/**"
       - "**/meta.yml"
