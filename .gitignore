@@ -1,16 +1,15 @@
 .nextflow*
-.DS_Store
-*.pyc
-.nf-test
-# pixi environments
-.pixi/*
-!.pixi/config.toml
-
 work/
 data/
 results/
-stub/results/
+.DS_Store
 testing/
 testing*
+*.pyc
+null/
+
+# keep updates to .gitignore below to prevent linting error
+.nf-test
+stub/results/
 
 .claude/settings.local.json
