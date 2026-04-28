@@ -27,6 +27,7 @@ METADATA_COLS = [
 
 
 def validate_filter_conditions(conditions, source):
+    """Validate the structure of the cosmicqc filter conditions loaded from a JSON file"""
     if not isinstance(conditions, list):
         raise ValueError(f"{source}: must be a JSON array of condition objects")
     for i, condition in enumerate(conditions):
@@ -47,6 +48,7 @@ def validate_filter_conditions(conditions, source):
 
 
 def write_versions(task_process):
+    """Write versions.yml file for Nextflow tracking"""
     with open("versions.yml", "w") as f:
         f.write(
             "\\n".join(
@@ -75,7 +77,7 @@ def main():
 
     metadata_cols = [col for col in METADATA_COLS if col in df.columns]
 
-    # apply the filter conditions sequentially and collect outliers for summary output
+    # apply the filter conditions and collect outliers for summary output
     outlier_dataframes = []
     condition_outlier_counts = {}
     skipped_conditions = {}
@@ -103,8 +105,8 @@ def main():
         # concatenate all outliers and aggregate by cell index to combine conditions
         combined = pd.concat(labeled_outliers)
         # build a pandas aggregation dict that takes
-        # the first value for metadata columns (will all be the same for a given cell)
-        # and joins unique condition names
+        # - the first value for metadata columns (will all be the same for a given cell)
+        # - concatenated condition list for the failure reasons (in case a cell fails multiple conditions)
         agg_dict = {col: "first" for col in metadata_cols}
         agg_dict["cosmicqc_condition"] = lambda x: ";".join(sorted(x.unique()))
         ## aggregate to get one row per outlier cell, with all conditions that flagged it combined in the cosmicqc_condition column
@@ -115,12 +117,11 @@ def main():
         outlier_summary = pd.DataFrame(columns=metadata_cols + ["cosmicqc_condition"])
         outlier_indices = pd.Index([])
 
+    # crete the filtered dataframe by dropping outlier rows from the original dataframe
     df_filtered = df.drop(outlier_indices)
     fraction_removed = len(outlier_indices) / cells_input if cells_input > 0 else 0.0
 
-    df_filtered.to_parquet(f"{plate_id}_filtered.parquet", index=False)
-    outlier_summary.to_csv(f"{plate_id}_cosmicqc_outliers.csv.gz", index=True)
-
+    # create a QC summary object
     qc_summary = {
         "plate_id": plate_id,
         "filter_settings": filter_conditions,
@@ -132,6 +133,12 @@ def main():
             "skipped_conditions": skipped_conditions,
         },
     }
+
+    # save outputs
+    df_filtered.to_parquet(f"{plate_id}_filtered.parquet", index=False)
+    # include the index for outlier summary since we should be able to use it to link back
+    # to the original dataframe when building a QC report
+    outlier_summary.to_csv(f"{plate_id}_cosmicqc_outliers.csv.gz", index=True)
     with open(f"{plate_id}_cosmicqc_summary.json", "w") as f:
         json.dump(qc_summary, f, indent=2)
 
