@@ -1,0 +1,38 @@
+name: Check nextflow stub
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - "docs/**"
+      - "**/meta.yml"
+      - "**/*.md"
+      - "**/*.png"
+      - "**/*.svg"
+
+# Cancel if a newer run is started
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nf-stub-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Setup Nextflow
+        uses: nf-core/setup-nextflow@v3
+
+      - name: Check Nextflow workflow
+        run: nextflow -log stub-run.log run main.nf -stub -profile stub -ansi-log false
+
+      - name: Upload Nextflow log
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextflow-log
+          path: stub-run.log

@@ -22,6 +22,9 @@ process CYTOTABLE_CONVERT {
     stub:
     """
     touch ${meta.plate_id}.parquet
-    touch versions.yml
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        stub: stub
+    END_VERSIONS
     """
 }
