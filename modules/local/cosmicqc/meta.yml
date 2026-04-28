@@ -24,13 +24,13 @@ input:
           e.g. [ plate_id:'UL000109', batch:'Batch1_20221004' ]
     - parquet_file:
         type: file
-        description: Per-cell parquet file produced by cytotable_convert
+        description: Per-cell parquet file produced by cytotable
         pattern: "*.parquet"
   - - cosmicqc_filter_file:
         type: file
         description: |
           JSON file specifying coSMicQC filter conditions.
-          Each entry defines a named condition with a dict of feature-to-threshold
+          Each entry defines a named filter condition with a dict of feature:threshold
           mappings; positive thresholds flag cells above the z-score, negative below.
         pattern: "*.json"
 
@@ -46,8 +46,9 @@ output:
       - "*_cosmicqc_summary.json":
           type: file
           description: |
-            JSON file recording the filter settings applied and per-plate results
-            (cells input, cells output, fraction removed, per-condition counts)
+            JSON file recording the filter settings applied, per-plate results
+            (cells input, cells output, fraction removed, per-condition counts),
+            and any filters that were skipped due to missing features
           pattern: "*_cosmicqc_summary.json"
   - outliers:
       - "*_cosmicqc_outliers.csv.gz":
