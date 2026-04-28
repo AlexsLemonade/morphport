@@ -22,6 +22,5 @@ You are working in a Childhood Cancer Data Lab repository.
 
 - Use `#` for top-level headings, `##` for second-level, and so on. Do not skip heading levels.
 - Use one sentence per line for regular text to improve readability in diffs and version control.
-- Use fenced code blocks with language identifiers for code snippets (e.g., `python, `
-  bash).
+- Use fenced code blocks with language identifiers for code snippets (e.g., `python`, `bash`).
 - Use bullet points or numbered lists for clarity when listing items or steps.
