@@ -24,7 +24,18 @@ process COSMICQC_FILTER {
     stub:
     """
     touch ${meta.plate_id}_filtered.parquet
-    touch ${meta.plate_id}_cosmicqc_summary.json
+    cat <<-END_JSON > ${meta.plate_id}_cosmicqc_summary.json
+    {
+        "plate_id": "${meta.plate_id}",
+        "filter_settings": [],
+        "results": {
+            "cells_input": 0,
+            "cells_output": 0,
+            "fraction_removed": 0.0,
+            "conditions": {}
+        }
+    }
+    END_JSON
     touch ${meta.plate_id}_cosmicqc_outliers.csv.gz
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
