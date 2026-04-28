@@ -24,7 +24,7 @@ The primary packages expected to be used are:
 - **[copairs](https://github.com/cytomining/copairs)** -- pairwise similarity comparisons and mAP scoring
 - **[umap-learn](https://umap-learn.readthedocs.io/)** -- UMAP dimensionality reduction for visualizations
 - **[scipy](https://scipy.org/)** -- hierarchical clustering (for dendrogram / Newick output in visualizations)
-- **[DuckDB](https://duckdb.org/)** -- efficient multi-file parquet joins and partitioned writes for the reorganization step
+- **[DuckDB](https://duckdb.org/)** -- per-plate platemap joins and partitioned parquet writes in the reorganization step
 
 ## Inputs
 
@@ -68,10 +68,10 @@ This step runs **per plate file** (one process invocation per plate sqlite file)
 The output parquet file is passed forward to the QC step.
 
 - **Input:**
-  - `(metadata, sqlite_file, platemap_file)` tuples from ingest step
+  - `(metadata, plate_dir)` tuples from ingest step
   - Any parameters needed for the conversion (e.g., expected column names, feature prefixes to include/exclude, etc.)
 - **Output:**
-  - `(metadata, parquet_file, platemap_file)` tuples (one per input file, with the per-cell data now in parquet format)
+  - `(metadata, parquet_file)` tuples (one per input file, with the per-cell data now in parquet format)
 
 ### QC and filter cells / wells
 
@@ -86,7 +86,7 @@ Running QC at this stage preserves the full plate context needed for plate-level
 Each invocation produces a filtered parquet file and a per-plate QC report.
 
 - **Input:**
-  - `(metadata, parquet_file, platemap_file)` tuples from conversion step
+  - `(metadata, parquet_file, platemap_file)` tuples from conversion step, with platemap file added based on metadata
   - QC parameters/thresholds
 - **Output:**
   - `(metadata, filtered_parquet_file, platemap_file)` tuples (one per input file, bad wells/cells excluded)
@@ -113,9 +113,9 @@ After this step, plates from different batches are combined via `collect()` and 
 ### Compute well-level summaries
 
 Well-level summary profiles are aggregated from the batch-normalized per-plate files using pycytominer's `aggregate()` function (median aggregation by default).
-This step runs **per plate file** — one process invocation per plate, in parallel with (but independent of) the downstream partition step — and produces a per-plate well-summary file with one row per well.
+This step runs **per plate file** — one process invocation per plate — and produces a per-plate well-summary file with one row per well.
 Aggregation happens here, before partitioning, because it is naturally a per-plate operation: each well belongs to exactly one plate, so grouping cells by well within a plate file is the correct scope.
-Computing well summaries at this stage also reduces the data volume that must flow through the DuckDB partition step.
+Computing well summaries at this stage also reduces the data volume that flows into the per-plate partition step.
 
 - **Input:**
   - `(metadata, batch_normalized_parquet_file, platemap_file)` tuples (one per plate, from batch normalization)
@@ -125,18 +125,24 @@ Computing well summaries at this stage also reduces the data volume that must fl
 
 ### Reorganize / partition data
 
-Per-cell and well-summary plate files are each collected across batches and partitioned using the same DuckDB process, likely as two separate channel items that invoke the same process independently.
-DuckDB joins each set of plate files with their corresponding platemaps and writes a globally partitioned dataset, outputting one parquet file per `(cell_line, compound, timepoint)` combination.
-Both the per-cell and well-summary data use the same partition keys, keeping the two datasets structurally parallel and making it straightforward to pair them in downstream grouping steps.
+Per-cell and well-summary plate files are each partitioned per plate using a DuckDB process (one process invocation per plate file, run in parallel).
+DuckDB joins each plate file with its corresponding platemap and writes out one parquet file per `(cell_line, compound, timepoint)` combination present in that plate.
+Both per-cell and well-summary data use the same partition keys, keeping the two datasets structurally parallel.
+
+Running partitioning per plate (rather than after a global `collect()`) avoids a pipeline-wide bottleneck: each plate's condition files can flow into downstream grouping steps as soon as that plate is processed.
+Joining at the plate level is also the natural scope, since each plate already travels with its own platemap.
+The downstream "Construct analysis groupings" step uses `groupTuple` to assemble all per-plate files for a given condition combination, so the multi-file-per-condition structure is handled there.
 
 - **Input:**
-  - All `(metadata, batch_normalized_parquet_file, platemap_file)` tuples collected into a single list via `collect()` (per-cell)
-  - All `(metadata, well_summary_file, platemap_file)` tuples collected into a single list via `collect()` (well-summary)
+  - `(metadata, batch_normalized_parquet_file, platemap_file)` tuples, one per plate (per-cell)
+  - `(metadata, well_summary_file, platemap_file)` tuples, one per plate (well-summary)
 - **Output:**
-  - Per-cell hive-partitioned parquet files under `partitions/cells/cell_line=X/compound=Y/timepoint=Z/`
-  - Well-summary hive-partitioned parquet files under `partitions/wells/cell_line=X/compound=Y/timepoint=Z/`
+  - For each plate: per-cell parquet files written under `partitions/cells/cell_line=X/compound=Y/timepoint=Z/`
+  - For each plate: well-summary parquet files written under `partitions/wells/cell_line=X/compound=Y/timepoint=Z/`
 
-Each output is transformed into a Nextflow channel of `(cell_line, compound, timepoint, partition_file)` tuples discovered via `Channel.fromPath` + `map`.
+Because a Nextflow process emits one channel item per invocation, the list of partition files from each plate arrives as a single item.
+A `.flatMap()` step in the workflow expands that list into individual `(cell_line, compound, timepoint, plate_partition_file)` tuples by parsing the partition keys out of each file path.
+This produces multiple tuples per condition across plates, which then accumulate naturally via `groupTuple` in the analysis groupings step.
 
 ### Generate reference / annotation lists
 
