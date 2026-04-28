@@ -7,6 +7,7 @@ include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pccma_pipeline'
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable_convert'
+include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -33,6 +34,19 @@ workflow PCCMA {
 
     CYTOTABLE_CONVERT(ch_validated.convert)
     ch_parquet = ch_parquet.mix(CYTOTABLE_CONVERT.out.parquet)
+
+    COSMICQC_FILTER(ch_parquet, file(params.cosmicqc_filter_file))
+
+    ch_filtered = COSMICQC_FILTER.out.result
+        // add metadata from filter results to meta object
+        .map { meta, parquet, summary ->
+            def stats = new groovy.json.JsonSlurper().parse(summary)
+            [meta + [
+                cosmicqc_cells_input     : stats.results.cells_input,
+                cosmicqc_cells_output    : stats.results.cells_output,
+                cosmicqc_fraction_removed: stats.results.fraction_removed,
+            ], parquet]
+        }
 
     //
     // Collate and save software versions
