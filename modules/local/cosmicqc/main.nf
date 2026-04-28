@@ -32,7 +32,8 @@ process COSMICQC_FILTER {
             "cells_input": 0,
             "cells_output": 0,
             "fraction_removed": 0.0,
-            "conditions": {}
+            "condition_outlier_counts": {},
+            "skipped_conditions": {}
         }
     }
     END_JSON

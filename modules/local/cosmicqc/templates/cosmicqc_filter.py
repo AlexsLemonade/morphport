@@ -78,7 +78,12 @@ def main():
     # apply the filter conditions sequentially and collect outliers for summary output
     outlier_dataframes = []
     condition_outlier_counts = {}
+    skipped_conditions = {}
     for condition in filter_conditions:
+        missing = [f for f in condition["thresholds"] if f not in df.columns]
+        if missing:
+            skipped_conditions[condition["name"]] = missing
+            continue
         outliers = cosmicqc.find_outliers(
             df=df,
             metadata_columns=metadata_cols,
@@ -124,6 +129,7 @@ def main():
             "cells_output": len(df_filtered),
             "fraction_removed": fraction_removed,
             "condition_outlier_counts": condition_outlier_counts,
+            "skipped_conditions": skipped_conditions,
         },
     }
     with open(f"{plate_id}_cosmicqc_summary.json", "w") as f:
