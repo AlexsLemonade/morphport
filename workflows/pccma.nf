@@ -41,6 +41,11 @@ workflow PCCMA {
         // add metadata from filter results to meta object
         .map { meta, parquet, summary ->
             def stats = new groovy.json.JsonSlurper().parse(summary)
+            if (stats.results.skipped_conditions) {
+                stats.results.skipped_conditions.each { condition, features ->
+                    log.warn "coSMicQC [${meta.plate_id}]: skipped condition '${condition}' — features not found in parquet: ${features.join(', ')}"
+                }
+            }
             [meta + [
                 cosmicqc_cells_input     : stats.results.cells_input,
                 cosmicqc_cells_output    : stats.results.cells_output,
