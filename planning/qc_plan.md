@@ -15,10 +15,10 @@ The main notebook does QC and includes visual reports for representative cells, 
 
 Identifies overlapping nuclei that were misidentified as a single object.
 
-| Feature                                        | Threshold (z-score) | Direction |
-| ---------------------------------------------- | ------------------- | --------- |
-| `Nuclei_Intensity_MassDisplacement_CorrDNA`    | 0.05                | above     |
-| `Nuclei_Intensity_IntegratedIntensity_CorrDNA` | 1.5                 | above     |
+| Feature                                        | Threshold (z-score) | Remove |
+| ---------------------------------------------- | ------------------- | ------ |
+| `Nuclei_Intensity_MassDisplacement_CorrDNA`    | 0.05                | above  |
+| `Nuclei_Intensity_IntegratedIntensity_CorrDNA` | 1.5                 | above  |
 
 Both features must exceed their thresholds simultaneously (the `find_outliers` call takes a dict, and the function flags cells where **all** features in the dict are outliers together).
 In this case (based on comments), the first feature is set deliberately low to catch as many potential multi-nuclei cases as possible, while the second feature (total DNA intensity) is set higher to avoid flagging normal cells with slight mass displacement.
@@ -26,20 +26,21 @@ In this case (based on comments), the first feature is set deliberately low to c
 ### 2. Irregular nuclei (mis-segmented)
 
 Identifies nuclei with irregular shapes (harsh outlines, protrusions).
-This parameter may not apply to the full dataset as well, since it is being tuned based on untreated cells.
+This parameter may not apply to the full PCCMA dataset, since it is being tuned based on untreated cells.
+(This is part of the reason we are keeping the thresholds flexible.)
 
-| Feature                     | Threshold (z-score) | Direction |
-| --------------------------- | ------------------- | --------- |
-| `Nuclei_AreaShape_Solidity` | -1.6                | below     |
+| Feature                     | Threshold (z-score) | Remove |
+| --------------------------- | ------------------- | ------ |
+| `Nuclei_AreaShape_Solidity` | -1.6                | below  |
 
 #### 3. Multi-nuclei cells
 
 Identifies whole-cell segmentations containing multiple undetected nuclei (high total DNA intensity despite a single-cell segmentation).
 This happens when nuclei are discarded before segmentation, so the cells are segmented as a single object but in reality were based on multiple cells with multiple nuclei.
 
-| Feature                                       | Threshold (z-score) | Direction |
-| --------------------------------------------- | ------------------- | --------- |
-| `Cells_Intensity_IntegratedIntensity_CorrDNA` | 0.5                 | above     |
+| Feature                                       | Threshold (z-score) | Remove |
+| --------------------------------------------- | ------------------- | ------ |
+| `Cells_Intensity_IntegratedIntensity_CorrDNA` | 0.5                 | above  |
 
 ---
 
