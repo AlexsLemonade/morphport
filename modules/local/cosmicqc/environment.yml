@@ -2,9 +2,10 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - python
-  - pandas
+  - python=3.13
+  - pandas>=2.3.3,<3
   - pyarrow
+  - tabulate
   - pip
   - pip:
-      - cosmicqc
+      - cosmicqc==1.0.1

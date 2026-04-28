@@ -5,8 +5,8 @@ process COSMICQC_FILTER {
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'TBD'
-            : 'TBD'
+            ? 'oras://community.wave.seqera.io/library/python_pandas_pyarrow_tabulate_pruned:62b056284d94bd38'
+            : 'community.wave.seqera.io/library/python_pandas_pyarrow_tabulate_pruned:326a861508acebcd'
     }
 
     input:
