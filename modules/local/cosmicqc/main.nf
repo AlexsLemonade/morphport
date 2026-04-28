@@ -37,7 +37,8 @@ process COSMICQC_FILTER {
         }
     }
     END_JSON
-    touch ${meta.plate_id}_cosmicqc_outliers.csv.gz
+    # gzip file with no content to create an empty outliers file
+    echo | gzip > ${meta.plate_id}_cosmicqc_outliers.csv.gz
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         stub: stub
