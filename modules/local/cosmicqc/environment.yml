@@ -6,6 +6,7 @@ dependencies:
   - pandas>=2.3.3,<3
   - pyarrow
   - tabulate
+  - opencv
   - pip
   - pip:
       - cosmicqc==1.0.1
