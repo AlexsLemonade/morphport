@@ -14,11 +14,14 @@ import pandas as pd
 
 # Standard cell-identifier columns; plate/well/site identify the image,
 # ImageNumber + ObjectNumber uniquely identify the cell within it.
-METADATA_COLS = [
+REQUIRED_METADATA = [
     "Metadata_Plate",
     "Metadata_Well",
     "Metadata_ImageNumber",
     "Metadata_ObjectNumber",
+]
+
+OPTIONAL_METADATA = [
     "Image_Metadata_Site",
     "Cells_Number_Object_Number",
     "Nuclei_Number_Object_Number",
@@ -75,7 +78,15 @@ def main():
     df = pd.read_parquet(parquet_file)
     cells_input = len(df)
 
-    metadata_cols = [col for col in METADATA_COLS if col in df.columns]
+    # check for required metadata columns and include any optional ones that are present
+    missing_metadata = set(REQUIRED_METADATA) - set(df.columns)
+    if missing_metadata:
+        raise ValueError(
+            f"Input parquet file is missing required metadata columns: {missing_metadata}"
+        )
+    metadata_cols = REQUIRED_METADATA + [
+        col for col in OPTIONAL_METADATA if col in df.columns
+    ]
 
     # apply the filter conditions and collect outliers for summary output
     outlier_dataframes = []
@@ -117,7 +128,7 @@ def main():
         outlier_summary = pd.DataFrame(columns=metadata_cols + ["cosmicqc_condition"])
         outlier_indices = pd.Index([])
 
-    # crete the filtered dataframe by dropping outlier rows from the original dataframe
+    # create the filtered dataframe by dropping outlier rows from the original dataframe
     df_filtered = df.drop(outlier_indices)
     fraction_removed = len(outlier_indices) / cells_input if cells_input > 0 else 0.0
 
