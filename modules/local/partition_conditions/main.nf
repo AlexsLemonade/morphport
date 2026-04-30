@@ -1,0 +1,42 @@
+process PARTITION_CONDITIONS {
+    tag "${meta.plate_id}"
+    label 'process_low'
+
+    conda "${moduleDir}/environment.yml"
+    container {
+        workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
+            ? 'TBD'
+            : 'TBD'
+    }
+
+    input:
+    tuple val(meta), path(parquet_file), path(platemap_file)
+    val partition_columns
+
+    output:
+    tuple val(meta), path("${meta.plate_id}"),        emit: partitions
+    path "${meta.plate_id}_platemap_summary.json",     emit: summary
+    path "versions.yml",                               emit: versions, topic: versions
+
+    script:
+    template 'partition_conditions.py'
+
+    stub:
+    """
+    mkdir -p "${meta.plate_id}/Metadata_gene_allele=NA"
+    touch "${meta.plate_id}/Metadata_gene_allele=NA/${meta.plate_id}_0.parquet"
+    cat <<-END_JSON > ${meta.plate_id}_platemap_summary.json
+    {
+        "plate_id": "${meta.plate_id}",
+        "platemap_file": "${platemap_file}",
+        "partition_columns": ${partition_columns},
+        "partitions": {}
+    }
+    END_JSON
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        stub: stub
+    END_VERSIONS
+    """
+}

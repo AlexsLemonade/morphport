@@ -8,6 +8,7 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pccma_pipeline'
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
+include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -52,6 +53,11 @@ workflow PCCMA {
                 cosmicqc_fraction_removed: stats.results.fraction_removed,
             ], parquet]
         }
+
+    PARTITION_CONDITIONS(
+        ch_filtered.map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
+        params.well_condition_columns
+    )
 
     //
     // Collate and save software versions
