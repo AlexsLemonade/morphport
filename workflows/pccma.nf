@@ -12,6 +12,30 @@ include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FUNCTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+def expandHivePartitions(meta, partition_dir) {
+    def results = []
+    partition_dir.eachDirRecurse { dir ->
+        def parquets = dir.listFiles()?.findAll { it.name.endsWith('.parquet') } ?: []
+        if (parquets) {
+            def rel = partition_dir.relativize(dir)
+            // iterate over the relative path segments to build a map of conditions,
+            // e.g. ['Metadata_gene_allele=NA', 'Metadata_treatment=drugA'] -> [Metadata_gene_allele: 'NA', Metadata_treatment: 'drugA']
+            def conditions = rel.collect { segment ->
+                def parts = segment.toString().split('=', 2)
+                [(parts[0]): parts[1]]
+            }.sum([:]) // merge list of maps into a single map
+            results << [meta + conditions, parquets]
+        }
+    }
+    return results
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
@@ -58,6 +82,9 @@ workflow PCCMA {
         ch_filtered.map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
         params.well_condition_columns
     )
+
+    ch_partitioned = PARTITION_CONDITIONS.out.partitions
+        .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
 
     //
     // Collate and save software versions
