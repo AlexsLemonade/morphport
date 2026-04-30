@@ -13,9 +13,16 @@ import pyarrow
 from parsl import Config
 from parsl.executors import HighThroughputExecutor
 
+# capture input variables from the Nextflow workflow
+plate_dir = "${plate_dir}"
+plate_id = "${meta.plate_id}"
+cytotable_preset = "${meta.cytotable_preset}"
+task_cpus = int("${task.cpus}")
+task_process = "${task.process}"
+
 # Set multiprocessing and thread allocation
-# Redundant int("${}") conversion to fool python linters/formatters
-parsl_workers = int("${task.cpus}")
+
+parsl_workers = task_cpus
 # allow 2 duckdb and pyarrow threads per worker
 # this seems to work reasonably well to match CPU usage to the allocated cpus, at least in local testing
 subprocess_threads = 2
@@ -28,10 +35,10 @@ import cytotable  # noqa: E402
 
 with tempfile.TemporaryDirectory() as parsl_run_dir:
     cytotable.convert(
-        source_path="${plate_dir}",
-        dest_path="${meta.plate_id}.parquet",
+        source_path=plate_dir,
+        dest_path=f"{plate_id}.parquet",
         dest_datatype="parquet",
-        preset="${meta.cytotable_preset}",
+        preset=cytotable_preset,
         chunksize=100_000,
         parsl_config=Config(
             executors=[HighThroughputExecutor(max_workers_per_node=parsl_workers)],
@@ -44,7 +51,7 @@ with open("versions.yml", "w") as f:
     f.write(
         "\\n".join(
             [
-                '"${task.process}":',
+                f'"{task_process}":',
                 f"    python: {sys.version.split()[0]}",
                 f"    cytotable: {cytotable.__version__}",
                 f"    duckdb: {duckdb.__version__}",

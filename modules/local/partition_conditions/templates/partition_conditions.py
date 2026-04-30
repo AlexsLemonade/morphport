@@ -63,10 +63,15 @@ def write_versions(task_process):
 
 
 def main():
+    # capture input variables from Nextflow
     plate_parquet_file = "${parquet_file}"
     platemap_file = "${platemap_file}"
     plate_id = "${meta.plate_id}"
     partition_columns_str = "${partition_columns}"
+    n_threads = int("${task.cpus}")
+    task_process = "${task.process}"
+
+    duckdb.execute(f"SET threads = {n_threads}")
 
     partition_cols = resolve_partition_columns(partition_columns_str)
 
@@ -92,7 +97,6 @@ def main():
     partition_sizes = {}
     for col in partition_cols:
         counts = joined_db.aggregate(f"{col}, count(*) as count", col).to_df()
-        print(counts)
         partition_sizes[col] = dict(zip(counts[col], counts["count"]))
 
     summary = {
@@ -104,7 +108,7 @@ def main():
     with open(f"{plate_id}_platemap_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
 
-    write_versions("${task.process}")
+    write_versions(task_process)
 
 
 if __name__ == "__main__":
