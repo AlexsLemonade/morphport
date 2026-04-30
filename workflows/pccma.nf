@@ -68,7 +68,7 @@ workflow PCCMA {
             def stats = new groovy.json.JsonSlurper().parse(summary)
             if (stats.results.skipped_conditions) {
                 stats.results.skipped_conditions.each { condition, features ->
-                    log.warn "coSMicQC [${meta.plate_id}]: skipped condition '${condition}' — features not found in parquet: ${features.join(', ')}"
+                    log.debug "coSMicQC [${meta.plate_id}]: skipped condition '${condition}' — features not found in parquet: ${features.join(', ')}"
                 }
             }
             [meta + [
@@ -85,6 +85,12 @@ workflow PCCMA {
 
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
         .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+
+    // temporary view to see what happened with partitioning
+    ch_partitioned.view { meta, parquets ->
+        def conditions = meta.subMap(meta.keySet().findAll { it.startsWith('Metadata_') })
+        "${meta.plate_id}: ${conditions} — ${parquets.size()} parquet file(s)"
+    }
 
     //
     // Collate and save software versions

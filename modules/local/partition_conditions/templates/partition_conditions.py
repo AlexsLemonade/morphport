@@ -40,10 +40,16 @@ def load_platemap(platemap_file, partition_cols):
     df = df.rename(
         columns=lambda c: c if c.startswith("Metadata_") else f"Metadata_{c}"
     )
-    # fill in any missing partition cols with "NA" for consistency in partition paths
+    # fill in any missing partition cols with "_None_"
+    # TODO: should we give this a different name?
+    # I want to distinguish between "NA" as a value in the platemap vs
+    # a column that doesn't exist in the platemap at all, but I wasn't sure what the call the latter
     for col in partition_cols:
         if col not in df.columns:
-            df[col] = "NA"
+            df[col] = "_None_"
+    # if the partition column exists but has nulls, fill those with "_NA_"
+    # to avoid __HIVE_DEFAULT_PARTITION__ output
+    df[partition_cols] = df[partition_cols].fillna("_NA_")
     return duckdb.from_df(df)
 
 
