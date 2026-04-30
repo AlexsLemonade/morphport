@@ -1,6 +1,7 @@
 process PARTITION_CONDITIONS {
     tag "${meta.plate_id}"
     label 'process_low'
+    label 'publish_optional'
 
     conda "${moduleDir}/environment.yml"
     container {
