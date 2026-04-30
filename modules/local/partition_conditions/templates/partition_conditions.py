@@ -97,7 +97,7 @@ def main():
     joined_db.write_parquet(
         plate_id,
         partition_by=partition_cols,
-        filename_pattern=f"{plate_id}_{{i}}",
+        filename_pattern=plate_id + "_{i}",
     )
 
     partition_sizes = {}
