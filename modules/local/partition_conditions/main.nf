@@ -23,12 +23,13 @@ process PARTITION_CONDITIONS {
     template 'partition_conditions.py'
 
     stub:
-    // define the partition columns, ensuring they are prefixed with 'Metadata_'
     def cols = partition_columns.split(',')
         .collect { col -> col.startsWith('Metadata_') ? col : "Metadata_${col}" }
+    def stub_path = cols.collect { "${it}=_NA_" }.join('/')
     """
-    mkdir -p "${meta.plate_id}/Metadata_gene_allele=NA"
-    touch "${meta.plate_id}/Metadata_gene_allele=NA/${meta.plate_id}_0.parquet"
+    mkdir -p "${meta.plate_id}/${stub_path}"
+    touch "${meta.plate_id}/${stub_path}/${meta.plate_id}_0.parquet"
+
     cat <<-END_JSON > ${meta.plate_id}_platemap_summary.json
     {
         "plate_id": "${meta.plate_id}",
