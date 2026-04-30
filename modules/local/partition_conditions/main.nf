@@ -25,7 +25,7 @@ process PARTITION_CONDITIONS {
     stub:
     // define the partition columns, ensuring they are prefixed with 'Metadata_'
     def cols = partition_columns.split(',')
-        .collect { it -> it.startsWith('Metadata_') ? it : "Metadata_${it}" }
+        .collect { col -> col.startsWith('Metadata_') ? col : "Metadata_${col}" }
     """
     mkdir -p "${meta.plate_id}/Metadata_gene_allele=NA"
     touch "${meta.plate_id}/Metadata_gene_allele=NA/${meta.plate_id}_0.parquet"
