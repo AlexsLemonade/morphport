@@ -1,0 +1,5 @@
+plate_map_name	well_position	gene_allele	treatment
+platemap_001	A01	wt	DMSO
+platemap_001	B01	mut	DMSO
+platemap_001	C01	wt	drug
+platemap_001	D01	mut	drug

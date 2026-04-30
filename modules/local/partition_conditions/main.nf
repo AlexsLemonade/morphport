@@ -14,7 +14,7 @@ process PARTITION_CONDITIONS {
     val partition_columns
 
     output:
-    tuple val(meta), path("${meta.plate_id}"),        emit: partitions
+    tuple val(meta), path("${meta.plate_id}"),         emit: partitions
     path "${meta.plate_id}_platemap_summary.json",     emit: summary
     path "versions.yml",                               emit: versions, topic: versions
 
@@ -22,6 +22,9 @@ process PARTITION_CONDITIONS {
     template 'partition_conditions.py'
 
     stub:
+    // define the partition columns, ensuring they are prefixed with 'Metadata_'
+    def cols = partition_columns.split(',')
+        .collect { it -> it.startsWith('Metadata_') ? it : "Metadata_${it}" }
     """
     mkdir -p "${meta.plate_id}/Metadata_gene_allele=NA"
     touch "${meta.plate_id}/Metadata_gene_allele=NA/${meta.plate_id}_0.parquet"
@@ -29,8 +32,8 @@ process PARTITION_CONDITIONS {
     {
         "plate_id": "${meta.plate_id}",
         "platemap_file": "${platemap_file}",
-        "partition_columns": ${partition_columns},
-        "partitions": {}
+        "partition_columns": ${groovy.json.JsonOutput.toJson(cols)},
+        "partitions": ${groovy.json.JsonOutput.toJson(cols.collectEntries { [(it): [:]] })}
     }
     END_JSON
 
