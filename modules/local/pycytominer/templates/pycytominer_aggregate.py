@@ -5,6 +5,7 @@ Groups cells by Metadata_Plate and Metadata_Well, computes column-wise medians.
 Output has one row per well.
 """
 
+import importlib.metadata
 import sys
 
 import pandas as pd
@@ -21,7 +22,7 @@ def write_versions(task_process):
                 [
                     f'"{task_process}":',
                     f"    python: {sys.version.split()[0]}",
-                    f"    pycytominer: {pycytominer.__version__}",
+                    f"    pycytominer: {importlib.metadata.version('pycytominer')}",
                     f"    pandas: {pd.__version__}",
                 ]
             )
