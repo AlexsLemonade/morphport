@@ -20,6 +20,14 @@
                     "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json.",
                     "fa_icon": "fas fa-filter"
                 },
+                "aggregate_operation": {
+                    "type": "string",
+                    "description": "Aggregation function to use when summarising per-cell data to well-level profiles.",
+                    "help_text": "Either 'median' or 'mean'. Passed to pycytominer's aggregate function as the 'operation' argument.",
+                    "fa_icon": "fas fa-calculator",
+                    "default": "median",
+                    "enum": ["median", "mean"]
+                },
                 "well_condition_columns": {
                     "type": "string",
                     "description": "Comma-separated list of platemap column names defining well conditions.",

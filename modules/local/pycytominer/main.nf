@@ -11,6 +11,7 @@ process PYCYTOMINER_AGGREGATE {
 
     input:
     tuple val(meta_in), path(parquet_file)
+    val(operation)
 
     output:
     tuple val(meta), path("${meta.plate_id}_bulk.parquet"), emit: result

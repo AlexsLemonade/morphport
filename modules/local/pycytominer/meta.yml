@@ -1,5 +1,5 @@
 name: pycytominer
-description: Processes single-cell imaging data using pycytominer — aggregation, normalization, and feature selection
+description: Processes single-cell imaging data using pycytominer — aggregation by well, normalization, and feature selection
 keywords:
   - cell painting
   - pycytominer
@@ -27,6 +27,9 @@ input:
         type: file
         description: Per-cell parquet file produced by COSMICQC_FILTER
         pattern: "*.parquet"
+  - - operation:
+        type: string
+        description: Aggregation function to apply across cells within each well ('median' or 'mean')
 
 output:
   - result:
@@ -35,7 +38,7 @@ output:
           description: Groovy Map containing plate metadata
       - "*.parquet":
           type: file
-          description: Well-level (bulk) parquet with one row per well (median of all per-cell features)
+          description: Well-level (bulk) parquet with one row per well (aggregated per-cell features)
           pattern: "*_bulk.parquet"
   - versions:
       - versions.yml:

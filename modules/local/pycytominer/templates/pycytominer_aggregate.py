@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Aggregates per-cell parquet data to well-level profiles using pycytominer.
-Groups cells by Metadata_Plate and Metadata_Well, computes column-wise medians.
+Groups cells by Metadata_Plate and Metadata_Well using a configurable operation (median or mean).
 Output has one row per well.
 """
 
@@ -33,12 +33,13 @@ def write_versions(task_process: str):
 def main():
     parquet_file = "${parquet_file}"
     plate_id = "${meta.plate_id}"
+    operation = "${operation}"
     task_process = "${task.process}"
     df = pd.read_parquet(parquet_file)
 
     pycytominer.aggregate(
         population_df=df,
-        operation="median",
+        operation=operation,
         strata=STRATA,
         output_file=f"{plate_id}_bulk.parquet",
         output_type="parquet",

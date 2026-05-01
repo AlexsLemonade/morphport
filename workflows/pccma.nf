@@ -57,7 +57,7 @@ workflow PCCMA {
     }
 
     // make well-level aggregates with pycytominer
-    PYCYTOMINER_AGGREGATE(ch_filtered)
+    PYCYTOMINER_AGGREGATE(ch_filtered, params.aggregate_operation)
 
     // partition analyses by condition
     // this does both cell and well level partitioning;
