@@ -47,7 +47,7 @@ workflow PCCMA {
     main:
 
     ch_validated = ch_samplesheet
-        .map { meta -> [meta, file(meta.plate_dir)] }
+        .map { meta -> [meta + [agg_level: 'cells'], file(meta.plate_dir)] }
         .branch { it ->
             skip_cytotable: it[0].cytotable_preset == 'skip'
             convert: true
