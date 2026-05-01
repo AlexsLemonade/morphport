@@ -123,7 +123,7 @@ def expandHivePartitions(meta, partition_dir) {
         if (parquets) {
             def rel = partition_dir.relativize(dir)
             // iterate over the relative path segments to build a map of conditions,
-            // e.g. ['Metadata_gene_allele=NA', 'Metadata_treatment=drugA'] -> [Metadata_gene_allele: 'NA', Metadata_treatment: 'drugA']
+            // e.g. ['Metadata_gene_allele=_NA_', 'Metadata_treatment=drugA'] -> [Metadata_gene_allele: '_NA_', Metadata_treatment: 'drugA']
             def conditions = rel
                 .collect { segment ->
                     def parts = segment.toString().split('=', 2)
