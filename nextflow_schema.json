@@ -12,29 +12,6 @@
             "description": "Define where the pipeline should find input data and save output data.",
             "required": ["input", "outdir"],
             "properties": {
-                "cosmicqc_filter_file": {
-                    "type": "string",
-                    "format": "file-path",
-                    "exists": true,
-                    "description": "Path to JSON file specifying coSMicQC filter conditions and z-score thresholds.",
-                    "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json.",
-                    "fa_icon": "fas fa-filter"
-                },
-                "aggregate_operation": {
-                    "type": "string",
-                    "description": "Aggregation function to use when summarising per-cell data to well-level profiles.",
-                    "help_text": "Either 'median' or 'mean'. Passed to pycytominer's aggregate function as the 'operation' argument.",
-                    "fa_icon": "fas fa-calculator",
-                    "default": "median",
-                    "enum": ["median", "mean"]
-                },
-                "well_condition_columns": {
-                    "type": "string",
-                    "description": "Comma-separated list of platemap column names defining well conditions.",
-                    "pattern": "^(\\S+,)*\\S+$",
-                    "help_text": "Column names are specified without any Metadata_ prefix (e.g. 'gene_allele,treatment'). All listed columns are used as partition keys; any column absent from the platemap is filled with 'NA'.",
-                    "fa_icon": "fas fa-sitemap"
-                },
                 "publish_optional": {
                     "type": "boolean",
                     "description": "Publish intermediate pipeline outputs, such as partitioned parquet files.",
@@ -66,6 +43,49 @@
                     "fa_icon": "fas fa-envelope",
                     "help_text": "Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits. If set in your user config file (`~/.nextflow/config`) then you don't need to specify this on the command line for every run.",
                     "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"
+                }
+            }
+        },
+        "processing_options": {
+            "title": "Processing options",
+            "type": "object",
+            "fa_icon": "fas fa-cogs",
+            "description": "Parameters related to the general processing of the data.",
+            "properties": {
+                "well_condition_columns": {
+                    "type": "string",
+                    "default": "gene_allele,treatment",
+                    "pattern": "^\\w+(,\\w+)*$",
+                    "description": "Comma-separated list of column names in the input samplesheet to use for partitioning the data.",
+                    "help_text": "The pipeline partitions the data based on the values in the columns specified here. You can specify any columns in your input samplesheet, but typically these would be columns that describe experimental conditions, such as 'gene', 'treatment', or 'gene_allele'. The pipeline will create one partition for each unique combination of values in these columns. For example, if you specify 'gene' and 'treatment', and you have 3 unique genes and 2 unique treatments, then you will get 6 partitions (one for each gene-treatment combination)."
+                }
+            }
+        },
+        "cosmicqc": {
+            "title": "coSMicQC",
+            "type": "object",
+            "description": "Parameters related to coSMicQC filtering",
+            "properties": {
+                "cosmicqc_filter_file": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Path to JSON file specifying coSMicQC filter conditions and z-score thresholds.",
+                    "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json.",
+                    "fa_icon": "fas fa-filter"
+                }
+            }
+        },
+        "pycytominer": {
+            "title": "Pycytominer",
+            "type": "object",
+            "description": "Parameters related to Pycytominer processing",
+            "properties": {
+                "pycytominer_aggregate_operation": {
+                    "type": "string",
+                    "default": "median",
+                    "description": "Aggregation function to use when summarising per-cell data to well-level profiles.",
+                    "enum": ["median", "mean"]
                 }
             }
         },
@@ -204,6 +224,15 @@
     "allOf": [
         {
             "$ref": "#/$defs/input_output_options"
+        },
+        {
+            "$ref": "#/$defs/processing_options"
+        },
+        {
+            "$ref": "#/$defs/cosmicqc"
+        },
+        {
+            "$ref": "#/$defs/pycytominer"
         },
         {
             "$ref": "#/$defs/institutional_config_options"

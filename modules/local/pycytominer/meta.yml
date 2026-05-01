@@ -22,7 +22,7 @@ input:
         type: map
         description: |
           Groovy Map containing plate metadata,
-          e.g. [ plate_id:'plate_001', batch:'batch_1', agg_level:'cells' ]
+          e.g. [ plate_id:'plate_001', batch:'batch_1', aggregate_level:'cells' ]
     - parquet_file:
         type: file
         description: Per-cell parquet file produced by COSMICQC_FILTER

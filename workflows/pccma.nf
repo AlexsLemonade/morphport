@@ -24,7 +24,7 @@ workflow PCCMA {
     main:
 
     ch_validated = ch_samplesheet
-        .map { meta -> [meta + [agg_level: 'cell'], file(meta.plate_dir)] }
+        .map { meta -> [meta + [aggregate_level: 'cell'], file(meta.plate_dir)] }
         .branch { it ->
             skip_cytotable: it[0].cytotable_preset == 'skip'
             convert: true
@@ -57,11 +57,11 @@ workflow PCCMA {
     }
 
     // make well-level aggregates with pycytominer
-    PYCYTOMINER_AGGREGATE(ch_filtered, params.aggregate_operation)
+    PYCYTOMINER_AGGREGATE(ch_filtered, params.pycytominer_aggregate_operation)
 
     // partition analyses by condition
     // this does both cell and well level partitioning;
-    // we can separate these out again later using the agg_level metadata
+    // we can separate these out again later using the aggregate_level metadata
     PARTITION_CONDITIONS(
         ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result)
             .map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
@@ -73,7 +73,7 @@ workflow PCCMA {
     // temporary view to see what happened with partitioning
     ch_partitioned.view { meta, parquets ->
         def conditions = meta.subMap(meta.keySet().findAll { it -> it.startsWith('Metadata_') })
-        "${meta.plate_id}, ${meta.agg_level}: ${conditions} — ${parquets.size()} parquet file(s)"
+        "${meta.plate_id}, ${meta.aggregate_level}: ${conditions} — ${parquets.size()} parquet file(s)"
     }
 
     //
