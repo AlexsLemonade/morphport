@@ -12,6 +12,14 @@
             "description": "Define where the pipeline should find input data and save output data.",
             "required": ["input", "outdir"],
             "properties": {
+                "cosmicqc_filter_file": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Path to JSON file specifying coSMicQC filter conditions and z-score thresholds.",
+                    "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json.",
+                    "fa_icon": "fas fa-filter"
+                },
                 "input": {
                     "type": "string",
                     "format": "file-path",

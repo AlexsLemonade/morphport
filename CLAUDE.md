@@ -1,12 +1,14 @@
 # CLAUDE.md
 
 You are working in a Childhood Cancer Data Lab repository.
+This project is a Nextflow pipeline for processing single-cell imaging data from the Pediatric Cancer Cell Atlas (PCCMA).
+The pipeline adheres to nf-core guidelines as much as possible to promote modularity and reproducibility.
 
 ## Rules
 
 - Do NOT run `git commit`, `git push`, or any other git write commands. The human will handle all git operations.
 - Do NOT create, read, or modify `.env` files or any file containing credentials, tokens, or secrets.
-- Do NOT make network requests to external services (no `curl`, `wget`, API calls, etc.) except for the purposes of fetching documentation or code examples relevant to the task at hand.
+- Do NOT make network requests to external services (no `curl`, `wget`, API calls, etc.). However, you may use WebSearch and WebFetch tools to retrieve documentation or code examples relevant to the task at hand.
 - Do NOT install system-level packages or modify system configuration.
 - Do NOT access or reference any data that is not already present in this repository.
 

@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.13
+  - pandas>=2.3.3,<3
+  - pyarrow
+  - tabulate
+  - opencv
+  - pip
+  - pip:
+      - cosmicqc==1.0.1

@@ -1,0 +1,74 @@
+name: cosmicqc_filter
+description: Applies coSMicQC outlier detection to remove low-quality cells from a per-plate parquet file
+keywords:
+  - cell painting
+  - quality control
+  - cosmicqc
+  - outlier detection
+  - parquet
+tools:
+  - cosmicqc:
+      description: >
+        coSMicQC identifies low-quality cells in morphological profiling data using
+        z-score-based outlier detection on CellProfiler-derived features.
+      homepage: https://github.com/WayScience/coSMicQC
+      documentation: https://waylab.github.io/coSMicQC/
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing plate metadata,
+          e.g. [ plate_id:'UL000109', batch:'Batch1_20221004' ]
+    - parquet_file:
+        type: file
+        description: Per-cell parquet file produced by cytotable
+        pattern: "*.parquet"
+  - - cosmicqc_filter_file:
+        type: file
+        description: |
+          JSON file specifying coSMicQC filter conditions.
+          Each entry defines a named filter condition with a dict of feature:threshold
+          mappings; positive thresholds flag cells above the z-score, negative below.
+        pattern: "*.json"
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Groovy Map containing plate metadata
+      - "*_filtered.parquet":
+          type: file
+          description: Per-cell parquet file with outlier cells removed
+          pattern: "*_filtered.parquet"
+      - "*_cosmicqc_summary.json":
+          type: file
+          description: |
+            JSON file recording the filter settings applied, per-plate results
+            (cells input, cells output, fraction removed, per-condition counts),
+            and any filters that were skipped due to missing features
+          pattern: "*_cosmicqc_summary.json"
+  - outliers:
+      - "*_cosmicqc_outliers.csv.gz":
+          type: file
+          description: |
+            Compressed CSV with one row per removed cell, including cell-identifier
+            metadata columns and a cosmicqc_condition column naming the condition(s)
+            that flagged each cell
+          pattern: "*_cosmicqc_outliers.csv.gz"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
