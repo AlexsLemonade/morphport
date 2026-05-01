@@ -3,6 +3,8 @@ channels:
   - bioconda
 dependencies:
   - python=3.12
-  - pycytominer=1.4
   - pandas>=2.0,<3
   - pyarrow
+  - pip
+  - pip:
+      - pycytominer==1.4.0

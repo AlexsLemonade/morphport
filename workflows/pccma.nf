@@ -61,7 +61,7 @@ workflow PCCMA {
 
     // partition analyses by condition
     // this does both cell and well level partitioning;
-    // we can separate these out again later using the agg_level metadata if
+    // we can separate these out again later using the agg_level metadata
     PARTITION_CONDITIONS(
         ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result)
             .map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
