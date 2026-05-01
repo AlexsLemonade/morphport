@@ -119,7 +119,7 @@ workflow PCCMA {
 def expandHivePartitions(meta, partition_dir) {
     def results = []
     partition_dir.eachDirRecurse { dir ->
-        def parquets = dir.listFiles()?.findAll { it.name.endsWith('.parquet') } ?: []
+        def parquets = dir.listFiles()?.findAll { f -> f.name.endsWith('.parquet') } ?: []
         if (parquets) {
             def rel = partition_dir.relativize(dir)
             // iterate over the relative path segments to build a map of conditions,

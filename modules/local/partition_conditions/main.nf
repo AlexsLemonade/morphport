@@ -25,7 +25,7 @@ process PARTITION_CONDITIONS {
     stub:
     def cols = partition_columns.split(',')
         .collect { col -> col.startsWith('Metadata_') ? col : "Metadata_${col}" }
-    def stub_path = cols.collect { "${it}=_NA_" }.join('/')
+    def stub_path = cols.collect { cond -> "${cond}=_NA_" }.join('/')
     """
     mkdir -p "${meta.plate_id}/${stub_path}"
     touch "${meta.plate_id}/${stub_path}/${meta.plate_id}_0.parquet"
@@ -35,7 +35,7 @@ process PARTITION_CONDITIONS {
         "plate_id": "${meta.plate_id}",
         "platemap_file": "${platemap_file}",
         "partition_columns": ${groovy.json.JsonOutput.toJson(cols)},
-        "partitions": ${groovy.json.JsonOutput.toJson(cols.collectEntries { [(it): [:]] })}
+        "partitions": ${groovy.json.JsonOutput.toJson(cols.collectEntries { x -> [(x): [:]] })}
     }
     END_JSON
 
