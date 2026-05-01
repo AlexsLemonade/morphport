@@ -5,8 +5,8 @@ Hive-style partitioned parquet output under {plate_id}/.
 
 All platemap columns (except plate_map_name) are added to the parquet as
 Metadata_-prefixed columns. Any partition column absent from the platemap is
-filled with 'NA' so every row receives a complete set of Hive path segments.
-Wells with no platemap entry receive NULL for all platemap columns (and 'NA'
+filled with '_Absent_' so every row receives a complete set of Hive path segments.
+Wells with no platemap entry receive NULL for all platemap columns (and '_NA_'
 for partition columns).
 """
 
@@ -16,44 +16,46 @@ import sys
 import duckdb
 import pandas as pd
 
+WELL_COLUMN = "well_position"
 
-def resolve_partition_columns(partition_columns_str):
+
+def resolve_partition_columns(partition_columns_str: str) -> list[str]:
     """Parse comma-separated column names → Metadata_-prefixed list."""
     raw = [c.strip() for c in partition_columns_str.split(",") if c.strip()]
     return [c if c.startswith("Metadata_") else f"Metadata_{c}" for c in raw]
 
 
-def load_platemap(platemap_file, partition_cols):
+def load_platemap(
+    platemap_file: str, partition_cols: list[str], well_column: str = WELL_COLUMN
+):
     """
     Load the platemap TSV and return a processed DataFrame.
-    - Renames well_position → Metadata_Well
-    - Drops plate_map_name
+    - Renames well_column → Metadata_Well
     - Adds Metadata_ prefix to all other columns
-    - Adds any partition columns absent from the platemap as constant 'NA'
-      (column not applicable to this platemap format)
-    - NULL values in existing partition columns are left as-is; DuckDB will write
-      those partitions as __HIVE_DEFAULT_PARTITION__ (wells with no platemap entry)
+    - Any partition columns absent from the platemap are given the constant '_Absent_'
+    - Any partition columns present in the platemap but with null values for a well are filled with '_NA_'
     """
     df = pd.read_csv(platemap_file, sep="\\t", encoding="utf-8-sig")
-    df = df.rename(columns={"well_position": "Metadata_Well"})
-    df = df.drop(columns=["plate_map_name"], errors="ignore")
+    if well_column not in df.columns:
+        raise ValueError(
+            f"Platemap file '{platemap_file}' is missing required column '{well_column}'."
+            f" Found columns: {list(df.columns)}"
+        )
+    df = df.rename(columns={well_column: "Metadata_Well"})
     df = df.rename(
         columns=lambda c: c if c.startswith("Metadata_") else f"Metadata_{c}"
     )
-    # fill in any missing partition cols with "_None_"
-    # TODO: should we give this a different name?
-    # I want to distinguish between "NA" as a value in the platemap vs
-    # a column that doesn't exist in the platemap at all, but I wasn't sure what the call the latter
+    # fill in any missing partition cols with "_Absent_"
     for col in partition_cols:
         if col not in df.columns:
-            df[col] = "_None_"
+            df[col] = "_Absent_"
     # if the partition column exists but has nulls, fill those with "_NA_"
     # to avoid __HIVE_DEFAULT_PARTITION__ output
     df[partition_cols] = df[partition_cols].fillna("_NA_")
     return duckdb.from_df(df)
 
 
-def write_versions(task_process):
+def write_versions(task_process: str):
     with open("versions.yml", "w") as f:
         f.write(
             "\\n".join(
