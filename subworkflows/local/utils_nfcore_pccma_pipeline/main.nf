@@ -264,8 +264,8 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
     if (!resolved.exists()) {
         throw new Exception("platemap file not found at ${resolved}")
     }
-    // return the resolved platemap path as a string for storage in the meta map
-    return resolved.toString()
+    // return the resolved platemap path as a URI string for storage in the meta map
+    return resolved.toUriString()
 }
 //
 // Generate methods description for MultiQC

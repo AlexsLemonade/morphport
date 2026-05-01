@@ -20,6 +20,21 @@
                     "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json.",
                     "fa_icon": "fas fa-filter"
                 },
+                "well_condition_columns": {
+                    "type": "string",
+                    "description": "Comma-separated list of platemap column names defining well conditions.",
+                    "pattern": "^(\\S+,)*\\S+$",
+                    "help_text": "Column names are specified without any Metadata_ prefix (e.g. 'gene_allele,treatment'). All listed columns are used as partition keys; any column absent from the platemap is filled with 'NA'.",
+                    "fa_icon": "fas fa-sitemap"
+                },
+                "publish_optional": {
+                    "type": "boolean",
+                    "description": "Publish intermediate pipeline outputs, such as partitioned parquet files.",
+                    "help_text": "By default, intermediate outputs (e.g. from PARTITION_CONDITIONS) are not published to the output directory. Set this flag to publish them, which is useful for debugging. Automatically enabled by the 'debug' profile.",
+                    "fa_icon": "fas fa-save",
+                    "default": false,
+                    "hidden": true
+                },
                 "input": {
                     "type": "string",
                     "format": "file-path",

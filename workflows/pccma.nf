@@ -8,6 +8,31 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pccma_pipeline'
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
+include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FUNCTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+def expandHivePartitions(meta, partition_dir) {
+    def results = []
+    partition_dir.eachDirRecurse { dir ->
+        def parquets = dir.listFiles()?.findAll { it.name.endsWith('.parquet') } ?: []
+        if (parquets) {
+            def rel = partition_dir.relativize(dir)
+            // iterate over the relative path segments to build a map of conditions,
+            // e.g. ['Metadata_gene_allele=_NA_', 'Metadata_treatment=drugA'] -> [Metadata_gene_allele: _NA_', Metadata_treatment: 'drugA']
+            def conditions = rel.collect { segment ->
+                def parts = segment.toString().split('=', 2)
+                [(parts[0]): parts[1]]
+            }.sum([:]) // merge list of maps into a single map
+            results << [meta + conditions, parquets]
+        }
+    }
+    return results
+}
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -43,7 +68,7 @@ workflow PCCMA {
             def stats = new groovy.json.JsonSlurper().parse(summary)
             if (stats.results.skipped_conditions) {
                 stats.results.skipped_conditions.each { condition, features ->
-                    log.warn "coSMicQC [${meta.plate_id}]: skipped condition '${condition}' — features not found in parquet: ${features.join(', ')}"
+                    log.debug "coSMicQC [${meta.plate_id}]: skipped condition '${condition}' — features not found in parquet: ${features.join(', ')}"
                 }
             }
             [meta + [
@@ -52,6 +77,20 @@ workflow PCCMA {
                 cosmicqc_fraction_removed: stats.results.fraction_removed,
             ], parquet]
         }
+
+    PARTITION_CONDITIONS(
+        ch_filtered.map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
+        params.well_condition_columns
+    )
+
+    ch_partitioned = PARTITION_CONDITIONS.out.partitions
+        .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+
+    // temporary view to see what happened with partitioning
+    ch_partitioned.view { meta, parquets ->
+        def conditions = meta.subMap(meta.keySet().findAll { it.startsWith('Metadata_') })
+        "${meta.plate_id}: ${conditions} — ${parquets.size()} parquet file(s)"
+    }
 
     //
     // Collate and save software versions

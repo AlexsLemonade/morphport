@@ -67,9 +67,11 @@ def write_versions(task_process):
 
 
 def main():
+    # capture input variables from Nextflow
     parquet_file = "${parquet_file}"
     filter_settings_file = "${cosmicqc_filter_file}"
     plate_id = "${meta.plate_id}"
+    task_process = "${task.process}"
 
     with open(filter_settings_file) as f:
         filter_conditions = json.load(f)
@@ -153,7 +155,7 @@ def main():
     with open(f"{plate_id}_cosmicqc_summary.json", "w") as f:
         json.dump(qc_summary, f, indent=2)
 
-    write_versions("${task.process}")
+    write_versions(task_process)
 
 
 if __name__ == "__main__":
