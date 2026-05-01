@@ -22,6 +22,7 @@ process PYCYTOMINER_AGGREGATE {
     template('pycytominer_aggregate.py')
 
     stub:
+    assert meta_in.agg_level == 'cell' : "PYCYTOMINER_AGGREGATE expects agg_level='cell', got '${meta_in.agg_level}'"
     meta = meta_in + [agg_level: 'well']
     """
     touch ${meta.plate_id}_bulk.parquet
