@@ -15,7 +15,7 @@ import pycytominer
 STRATA = ["Metadata_Plate", "Metadata_Well"]
 
 
-def write_versions(task_process):
+def write_versions(task_process: str):
     with open("versions.yml", "w") as f:
         f.write(
             "\\n".join(
