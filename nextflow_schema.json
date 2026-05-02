@@ -52,7 +52,13 @@
             "fa_icon": "fas fa-cogs",
             "description": "Parameters related to the general processing of the data.",
             "properties": {
-                "well_condition_columns": {
+                "platemap_well_column": {
+                    "type": "string",
+                    "default": "well_position",
+                    "description": "Column name in the input samplesheet that contains the well identifiers.",
+                    "help_text": "The pipeline uses the values in this column to match the samplesheet to the plate parquet files. The values in this column should correspond to the 'Metadata_Well' column in the plate parquet files. This is typically a column that describes the well position on the plate, such as 'well_position' or 'well_id'."
+                },
+                "platemap_condition_columns": {
                     "type": "string",
                     "default": "gene_allele,treatment",
                     "pattern": "^\\w+(,\\w+)*$",

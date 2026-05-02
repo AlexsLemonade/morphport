@@ -65,7 +65,8 @@ workflow PCCMA {
     PARTITION_CONDITIONS(
         ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result)
             .map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
-        params.well_condition_columns,
+        params.platemap_well_column,
+        params.platemap_condition_columns,
     )
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
         .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
