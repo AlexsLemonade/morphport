@@ -16,8 +16,6 @@ import sys
 import duckdb
 import pandas as pd
 
-WELL_COLUMN = "well_position"
-
 
 def resolve_partition_columns(partition_columns_str: str) -> list[str]:
     """Parse comma-separated column names → Metadata_-prefixed list."""
@@ -26,22 +24,24 @@ def resolve_partition_columns(partition_columns_str: str) -> list[str]:
 
 
 def load_platemap(
-    platemap_file: str, partition_cols: list[str], well_column: str = WELL_COLUMN
-):
+    platemap_file: str,
+    platemap_well_column: str,
+    partition_cols: list[str],
+) -> duckdb.DuckDBPyRelation:
     """
     Load the platemap TSV and return a processed DataFrame.
-    - Renames well_column → Metadata_Well
+    - Renames platemap_well_column → Metadata_Well
     - Adds Metadata_ prefix to all other columns
     - Any partition columns absent from the platemap are given the constant '_Absent_'
     - Any partition columns present in the platemap but with null values for a well are filled with '_NA_'
     """
     df = pd.read_csv(platemap_file, sep="\\t", encoding="utf-8-sig")
-    if well_column not in df.columns:
+    if platemap_well_column not in df.columns:
         raise ValueError(
-            f"Platemap file '{platemap_file}' is missing required column '{well_column}'."
+            f"Platemap file '{platemap_file}' is missing required column '{platemap_well_column}'."
             f" Found columns: {list(df.columns)}"
         )
-    df = df.rename(columns={well_column: "Metadata_Well"})
+    df = df.rename(columns={platemap_well_column: "Metadata_Well"})
     df = df.rename(
         columns=lambda c: c if c.startswith("Metadata_") else f"Metadata_{c}"
     )
@@ -75,7 +75,8 @@ def main():
     plate_parquet_file = "${parquet_file}"
     platemap_file = "${platemap_file}"
     plate_id = "${meta.plate_id}"
-    partition_columns_str = "${partition_columns}"
+    partition_columns_str = "${platemap_condition_columns}"
+    platemap_well_column = "${platemap_well_column}"
     n_threads = int("${task.cpus}")
     task_process = "${task.process}"
 
@@ -83,7 +84,7 @@ def main():
 
     partition_cols = resolve_partition_columns(partition_columns_str)
 
-    platemap_df = load_platemap(platemap_file, partition_cols)
+    platemap_df = load_platemap(platemap_file, platemap_well_column, partition_cols)
     plate_db = duckdb.read_parquet(plate_parquet_file)
 
     joined_db = plate_db.join(platemap_df, condition="Metadata_Well", how="left")

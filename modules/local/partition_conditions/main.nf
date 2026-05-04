@@ -12,7 +12,8 @@ process PARTITION_CONDITIONS {
 
     input:
     tuple val(meta), path(parquet_file), path(platemap_file)
-    val partition_columns
+    val platemap_well_column
+    val platemap_condition_columns
 
     output:
     tuple val(meta), path("${meta.plate_id}"),         emit: partitions
@@ -23,9 +24,9 @@ process PARTITION_CONDITIONS {
     template 'partition_conditions.py'
 
     stub:
-    def cols = partition_columns.split(',')
+    def condition_cols = platemap_condition_columns.split(',')
         .collect { col -> col.startsWith('Metadata_') ? col : "Metadata_${col}" }
-    def stub_path = cols.collect { "${it}=_NA_" }.join('/')
+    def stub_path = condition_cols.collect { cond -> "${cond}=_NA_" }.join('/')
     """
     mkdir -p "${meta.plate_id}/${stub_path}"
     touch "${meta.plate_id}/${stub_path}/${meta.plate_id}_0.parquet"
@@ -34,8 +35,8 @@ process PARTITION_CONDITIONS {
     {
         "plate_id": "${meta.plate_id}",
         "platemap_file": "${platemap_file}",
-        "partition_columns": ${groovy.json.JsonOutput.toJson(cols)},
-        "partitions": ${groovy.json.JsonOutput.toJson(cols.collectEntries { [(it): [:]] })}
+        "condition_columns": ${groovy.json.JsonOutput.toJson(condition_cols)},
+        "partitions": ${groovy.json.JsonOutput.toJson(condition_cols.collectEntries { x -> [(x): [:]] })}
     }
     END_JSON
 
