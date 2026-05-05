@@ -1,9 +1,10 @@
 lint:
+  actions_nf_test: false
   files_exist:
     - CODE_OF_CONDUCT.md
-    - assets/nf-core-pccma-nf_logo_light.png
-    - docs/images/nf-core-pccma-nf_logo_light.png
-    - docs/images/nf-core-pccma-nf_logo_dark.png
+    - assets/nf-core-morphport_logo_light.png
+    - docs/images/nf-core-morphport_logo_light.png
+    - docs/images/nf-core-morphport_logo_dark.png
     - .github/ISSUE_TEMPLATE/config.yml
     - .github/workflows/awstest.yml
     - .github/workflows/awsfulltest.yml
@@ -12,9 +13,9 @@ lint:
     - conf/igenomes_ignored.config
   files_unchanged:
     - CODE_OF_CONDUCT.md
-    - assets/nf-core-pccma-nf_logo_light.png
-    - docs/images/nf-core-pccma-nf_logo_light.png
-    - docs/images/nf-core-pccma-nf_logo_dark.png
+    - assets/nf-core-morphport_logo_light.png
+    - docs/images/nf-core-morphport_logo_light.png
+    - docs/images/nf-core-morphport_logo_dark.png
     - .github/ISSUE_TEMPLATE/bug_report.yml
     - .github/CONTRIBUTING.md
     - .github/PULL_REQUEST_TEMPLATE.md
@@ -26,7 +27,9 @@ lint:
   nextflow_config:
     - manifest.name
     - manifest.homePage
-nf_core_version: 3.5.2
+  pipeline_name_conventions: false
+  readme: false
+nf_core_version: 4.0.2
 repository_type: pipeline
 template:
   author: Joshua Shapiro
@@ -34,7 +37,7 @@ template:
     portal
   force: false
   is_nfcore: false
-  name: pccma-nf
+  name: morphport
   org: AlexsLemonade
   outdir: .
   skip_features:

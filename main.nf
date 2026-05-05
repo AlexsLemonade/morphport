@@ -1,9 +1,9 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    AlexsLemonade/pccma-nf
+    AlexsLemonade/morphport
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/AlexsLemonade/pccma-nf
+    Github : https://github.com/AlexsLemonade/morphport
 ----------------------------------------------------------------------------------------
 */
 
@@ -13,9 +13,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { PCCMA-NF  } from './workflows/pccma-nf'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pccma-nf_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccma-nf_pipeline'
+include { MORPHPORT  } from './workflows/morphport'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_morphport_pipeline'
+include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_morphport_pipeline'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
@@ -25,7 +25,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccm
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow ALEXSLEMONADE_PCCMA-NF {
+workflow ALEXSLEMONADE_MORPHPORT {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -35,8 +35,9 @@ workflow ALEXSLEMONADE_PCCMA-NF {
     //
     // WORKFLOW: Run pipeline
     //
-    PCCMA-NF (
-        samplesheet
+    MORPHPORT (
+        samplesheet,
+        params.outdir,
     )
 }
 /*
@@ -66,7 +67,7 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    ALEXSLEMONADE_PCCMA-NF (
+    ALEXSLEMONADE_MORPHPORT (
         PIPELINE_INITIALISATION.out.samplesheet
     )
     //
@@ -78,7 +79,6 @@ workflow {
         params.plaintext_email,
         params.outdir,
         params.monochrome_logs,
-        params.hook_url,
     )
 }
 
