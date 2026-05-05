@@ -13,7 +13,7 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { MORPHPORT } from './workflows/morphport'
+include { MORPHPORT  } from './workflows/morphport'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_morphport_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_morphport_pipeline'
 /*
@@ -36,7 +36,8 @@ workflow ALEXSLEMONADE_MORPHPORT {
     // WORKFLOW: Run pipeline
     //
     MORPHPORT (
-        samplesheet
+        samplesheet,
+        params.outdir,
     )
 }
 /*
@@ -83,7 +84,6 @@ workflow {
         params.plaintext_email,
         params.outdir,
         params.monochrome_logs,
-        params.hook_url,
     )
 }
 

@@ -1,8 +1,16 @@
-repository_type: pipeline
-
-nf_core_version: 3.5.2
-
 lint:
+  actions_nf_test: false
+  files_exist:
+    - CODE_OF_CONDUCT.md
+    - assets/nf-core-morphport_logo_light.png
+    - docs/images/nf-core-morphport_logo_light.png
+    - docs/images/nf-core-morphport_logo_dark.png
+    - .github/ISSUE_TEMPLATE/config.yml
+    - .github/workflows/awstest.yml
+    - .github/workflows/awsfulltest.yml
+    - assets/multiqc_config.yml
+    - conf/igenomes.config
+    - conf/igenomes_ignored.config
   files_unchanged:
     - CODE_OF_CONDUCT.md
     - assets/nf-core-morphport_logo_light.png
@@ -15,38 +23,26 @@ lint:
     - docs/README.md
     - .github/CONTRIBUTING.md
     - assets/sendmail_template.txt
+  multiqc_config: false
   nextflow_config:
     - manifest.name
     - manifest.homePage
-  multiqc_config: false
-  files_exist:
-    - CODE_OF_CONDUCT.md
-    - assets/nf-core-morphport_logo_light.png
-    - docs/images/nf-core-morphport_logo_light.png
-    - docs/images/nf-core-morphport_logo_dark.png
-    - .github/ISSUE_TEMPLATE/config.yml
-    - .github/workflows/awstest.yml
-    - .github/workflows/awsfulltest.yml
-    - assets/multiqc_config.yml
-    - conf/igenomes.config
-    - conf/igenomes_ignored.config
-  actions_nf_test: false
   main_nf_include_versions: false
   pipeline_name_conventions: false
   readme: false
-
+nf_core_version: 4.0.2
+repository_type: pipeline
 template:
   org: AlexsLemonade
   name: morphport
   description: Downstream analysis of Cell Painting data to prepare for the PCCMA
     portal
-  author: Joshua Shapiro
-  version: 0.1.0dev
-  force: true
+  force: false
+  is_nfcore: false
   outdir: .
   skip_features:
     - igenomes
     - multiqc
     - fastqc
     - gpu
-  is_nfcore: false
+  version: 0.1.0dev

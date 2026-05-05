@@ -20,6 +20,7 @@ include { PYCYTOMINER_AGGREGATE  } from '../modules/local/pycytominer'
 workflow MORPHPORT {
     take:
     ch_samplesheet // channel: samplesheet read in from --input
+    outdir
 
     main:
 
@@ -97,7 +98,7 @@ workflow MORPHPORT {
             "${process}:\n${tool_versions.join('\n')}"
         }
 
-    softwareVersionsToYAML(topic_versions.versions_file)
+    def ch_collated_versions = softwareVersionsToYAML(topic_versions.versions_file)
         .mix(topic_versions_string)
         .collectFile(
             storeDir: "${params.outdir}/pipeline_info",
@@ -105,7 +106,6 @@ workflow MORPHPORT {
             sort: true,
             newLine: true,
         )
-        .set { ch_collated_versions }
 
     emit:
     versions = ch_collated_versions
