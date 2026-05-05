@@ -1,9 +1,9 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    AlexsLemonade/pccma-nf
+    AlexsLemonade/morphport
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/AlexsLemonade/pccma-nf
+    Github : https://github.com/AlexsLemonade/morphport
 ----------------------------------------------------------------------------------------
 */
 
@@ -13,9 +13,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { PCCMA  } from './workflows/pccma'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pccma_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccma_pipeline'
+include { MORPHPORT } from './workflows/morphport'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_morphport_pipeline'
+include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_morphport_pipeline'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
@@ -25,7 +25,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccm
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow ALEXSLEMONADE_PCCMA {
+workflow ALEXSLEMONADE_MORPHPORT {
 
     take:
     samplesheet // channel: samplesheet read in from --input
@@ -35,7 +35,7 @@ workflow ALEXSLEMONADE_PCCMA {
     //
     // WORKFLOW: Run pipeline
     //
-    PCCMA (
+    MORPHPORT (
         samplesheet
     )
 }
@@ -71,7 +71,7 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    ALEXSLEMONADE_PCCMA (
+    ALEXSLEMONADE_MORPHPORT (
         PIPELINE_INITIALISATION.out.samplesheet
     )
     //

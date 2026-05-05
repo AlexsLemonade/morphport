@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: "UTILS_NFCORE_PCCMA_PIPELINE"
-description: Subworkflow with utility functions specific to the AlexsLemonade/pccma-nf pipeline, including samplesheet validation and pipeline initialisation/completion handling
+description: Subworkflow with utility functions specific to the AlexsLemonade/morphport pipeline, including samplesheet validation and pipeline initialisation/completion handling
 keywords:
   - utility
   - pipeline

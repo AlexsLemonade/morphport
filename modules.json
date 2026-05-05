@@ -1,6 +1,6 @@
 {
-    "name": "AlexsLemonade/pccma-nf",
-    "homePage": "https://github.com/AlexsLemonade/pccma-nf",
+    "name": "AlexsLemonade/morphport",
+    "homePage": "https://github.com/AlexsLemonade/morphport",
     "repos": {
         "https://github.com/nf-core/modules.git": {
             "modules": {

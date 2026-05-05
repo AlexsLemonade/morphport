@@ -1,5 +1,5 @@
 //
-// Subworkflow with functionality specific to the AlexsLemonade/pccma-nf pipeline
+// Subworkflow with functionality specific to the AlexsLemonade/morphport pipeline
 //
 
 /*

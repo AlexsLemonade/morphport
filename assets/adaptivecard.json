@@ -17,7 +17,7 @@
                         "size": "Large",
                         "weight": "Bolder",
                         "color": "<% if (success) { %>Good<% } else { %>Attention<%} %>",
-                        "text": "AlexsLemonade/pccma-nf v${version} - ${runName}",
+                        "text": "AlexsLemonade/morphport v${version} - ${runName}",
                         "wrap": true
                     },
                     {
