@@ -92,6 +92,23 @@
                     "default": "median",
                     "description": "Aggregation function to use when summarising per-cell data to well-level profiles.",
                     "enum": ["median", "mean"]
+                },
+                "pycytominer_normalize_method_cell": {
+                    "type": "string",
+                    "default": "mad_robustize",
+                    "description": "Normalization method applied to cell-level profiles.",
+                    "enum": ["mad_robustize", "standardize", "robustize", "spherize"]
+                },
+                "pycytominer_normalize_method_well": {
+                    "type": "string",
+                    "default": "mad_robustize",
+                    "description": "Normalization method applied to well-level profiles.",
+                    "enum": ["mad_robustize", "standardize", "robustize", "spherize"]
+                },
+                "pycytominer_normalize_samples": {
+                    "type": "string",
+                    "default": "all",
+                    "description": "Reference population for fitting the normalizer. Use 'all' to fit on all samples, or a pandas query string to fit on a subset (e.g. \"Metadata_treatment == 'DMSO'\")."
                 }
             }
         },

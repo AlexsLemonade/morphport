@@ -15,7 +15,7 @@ process PYCYTOMINER_ANNOTATE {
     val(platemap_well_column)
 
     output:
-    tuple val(meta), path("${meta.plate_id}_annotated.parquet"), emit: result
+    tuple val(meta), path("*_annotated.parquet", arity: 1), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -24,6 +24,38 @@ process PYCYTOMINER_ANNOTATE {
     stub:
     """
     touch ${meta.plate_id}_annotated.parquet
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        stub: stub
+    END_VERSIONS
+    """
+}
+
+process PYCYTOMINER_NORMALIZE {
+    tag "${meta.plate_id} (${meta.aggregate_level})"
+    label 'process_low'
+
+    conda "${moduleDir}/environment.yml"
+    container {
+        workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
+            ? 'oras://community.wave.seqera.io/library/python_pandas_pyarrow_pip_pycytominer:32e5464c4e0d82cf'
+            : 'community.wave.seqera.io/library/python_pandas_pyarrow_pip_pycytominer:e5af62bb1cbba695'
+    }
+
+    input:
+    tuple val(meta), path(parquet_file), val(normalize_samples), val(normalize_method)
+
+    output:
+    tuple val(meta), path("*_normalized.parquet", arity: 1), emit: result
+    path "versions.yml", emit: versions, topic: versions
+
+    script:
+    def output_file = "${meta.plate_id}_${meta.aggregate_level}_normalized.parquet"
+    template 'pycytominer_normalize.py'
+
+    stub:
+    """
+    touch ${meta.plate_id}_${meta.aggregate_level}_normalized.parquet
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         stub: stub
@@ -47,7 +79,7 @@ process PYCYTOMINER_AGGREGATE {
     val(operation)
 
     output:
-    tuple val(meta), path("${meta.plate_id}_bulk.parquet"), emit: result
+    tuple val(meta), path("*_bulk.parquet", arity: 1), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:

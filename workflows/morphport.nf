@@ -9,7 +9,7 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morp
 include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
 include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
-include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE } from '../modules/local/pycytominer'
+include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE; PYCYTOMINER_NORMALIZE } from '../modules/local/pycytominer'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -67,11 +67,21 @@ workflow MORPHPORT {
     // make well-level aggregates with pycytominer
     PYCYTOMINER_AGGREGATE(ch_filtered, params.pycytominer_aggregate_operation)
 
+    // normalize cell and well profiles; method is selected per aggregate_level
+    PYCYTOMINER_NORMALIZE(
+        ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result).map { meta, parquet ->
+            def method = meta.aggregate_level == 'cell'
+                ? params.pycytominer_normalize_method_cell
+                : params.pycytominer_normalize_method_well
+            [meta, parquet, params.pycytominer_normalize_samples, method]
+        },
+    )
+
     // partition analyses by condition
     // this does both cell and well level partitioning;
     // we can separate these out again later using the aggregate_level metadata
     PARTITION_CONDITIONS(
-        ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result),
+        PYCYTOMINER_NORMALIZE.out.result,
         params.platemap_condition_columns,
     )
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
