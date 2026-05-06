@@ -6,10 +6,10 @@
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
-include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
-include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
-include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
-include { PYCYTOMINER_AGGREGATE  } from '../modules/local/pycytominer'
+include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
+include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
+include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
+include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE } from '../modules/local/pycytominer'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -38,7 +38,14 @@ workflow MORPHPORT {
     CYTOTABLE_CONVERT(ch_validated.convert)
     ch_parquet = ch_parquet.mix(CYTOTABLE_CONVERT.out.parquet)
 
-    COSMICQC_FILTER(ch_parquet, file(params.cosmicqc_filter_file))
+    // annotate with platemap immediately after cytotable conversion;
+    // platemap_columns is already in meta from samplesheet preprocessing
+    PYCYTOMINER_ANNOTATE(
+        ch_parquet.map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
+        params.platemap_well_column,
+    )
+
+    COSMICQC_FILTER(PYCYTOMINER_ANNOTATE.out.result, file(params.cosmicqc_filter_file))
 
     ch_filtered = COSMICQC_FILTER.out.result.map { meta, parquet, summary ->
         def stats = new groovy.json.JsonSlurper().parse(summary)
@@ -64,9 +71,7 @@ workflow MORPHPORT {
     // this does both cell and well level partitioning;
     // we can separate these out again later using the aggregate_level metadata
     PARTITION_CONDITIONS(
-        ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result)
-            .map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
-        params.platemap_well_column,
+        ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result),
         params.platemap_condition_columns,
     )
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
