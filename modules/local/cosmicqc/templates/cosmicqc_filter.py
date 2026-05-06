@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Applies coSMicQC outlier detection to a per-plate parquet file.
+Nextflow template script to apply coSMicQC outlier detection to a per-plate parquet file.
 Filter conditions and z-score thresholds are loaded from a JSON settings file.
 Cells failing any condition are removed; outputs include a filtered parquet,
 a compressed CSV of outlier indices, and a JSON summary of settings and results.

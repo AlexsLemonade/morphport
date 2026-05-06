@@ -19,28 +19,7 @@ process PYCYTOMINER_ANNOTATE {
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    """
-    # Convert platemap to have no missing values, which would cause annotation problems
-    python -c "
-import pandas as pd
-df = pd.read_csv('${platemap_file}', sep='\\t', encoding='utf-8-sig')
-df.fillna('_NA_').to_csv('platemap_filled.csv', index=False)
-"
-
-    pycytominer annotate \\
-        --profiles "${parquet_file}" \\
-        --platemap platemap_filled.csv \\
-        --join_on "Metadata_${platemap_well_column},Metadata_Well" \\
-        --output_file "${meta.plate_id}_annotated.parquet" \\
-        --output_type parquet
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python --version | awk '{print \$2}')
-        pycytominer: \$(python -c "import importlib.metadata; print(importlib.metadata.version('pycytominer'))")
-        pandas: \$(python -c "import pandas; print(pandas.__version__)")
-    END_VERSIONS
-    """
+    template 'pycytominer_annotate.py'
 
     stub:
     """

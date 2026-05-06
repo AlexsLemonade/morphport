@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-This script template converts a CellProfiler SQLite database to Parquet format using the cytotable library.
+Nextflow template script to convert a CellProfiler SQLite database to Parquet format using the cytotable library.
 It is designed to be run as part of a Nextflow workflow, with parameters passed in from the workflow.
 """
 

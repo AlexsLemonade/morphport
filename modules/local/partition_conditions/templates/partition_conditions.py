@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Writes Hive-style partitioned parquet output under {plate_id}/.
+Nextflow template script to write Hive-style partitioned parquet output under {plate_id}/.
 
 Platemap metadata has already been joined in the PYCYTOMINER_ANNOTATE step.
 Partition columns with null values are filled with '_NA_'; any partition column
