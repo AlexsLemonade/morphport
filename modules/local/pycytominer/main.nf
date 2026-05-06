@@ -50,7 +50,7 @@ process PYCYTOMINER_NORMALIZE {
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    def output_file = "${meta.plate_id}_${meta.aggregate_level}_normalized.parquet"
+    output_file = "${meta.plate_id}_${meta.aggregate_level}_normalized.parquet"
     template 'pycytominer_normalize.py'
 
     stub:
