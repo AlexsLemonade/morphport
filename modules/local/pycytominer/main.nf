@@ -20,9 +20,16 @@ process PYCYTOMINER_ANNOTATE {
 
     script:
     """
+    # Convert platemap to have no missing values, which would cause annotation problems
+    python -c "
+import pandas as pd
+df = pd.read_csv('${platemap_file}', sep='\\t', encoding='utf-8-sig')
+df.fillna('_NA_').to_csv('platemap_filled.csv', index=False)
+"
+
     pycytominer annotate \\
         --profiles "${parquet_file}" \\
-        --platemap "${platemap_file}" \\
+        --platemap platemap_filled.csv \\
         --join_on "Metadata_${platemap_well_column},Metadata_Well" \\
         --output_file "${meta.plate_id}_annotated.parquet" \\
         --output_type parquet
