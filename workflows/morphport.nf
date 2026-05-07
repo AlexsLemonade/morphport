@@ -38,8 +38,7 @@ workflow MORPHPORT {
     CYTOTABLE_CONVERT(ch_validated.convert)
     ch_parquet = ch_parquet.mix(CYTOTABLE_CONVERT.out.parquet)
 
-    // annotate with platemap immediately after cytotable conversion;
-    // platemap_columns is already in meta from samplesheet preprocessing
+    // annotate cells with metadata from the platemap
     PYCYTOMINER_ANNOTATE(
         ch_parquet.map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
         params.platemap_well_column,

@@ -213,11 +213,12 @@ def validateInputSamplesheet(metas) {
             }
         }
 
-        // read platemap columns so they travel with meta through the pipeline
-        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column) : []
+        // read platemap columns so they travel with meta through the pipeline;
+        // condition columns are always included even if absent from this platemap
+        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column, params.platemap_condition_columns) : []
 
         // update and return
-        meta + [plate_dir: plate_dir, platemap_file: platemap_path, platemap_columns: platemap_cols]
+        meta + [plate_dir: plate_dir, platemap_file: platemap_path, plate_metadata_columns: platemap_cols]
     }
 
     if (errors) {
@@ -282,14 +283,17 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
 // Parse the columns from a platemap file, excluding the well column.
 // Returns a list of column names with "Metadata_" prefix added if not already present.
 //
-def parsePlatemapColumns(platemap_path, platemap_well_column) {
-    def text = file(platemap_path).readLines()[0]
+def parsePlatemapColumns(platemap_path, platemap_well_column, condition_columns_str = '') {
+    // read only the header line of the platemap file
+    def text = file(platemap_path).newReader().readLine()
     // strip UTF-8 BOM if present
     if (text.startsWith('\uFEFF')) text = text.substring(1)
-    return text.split('\t')
+
+    def cols = (text.split('\t') + condition_columns_str.split(','))
         .collect { it -> it.trim() }
         .findAll { it -> it != platemap_well_column }
         .collect { it -> it.startsWith('Metadata_') ? it : "Metadata_${it}" }
+    return cols.unique()
 }
 
 

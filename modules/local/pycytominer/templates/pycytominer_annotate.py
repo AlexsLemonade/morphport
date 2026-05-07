@@ -28,8 +28,22 @@ def main():
     parquet_file = "${parquet_file}"
     plate_id = "${meta.plate_id}"
     task_process = "${task.process}"
+    # merge the metadata column list during import from Nextflow to make them a string
+    plate_metadata_columns = "${meta.plate_metadata_columns.join(',')}"
 
     platemap_df = pd.read_csv(platemap_file, sep="\\t", encoding="utf-8-sig")
+
+    # ensure all partition columns exist in the platemap before annotation,
+    # either with raw names or without the Metadata_ prefix;
+    # all will have the prefix added by pycytominer.annotate
+    existing_cols = set(platemap_df.columns)
+    for col in plate_metadata_columns.split(","):
+        if (
+            col not in existing_cols
+            and col.removeprefix("Metadata_") not in existing_cols
+        ):
+            platemap_df[col] = "_Absent_"
+    # fill any null values with _NA_ so pycytominer doesn't drop them during annotation or aggregation
     # cast to string after filling so numeric columns don't produce mixed types
     platemap_df = platemap_df.fillna("_NA_").astype(str)
 
