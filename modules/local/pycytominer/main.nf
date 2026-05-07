@@ -54,9 +54,9 @@ process PYCYTOMINER_AGGREGATE {
     assert meta_in.aggregate_level == 'cell' : "PYCYTOMINER_AGGREGATE expects aggregate_level='cell', got '${meta_in.aggregate_level}'"
     assert operation in ['median', 'mean'] : "PYCYTOMINER_AGGREGATE: operation must be 'median' or 'mean', got '${operation}'"
     meta = meta_in + [aggregate_level: 'well']
-    // platemap columns are included as strata to ensure they are retained in the output metadata
-    // all are well-level data, so they won't interfere with aggregation
-    def platemap_strata = meta_in.platemap_columns.join(',')
+    // all plate metadata columns are included as strata to ensure they are retained in the output
+    // these are are well-level data, so they won't interfere with aggregation
+    def platemap_strata = meta_in.plate_metadata_columns.join(',')
     """
     pycytominer aggregate \\
         --profiles "${parquet_file}" \\
