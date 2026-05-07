@@ -2,10 +2,8 @@
 """
 Nextflow template script to write Hive-style partitioned parquet output under {plate_id}/.
 
-Platemap metadata has already been joined in the PYCYTOMINER_ANNOTATE step.
-Partition columns with null values are filled with '_NA_'; any partition column
-absent from the data entirely is filled with '_Absent_' so every row receives a
-complete set of Hive path segments.
+Platemap metadata has already been joined in the PYCYTOMINER_ANNOTATE step, which
+ensures all partition columns are present and non-null.
 """
 
 import json
@@ -47,18 +45,6 @@ def main():
     partition_cols = resolve_partition_columns(partition_columns_str)
 
     plate_db = duckdb.read_parquet(plate_parquet_file)
-
-    existing = [c for c in partition_cols if c in plate_db.columns]
-    absent = [c for c in partition_cols if c not in plate_db.columns]
-
-    # build a select expression to fill missing partition columns with '_NA_' or '_Absent_'
-    # This will ultimately have the form:
-    # select * replace(coalesce(C1, '_NA_') AS C1, coalesce(C2, '_NA_') AS C2), '_Absent_' AS NewC1, '_Absent_' AS NewC2
-    replace_exprs = [f"coalesce({c}, '_NA_') AS {c}" for c in existing]
-    absent_exprs = [f"'_Absent_' AS {c}" for c in absent]
-
-    star = f"* replace ({', '.join(replace_exprs)})" if replace_exprs else "*"
-    plate_db = plate_db.select(", ".join([star] + absent_exprs))
 
     plate_db.write_parquet(
         plate_id,
