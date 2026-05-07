@@ -64,6 +64,12 @@
                     "pattern": "^\\w+(,\\w+)*$",
                     "description": "Comma-separated list of column names in the input samplesheet to use for partitioning the data.",
                     "help_text": "The pipeline partitions the data based on the values in the columns specified here. You can specify any columns in your input samplesheet, but typically these would be columns that describe experimental conditions, such as 'gene', 'treatment', or 'gene_allele'. The pipeline will create one partition for each unique combination of values in these columns. For example, if you specify 'gene' and 'treatment', and you have 3 unique genes and 2 unique treatments, then you will get 6 partitions (one for each gene-treatment combination)."
+                },
+                "analysis_groupings_file": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "Path to a JSON file specifying how partitions should be grouped for downstream analysis.",
+                    "help_text": "The JSON file should contain an object with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a list of condition column names (with or without the 'Metadata_' prefix). A 'default' key can be used as a fallback for a level not explicitly specified. If not provided, the pipeline creates one single-column grouping for each column in platemap_condition_columns, applied to both cell and well levels.\n\nExample:\n{\n  \"cell\": [[\"treatment\"], [\"gene_allele\"]],\n  \"well\": [[\"treatment\"], [\"treatment\", \"gene_allele\"]]\n}"
                 }
             }
         },

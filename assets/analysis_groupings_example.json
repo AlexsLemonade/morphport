@@ -1,0 +1,4 @@
+{
+    "cell": [["treatment"], ["gene_allele"], ["treatment", "gene_allele"]],
+    "well": [["treatment"]]
+}
