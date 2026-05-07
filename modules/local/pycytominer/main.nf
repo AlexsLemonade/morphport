@@ -31,38 +31,6 @@ process PYCYTOMINER_ANNOTATE {
     """
 }
 
-process PYCYTOMINER_NORMALIZE {
-    tag "${meta.plate_id} (${meta.aggregate_level})"
-    label 'process_low'
-
-    conda "${moduleDir}/environment.yml"
-    container {
-        workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_pandas_pyarrow_pip_pycytominer:32e5464c4e0d82cf'
-            : 'community.wave.seqera.io/library/python_pandas_pyarrow_pip_pycytominer:e5af62bb1cbba695'
-    }
-
-    input:
-    tuple val(meta), path(parquet_file), val(normalize_samples), val(normalize_method)
-
-    output:
-    tuple val(meta), path("*_normalized.parquet", arity: 1), emit: result
-    path "versions.yml", emit: versions, topic: versions
-
-    script:
-    output_file = "${meta.plate_id}_${meta.aggregate_level}_normalized.parquet"
-    template 'pycytominer_normalize.py'
-
-    stub:
-    """
-    touch ${meta.plate_id}_${meta.aggregate_level}_normalized.parquet
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        stub: stub
-    END_VERSIONS
-    """
-}
-
 process PYCYTOMINER_AGGREGATE {
     tag "${meta.plate_id}"
     label 'process_low'
@@ -111,6 +79,53 @@ process PYCYTOMINER_AGGREGATE {
     meta = meta_in + [aggregate_level: 'well']
     """
     touch ${meta.plate_id}_bulk.parquet
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        stub: stub
+    END_VERSIONS
+    """
+}
+
+process PYCYTOMINER_NORMALIZE {
+    tag "${meta.plate_id} (${meta.aggregate_level})"
+    label 'process_low'
+
+    conda "${moduleDir}/environment.yml"
+    container {
+        workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
+            ? 'oras://community.wave.seqera.io/library/python_pandas_pyarrow_pip_pycytominer:32e5464c4e0d82cf'
+            : 'community.wave.seqera.io/library/python_pandas_pyarrow_pip_pycytominer:e5af62bb1cbba695'
+    }
+
+    input:
+    tuple val(meta), path(parquet_file), val(normalize_samples), val(normalize_method)
+
+    output:
+    tuple val(meta), path("*_normalized.parquet", arity: 1), emit: result
+    path "versions.yml", emit: versions, topic: versions
+
+    script:
+    """
+    pycytominer normalize \\
+        --profiles "${parquet_file}" \\
+        --output_file "${meta.plate_id}_${meta.aggregate_level}_normalized.parquet" \\
+        --features infer \\
+        --meta_features infer \\
+        --samples "${normalize_samples}" \\
+        --method "${normalize_method}" \\
+        --output_type parquet
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python --version | awk '{print \$2}')
+        pycytominer: \$(python -c "import importlib.metadata; print(importlib.metadata.version('pycytominer'))")
+        pandas: \$(python -c "import pandas; print(pandas.__version__)")
+    END_VERSIONS
+    """
+
+    stub:
+    """
+    touch ${meta.plate_id}_${meta.aggregate_level}_normalized.parquet
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         stub: stub
