@@ -99,10 +99,10 @@ workflow MORPHPORT {
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
         .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
 
-    // temporary view to see what happened with partitioning
-    ch_partitioned.view { meta, parquets ->
-        def conditions = meta.subMap(meta.keySet().findAll { it -> it.startsWith('Metadata_') })
-        "${meta.plate_id}, ${meta.aggregate_level}: ${conditions} — ${parquets.size()} parquet file(s)"
+    ch_grouped = createGroupChannels(ch_partitioned, params.analysis_groupings_file)
+
+    ch_grouped.view { gm, metas, parquets ->
+        "${gm.grouping_columns} [${gm.aggregate_level}] → ${gm.subMap(gm.grouping_columns)} — ${metas.size()} plate(s), ${parquets.size()} file(s)"
     }
 
     //
@@ -143,6 +143,61 @@ workflow MORPHPORT {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+String addMetadataPrefix(String col) {
+    return col.startsWith('Metadata_') ? col : 'Metadata_' + col
+}
+
+List normaliseGroupings(List groupings_list) {
+    return groupings_list.collect { cols -> cols.collect { col -> addMetadataPrefix(col as String) } }
+}
+
+// Parse analysis_groupings_file into a Map keyed by aggregate_level ('cell'/'well'), where each
+// value is a list of groupings and each grouping is a list of Metadata_-prefixed column names.
+// Falls back to one single-column grouping per condition column when no file is provided.
+Map parseGroupings(String groupings_file, String condition_columns_str) {
+    def default_groupings = condition_columns_str.split(',')
+        .collect { col -> [addMetadataPrefix(col.trim())] }
+
+    if (!groupings_file) {
+        return [cell: default_groupings, well: default_groupings]
+    }
+
+    def parsed = new groovy.json.JsonSlurper().parse(file(groupings_file)) as Map
+    def fallback = parsed.containsKey('default') ? normaliseGroupings(parsed['default'] as List) : default_groupings
+    return [
+        cell: parsed.containsKey('cell') ? normaliseGroupings(parsed['cell'] as List) : fallback,
+        well: parsed.containsKey('well') ? normaliseGroupings(parsed['well'] as List) : fallback,
+    ]
+}
+
+// Group partitioned elements matching agg_level by grouping_cols.
+// Emits: [groupmeta, [meta1, meta2, ...], [parquet1, parquet2, ...]]
+def groupByCondition(ch_partitions, String agg_level, List grouping_cols) {
+    return ch_partitions
+        .filter { meta, _parquets -> meta.aggregate_level == agg_level }
+        .map { meta, parquets ->
+            def group_key = meta.subMap(grouping_cols) + [
+                aggregate_level  : agg_level,
+                grouping_columns : grouping_cols,
+            ]
+            [group_key, meta, parquets]
+        }
+        .groupTuple(by: 0, remainder: true)
+        .map { group_key, metas, parquet_lists ->
+            [group_key, metas, parquet_lists.flatten()]
+        }
+}
+
+// Build and return a single mixed channel of all condition groupings across both aggregate levels.
+// Uses params.platemap_condition_columns as a fallback when no groupings_file is provided.
+def createGroupChannels(ch_partitioned, String groupings_file) {
+    def groupings_by_level = parseGroupings(groupings_file, params.platemap_condition_columns)
+    def grouped_channels   = groupings_by_level.collectMany { agg_level, level_groupings ->
+        level_groupings.collect { cols -> groupByCondition(ch_partitioned, agg_level, cols) }
+    }
+    return grouped_channels.inject(channel.empty()) { acc, ch -> acc.mix(ch) }
+}
 
 def expandHivePartitions(meta, partition_dir) {
     def results = []
