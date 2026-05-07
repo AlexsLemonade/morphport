@@ -4,6 +4,11 @@ Nextflow template script to annotate a per-plate parquet file with platemap meta
 The platemap is expected to be a tab-delimited file with a column matching the well identifier
 in the parquet metadata (e.g. Metadata_Well).
 The annotated output is written in parquet format.
+
+All platemap metadata columns (except plate_map_name) are added to the parquet file by pycytominer annotate as 'Metadata_'-prefixed columns
+We also ensure that all columns specified in the meta.plate_metadata_columns variable from Nextflow are present.
+Any listed metadata column absent from the platemap is filled with '_Absent_' to ensure it is available for downstream steps.
+All NULL values from the platemap are filled with '_NA_' before merging.
 """
 
 import importlib.metadata
