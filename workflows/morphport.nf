@@ -5,7 +5,7 @@
 */
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_pccma_pipeline'
+include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
@@ -17,9 +17,10 @@ include { PYCYTOMINER_AGGREGATE  } from '../modules/local/pycytominer'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-workflow PCCMA {
+workflow MORPHPORT {
     take:
     ch_samplesheet // channel: samplesheet read in from --input
+    outdir
 
     main:
 
@@ -97,15 +98,14 @@ workflow PCCMA {
             "${process}:\n${tool_versions.join('\n')}"
         }
 
-    softwareVersionsToYAML(topic_versions.versions_file)
+    def ch_collated_versions = softwareVersionsToYAML(topic_versions.versions_file)
         .mix(topic_versions_string)
         .collectFile(
             storeDir: "${params.outdir}/pipeline_info",
-            name: 'pccma_software_' + 'versions.yml',
+            name: 'morphport_software_' + 'versions.yml',
             sort: true,
             newLine: true,
         )
-        .set { ch_collated_versions }
 
     emit:
     versions = ch_collated_versions

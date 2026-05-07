@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/AlexsLemonade/pccma-nf/main/nextflow_schema.json",
-    "title": "AlexsLemonade/pccma-nf pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/AlexsLemonade/morphport/main/nextflow_schema.json",
+    "title": "AlexsLemonade/morphport pipeline parameters",
     "description": "Downstream analysis of Cell Painting data to prepare for the PCCMA portal",
     "type": "object",
     "$defs": {
@@ -183,13 +183,6 @@
                     "type": "boolean",
                     "description": "Do not use coloured log outputs.",
                     "fa_icon": "fas fa-palette",
-                    "hidden": true
-                },
-                "hook_url": {
-                    "type": "string",
-                    "description": "Incoming hook URL for messaging service",
-                    "fa_icon": "fas fa-people-group",
-                    "help_text": "Incoming hook URL for messaging service. Currently, MS Teams and Slack are supported.",
                     "hidden": true
                 },
                 "validate_params": {

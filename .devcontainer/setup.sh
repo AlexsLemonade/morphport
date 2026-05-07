@@ -10,4 +10,4 @@ export PS1='\[\e[3;36m\]\w ->\[\e[0m\\] '
 nextflow self-update
 
 # Update welcome message
-echo "Welcome to the AlexsLemonade/pccma-nf devcontainer!" > /usr/local/etc/vscode-dev-containers/first-run-notice.txt
+echo "Welcome to the AlexsLemonade/morphport devcontainer!" > /usr/local/etc/vscode-dev-containers/first-run-notice.txt
