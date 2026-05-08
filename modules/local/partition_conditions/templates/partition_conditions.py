@@ -8,6 +8,7 @@ ensures all partition columns are present and non-null.
 
 import json
 import sys
+from importlib.metadata import version
 
 import duckdb
 
@@ -20,16 +21,9 @@ def resolve_partition_columns(partition_columns_str: str) -> list[str]:
 
 def write_versions(task_process: str):
     with open("versions.yml", "w") as f:
-        f.write(
-            "\\n".join(
-                [
-                    f'"{task_process}":',
-                    f"    python: {sys.version.split()[0]}",
-                    f"    duckdb: {duckdb.__version__}",
-                ]
-            )
-            + "\\n"
-        )
+        f.write(f'"{task_process}":\\n')
+        f.write(f"    python: {sys.version.split()[0]}\\n")
+        f.write(f"    duckdb: {version('duckdb')}\\n")
 
 
 def main():

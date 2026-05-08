@@ -7,56 +7,58 @@ It is designed to be run as part of a Nextflow workflow, with parameters passed 
 import os
 import sys
 import tempfile
+from importlib.metadata import version
 
-import duckdb
 import pyarrow
 from parsl import Config
 from parsl.executors import HighThroughputExecutor
 
-# capture input variables from the Nextflow workflow
-plate_dir = "${plate_dir}"
-plate_id = "${meta.plate_id}"
-cytotable_preset = "${meta.cytotable_preset}"
-task_cpus = int("${task.cpus}")
-task_process = "${task.process}"
 
-# Set multiprocessing and thread allocation
+def write_versions(task_process: str):
+    with open("versions.yml", "w") as f:
+        f.write(f'"{task_process}":\\n')
+        f.write(f"    python: {sys.version.split()[0]}\\n")
+        f.write(f"    cytotable: {version('cytotable')}\\n")
+        f.write(f"    duckdb: {version('duckdb')}\\n")
+        f.write(f"    pyarrow: {version('pyarrow')}\\n")
 
-parsl_workers = task_cpus
-# allow 2 duckdb and pyarrow threads per worker
-# this seems to work reasonably well to match CPU usage to the allocated cpus, at least in local testing
-subprocess_threads = 2
-pyarrow.set_cpu_count(subprocess_threads)
-pyarrow.set_io_thread_count(subprocess_threads)
-os.environ["CYTOTABLE_MAX_THREADS"] = str(subprocess_threads)
 
-# import after environment variable is set to ensure cytotable picks up the correct thread count
-import cytotable  # noqa: E402
+def main():
+    # capture input variables from the Nextflow workflow
+    plate_dir = "${plate_dir}"
+    plate_id = "${meta.plate_id}"
+    cytotable_preset = "${meta.cytotable_preset}"
+    task_cpus = int("${task.cpus}")
+    task_process = "${task.process}"
 
-with tempfile.TemporaryDirectory() as parsl_run_dir:
-    cytotable.convert(
-        source_path=plate_dir,
-        dest_path=f"{plate_id}.parquet",
-        dest_datatype="parquet",
-        preset=cytotable_preset,
-        chunksize=100_000,
-        parsl_config=Config(
-            executors=[HighThroughputExecutor(max_workers_per_node=parsl_workers)],
-            run_dir=parsl_run_dir,
-        ),
-    )
+    # Set multiprocessing and thread allocation
 
-# for nf-core software version tracking
-with open("versions.yml", "w") as f:
-    f.write(
-        "\\n".join(
-            [
-                f'"{task_process}":',
-                f"    python: {sys.version.split()[0]}",
-                f"    cytotable: {cytotable.__version__}",
-                f"    duckdb: {duckdb.__version__}",
-                f"    pyarrow: {pyarrow.__version__}",
-            ]
+    parsl_workers = task_cpus
+    # allow 2 duckdb and pyarrow threads per worker
+    # this seems to work reasonably well to match CPU usage to the allocated cpus, at least in local testing
+    subprocess_threads = 2
+    pyarrow.set_cpu_count(subprocess_threads)
+    pyarrow.set_io_thread_count(subprocess_threads)
+    os.environ["CYTOTABLE_MAX_THREADS"] = str(subprocess_threads)
+
+    # import after environment variable is set to ensure cytotable picks up the correct thread count
+    import cytotable  # noqa: E402
+
+    with tempfile.TemporaryDirectory() as parsl_run_dir:
+        cytotable.convert(
+            source_path=plate_dir,
+            dest_path=f"{plate_id}.parquet",
+            dest_datatype="parquet",
+            preset=cytotable_preset,
+            chunksize=100_000,
+            parsl_config=Config(
+                executors=[HighThroughputExecutor(max_workers_per_node=parsl_workers)],
+                run_dir=parsl_run_dir,
+            ),
         )
-        + "\\n"
-    )
+
+    write_versions(task_process)
+
+
+if __name__ == "__main__":
+    main()
