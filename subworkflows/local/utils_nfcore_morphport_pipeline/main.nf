@@ -95,9 +95,23 @@ workflow PIPELINE_INITIALISATION {
         .flatMap()
         .set { ch_samplesheet }
 
+    //
+    // Build a nested map of analysis groupings → sub-combo → expected size, derived from the
+    // user's analysis_groups_file and the union of condition combinations across each plate's
+    // platemap. This is a single value channel that carries both the grouping structure (its
+    // keys) and the predicted sizes (its leaves), used downstream to fan out partitions and
+    // wrap them with groupKey(...).
+    //
+    def parsed_groups = parseGroupings(params.analysis_groups_file, params.platemap_condition_columns)
+    def ch_analysis_groups = ch_samplesheet
+        .map { meta -> parsePlatemapCombos(meta.platemap_file, params.platemap_condition_columns) }
+        .collect()
+        .map { per_plate -> buildAnalysisGroups(parsed_groups, per_plate.flatten() as List) }
+
     emit:
-    samplesheet = ch_samplesheet
-    versions    = ch_versions
+    samplesheet     = ch_samplesheet
+    analysis_groups = ch_analysis_groups
+    versions        = ch_versions
 }
 
 /*
@@ -328,6 +342,82 @@ def parsePlatemapColumns(platemap_path, platemap_well_column, condition_columns_
         .findAll { it -> it != platemap_well_column }
         .collect { it -> it.startsWith('Metadata_') ? it : "Metadata_${it}" }
     return cols.unique()
+}
+
+//
+// Combine parsed analysis-group definitions with the union of platemap condition combos to
+// produce a nested map: aggregate_level → grouping_cols → sub_combo → expected size.
+//
+// The structure carries both the grouping definitions (its keys) and the predicted group
+// sizes (its leaves). Sizes count, for each (level, grouping_cols, sub_combo) triple, the
+// number of (plate × full_combo) pairs whose projection onto grouping_cols equals sub_combo.
+// They're used as the `size` argument to groupKey(...) so groupTuple can emit each group
+// eagerly rather than waiting for the upstream channel to close.
+//
+// Sizes are upper bounds: COSMICQC_FILTER may drop wells, in which case the corresponding
+// partition won't materialise and that group falls back to channel-close emission via
+// remainder: true.
+//
+Map buildAnalysisGroups(Map groupings, List all_combos) {
+    def result = [:]
+    groupings.each { agg_level, level_groupings ->
+        def level_map = [:]
+        level_groupings.each { grouping_cols ->
+            def subcombo_sizes = [:]
+            all_combos.each { full_combo ->
+                def sub = full_combo.subMap(grouping_cols)
+                subcombo_sizes[sub] = (subcombo_sizes[sub] ?: 0) + 1
+            }
+            level_map[grouping_cols] = subcombo_sizes
+        }
+        result[agg_level] = level_map
+    }
+    return result
+}
+
+//
+// Read a platemap file and return the list of unique condition combinations present on the plate.
+// Each combination is a Map keyed by Metadata_-prefixed column names \u2192 row values, with the same
+// sentinel encoding that pycytominer_annotate.py applies before partitioning:
+//   - blank cell                                 \u2192 '_NA_'    (mirrors fillna("_NA_"))
+//   - condition column absent from this platemap \u2192 '_Absent_' (mirrors the plate_metadata_columns fill)
+// Keeping the encoding aligned is what lets buildAnalysisGroups predict sizes that actually match
+// the keys produced by expandHivePartitions.
+//
+def parsePlatemapCombos(platemap_path, condition_columns_str) {
+    def lines = file(platemap_path).text.readLines()
+    if (lines.size() < 2) return []
+
+    def header_line = lines[0]
+    if (header_line.startsWith('\uFEFF')) header_line = header_line.substring(1)
+    def headers = header_line.split('\t')*.trim()
+
+    def cond_cols = condition_columns_str.split(',')*.trim().findAll { it -> it }
+    def col_indices = cond_cols.collectEntries { col ->
+        def metadata_key = col.startsWith('Metadata_') ? col : 'Metadata_' + col
+        // strip the prefix to look up the raw column in the platemap header
+        def raw = col.startsWith('Metadata_') ? col.substring('Metadata_'.length()) : col
+        [(metadata_key): headers.indexOf(raw)]
+    }
+
+    def combos = [] as LinkedHashSet
+    lines.drop(1).each { line ->
+        if (!line.trim()) return
+        def parts = line.split('\t', -1)*.trim()
+        def combo = col_indices.collectEntries { metadata_key, idx ->
+            def value
+            if (idx < 0) {
+                value = '_Absent_'
+            }
+            else {
+                def raw_value = (idx < parts.size()) ? parts[idx] : ''
+                value = raw_value ?: '_NA_'
+            }
+            [(metadata_key): value]
+        }
+        combos << combo
+    }
+    return combos.toList()
 }
 
 

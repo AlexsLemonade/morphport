@@ -5,10 +5,7 @@
 */
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include {
-    methodsDescriptionText;
-    parseGroupings;
-} from '../subworkflows/local/utils_nfcore_morphport_pipeline'
+include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
 include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
 include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
@@ -22,7 +19,8 @@ include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE; PYCYTOMINER_NORMALIZE } f
 
 workflow MORPHPORT {
     take:
-    ch_samplesheet // channel: samplesheet read in from --input
+    ch_samplesheet     // channel: samplesheet read in from --input
+    ch_analysis_groups // value:   nested map of analysis groups → sub-combo → expected size
     outdir
 
     main:
@@ -102,7 +100,7 @@ workflow MORPHPORT {
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
         .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
 
-    ch_grouped = createGroupChannels(ch_partitioned, params.analysis_groups_file)
+    ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
 
     ch_grouped.view { gm, metas, parquets ->
         "${gm.grouping_columns} [${gm.aggregate_level}] → ${gm.subMap(gm.grouping_columns)} — ${metas.size()} plate(s), ${parquets.size()} file(s)"
@@ -147,32 +145,32 @@ workflow MORPHPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// Group partitioned elements matching agg_level by grouping_cols.
-// Emits: [groupmeta, [meta1, meta2, ...], [parquet1, parquet2, ...]]
-def groupByCondition(ch_partitions, String agg_level, List grouping_cols) {
-    return ch_partitions
-        .filter { meta, _parquets -> meta.aggregate_level == agg_level }
-        .map { meta, parquets ->
-            def group_key = meta.subMap(grouping_cols) + [
-                aggregate_level  : agg_level,
-                grouping_columns : grouping_cols,
-            ]
-            [group_key, meta, parquets]
+// Build a single mixed channel of all condition groupings across both aggregate levels.
+// Each tuple from ch_partitioned is fanned out into one tuple per matching grouping
+// (those whose aggregate_level matches the partition's level), keyed by groupKey(..., size)
+// so groupTuple can release each group as soon as size items have arrived.
+def createGroupChannels(ch_partitioned, ch_analysis_groups) {
+    return ch_partitioned
+        .combine(ch_analysis_groups)
+        .flatMap { meta, parquets, groups ->
+            def agg_level = meta.aggregate_level
+            def level_data = groups[agg_level] ?: [:]
+            level_data.collect { grouping_cols, subcombo_sizes ->
+                def sub_combo = meta.subMap(grouping_cols)
+                def key_data  = sub_combo + [
+                    aggregate_level  : agg_level,
+                    grouping_columns : grouping_cols,
+                ]
+                // Predicted counts can be 0 if the platemap doesn't enumerate the actual
+                // combo (e.g. DuckDB's __HIVE_DEFAULT_PARTITION__ for NULL values, or the
+                // stub's _NA_ placeholder). Fall back to MAX_VALUE so groupTuple waits for
+                // channel close instead of emitting an underfilled group.
+                def expected = subcombo_sizes[sub_combo] ?: Integer.MAX_VALUE
+                [groupKey(key_data, expected), meta, parquets]
+            }
         }
         .groupTuple(by: 0, remainder: true)
-        .map { group_key, metas, parquet_lists ->
-            [group_key, metas, parquet_lists.flatten()]
-        }
-}
-
-// Build and return a single mixed channel of all condition groupings across both aggregate levels.
-// Uses params.platemap_condition_columns as a fallback when no groups_file is provided.
-def createGroupChannels(ch_partitioned, String groups_file) {
-    def groupings_by_level = parseGroupings(groups_file, params.platemap_condition_columns)
-    def grouped_channels   = groupings_by_level.collectMany { agg_level, level_groupings ->
-        level_groupings.collect { cols -> groupByCondition(ch_partitioned, agg_level, cols) }
-    }
-    return grouped_channels.inject(channel.empty()) { acc, ch -> acc.mix(ch) }
+        .map { gk, metas, parquet_lists -> [gk, metas, parquet_lists.flatten()] }
 }
 
 def expandHivePartitions(meta, partition_dir) {
