@@ -8,6 +8,7 @@ a compressed CSV of outlier indices, and a JSON summary of settings and results.
 
 import json
 import sys
+from importlib.metadata import version
 
 import cosmicqc
 import pandas as pd
@@ -50,20 +51,12 @@ def validate_filter_conditions(conditions, source):
                 )
 
 
-def write_versions(task_process):
-    """Write versions.yml file for Nextflow tracking"""
+def write_versions(task_process: str):
     with open("versions.yml", "w") as f:
-        f.write(
-            "\\n".join(
-                [
-                    f'"{task_process}":',
-                    f"    python: {sys.version.split()[0]}",
-                    f"    cosmicqc: {cosmicqc.__version__}",
-                    f"    pandas: {pd.__version__}",
-                ]
-            )
-            + "\\n"
-        )
+        f.write(f'"{task_process}":\\n')
+        f.write(f"    python: {sys.version.split()[0]}\\n")
+        f.write(f"    cosmicqc: {version('cosmicqc')}\\n")
+        f.write(f"    pandas: {version('pandas')}\\n")
 
 
 def main():
