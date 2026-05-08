@@ -280,6 +280,40 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
 }
 
 //
+// Ensure a column name has the "Metadata_" prefix.
+//
+String addMetadataPrefix(String col) {
+    return col.startsWith('Metadata_') ? col : 'Metadata_' + col
+}
+
+//
+// Apply addMetadataPrefix to every column name in every grouping in a list.
+//
+List normaliseGroupings(List groupings_list) {
+    return groupings_list.collect { cols -> cols.collect { col -> addMetadataPrefix(col as String) } }
+}
+
+//
+// Parse analysis_groups_file into a Map keyed by aggregate_level ('cell'/'well'), where each
+// value is a list of groupings and each grouping is a list of Metadata_-prefixed column names.
+// Falls back to one single-column grouping per condition column when no file is provided.
+//
+Map parseGroupings(String groups_file, String condition_columns_str) {
+    def default_groupings = condition_columns_str.split(',')
+        .collect { col -> [addMetadataPrefix(col.trim())] }
+
+    if (!groups_file) {
+        return [cell: default_groupings, well: default_groupings]
+    }
+
+    def parsed = new groovy.json.JsonSlurper().parse(file(groups_file)) as Map
+    return [
+        cell: parsed.containsKey('cell') ? normaliseGroupings(parsed['cell'] as List) : [],
+        well: parsed.containsKey('well') ? normaliseGroupings(parsed['well'] as List) : [],
+    ]
+}
+
+//
 // Parse the columns from a platemap file, excluding the well column.
 // Returns a list of column names with "Metadata_" prefix added if not already present.
 //

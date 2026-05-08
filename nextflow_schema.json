@@ -65,7 +65,7 @@
                     "description": "Comma-separated list of column names in the input samplesheet to use for partitioning the data.",
                     "help_text": "The pipeline partitions the data based on the values in the columns specified here. You can specify any columns in your input samplesheet, but typically these would be columns that describe experimental conditions, such as 'gene', 'treatment', or 'gene_allele'. The pipeline will create one partition for each unique combination of values in these columns. For example, if you specify 'gene' and 'treatment', and you have 3 unique genes and 2 unique treatments, then you will get 6 partitions (one for each gene-treatment combination)."
                 },
-                "analysis_groupings_file": {
+                "analysis_groups_file": {
                     "type": "string",
                     "format": "file-path",
                     "description": "Path to a JSON file specifying how partitions should be grouped for downstream analysis.",

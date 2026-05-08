@@ -5,7 +5,10 @@
 */
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
+include {
+    methodsDescriptionText;
+    parseGroupings;
+} from '../subworkflows/local/utils_nfcore_morphport_pipeline'
 include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
 include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
@@ -99,7 +102,7 @@ workflow MORPHPORT {
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
         .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
 
-    ch_grouped = createGroupChannels(ch_partitioned, params.analysis_groupings_file)
+    ch_grouped = createGroupChannels(ch_partitioned, params.analysis_groups_file)
 
     ch_grouped.view { gm, metas, parquets ->
         "${gm.grouping_columns} [${gm.aggregate_level}] → ${gm.subMap(gm.grouping_columns)} — ${metas.size()} plate(s), ${parquets.size()} file(s)"
@@ -144,33 +147,6 @@ workflow MORPHPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-String addMetadataPrefix(String col) {
-    return col.startsWith('Metadata_') ? col : 'Metadata_' + col
-}
-
-List normaliseGroupings(List groupings_list) {
-    return groupings_list.collect { cols -> cols.collect { col -> addMetadataPrefix(col as String) } }
-}
-
-// Parse analysis_groupings_file into a Map keyed by aggregate_level ('cell'/'well'), where each
-// value is a list of groupings and each grouping is a list of Metadata_-prefixed column names.
-// Falls back to one single-column grouping per condition column when no file is provided.
-Map parseGroupings(String groupings_file, String condition_columns_str) {
-    def default_groupings = condition_columns_str.split(',')
-        .collect { col -> [addMetadataPrefix(col.trim())] }
-
-    if (!groupings_file) {
-        return [cell: default_groupings, well: default_groupings]
-    }
-
-    def parsed = new groovy.json.JsonSlurper().parse(file(groupings_file)) as Map
-    def fallback = parsed.containsKey('default') ? normaliseGroupings(parsed['default'] as List) : default_groupings
-    return [
-        cell: parsed.containsKey('cell') ? normaliseGroupings(parsed['cell'] as List) : fallback,
-        well: parsed.containsKey('well') ? normaliseGroupings(parsed['well'] as List) : fallback,
-    ]
-}
-
 // Group partitioned elements matching agg_level by grouping_cols.
 // Emits: [groupmeta, [meta1, meta2, ...], [parquet1, parquet2, ...]]
 def groupByCondition(ch_partitions, String agg_level, List grouping_cols) {
@@ -190,9 +166,9 @@ def groupByCondition(ch_partitions, String agg_level, List grouping_cols) {
 }
 
 // Build and return a single mixed channel of all condition groupings across both aggregate levels.
-// Uses params.platemap_condition_columns as a fallback when no groupings_file is provided.
-def createGroupChannels(ch_partitioned, String groupings_file) {
-    def groupings_by_level = parseGroupings(groupings_file, params.platemap_condition_columns)
+// Uses params.platemap_condition_columns as a fallback when no groups_file is provided.
+def createGroupChannels(ch_partitioned, String groups_file) {
+    def groupings_by_level = parseGroupings(groups_file, params.platemap_condition_columns)
     def grouped_channels   = groupings_by_level.collectMany { agg_level, level_groupings ->
         level_groupings.collect { cols -> groupByCondition(ch_partitioned, agg_level, cols) }
     }
