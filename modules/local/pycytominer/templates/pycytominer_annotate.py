@@ -4,21 +4,26 @@ Nextflow template script to annotate a per-plate parquet file with platemap meta
 The platemap is expected to be a tab-delimited file with a column matching the well identifier
 in the parquet metadata (e.g. Metadata_Well).
 The annotated output is written in parquet format.
+
+All platemap metadata columns (except plate_map_name) are added to the parquet file by pycytominer annotate as 'Metadata_'-prefixed columns
+We also ensure that all columns specified in the meta.plate_metadata_columns variable from Nextflow are present.
+Any listed metadata column absent from the platemap is filled with '_Absent_' to ensure it is available for downstream steps.
+All NULL values from the platemap are filled with '_NA_' before merging.
 """
 
-import importlib.metadata
 import sys
+from importlib.metadata import version
 
 import pandas as pd
 import pycytominer
 
 
-def write_versions(task_process):
+def write_versions(task_process: str):
     with open("versions.yml", "w") as f:
         f.write(f'"{task_process}":\\n')
         f.write(f"    python: {sys.version.split()[0]}\\n")
-        f.write(f"    pycytominer: {importlib.metadata.version('pycytominer')}\\n")
-        f.write(f"    pandas: {pd.__version__}\\n")
+        f.write(f"    pycytominer: {version('pycytominer')}\\n")
+        f.write(f"    pandas: {version('pandas')}\\n")
 
 
 def main():
@@ -47,14 +52,29 @@ def main():
     # cast to string after filling so numeric columns don't produce mixed types
     platemap_df = platemap_df.fillna("_NA_").astype(str)
 
-    pycytominer.annotate(
-        profiles=parquet_file,
-        platemap=platemap_df,
-        # need to add Metadata_ prefix because of pycytominer parsing
-        join_on=[f"Metadata_{platemap_well_column}", "Metadata_Well"],
-        output_file=f"{plate_id}_annotated.parquet",
-        output_type="parquet",
-    )
+    try:
+        pycytominer.annotate(
+            profiles=parquet_file,
+            platemap=platemap_df,
+            # need to add Metadata_ prefix because of pycytominer parsing
+            join_on=[f"Metadata_{platemap_well_column}", "Metadata_Well"],
+            output_file=f"{plate_id}_annotated.parquet",
+            output_type="parquet",
+        )
+    except KeyError as ke:
+        print("Error during pycytominer annotation.", file=sys.stderr)
+        if ke.args[0] == f"Metadata_{platemap_well_column}:":
+            print(
+                f"The specified platemap_well_column '{platemap_well_column}' was not found in the platemap file.",
+                file=sys.stderr,
+            )
+        elif ke.args[0] == "Metadata_Well":
+            print(
+                "The expected 'Metadata_Well' column was not found in the parquet file metadata.",
+                file=sys.stderr,
+            )
+        else:
+            raise
 
     write_versions(task_process)
 
