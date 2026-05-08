@@ -92,7 +92,7 @@ workflow PIPELINE_INITIALISATION {
         .map { samplesheet ->
             validateInputSamplesheet(samplesheet)
         }
-        .flatMap { it }
+        .flatMap()
         .set { ch_samplesheet }
 
     emit:
@@ -183,7 +183,7 @@ def validateInputSamplesheet(metas) {
                     errors << "No parquet file found for plate '${meta.plate_id}' at ${plate_dir}"
                 }
                 else if (parquet_files.size() > 1) {
-                    errors << "Multiple parquet files found for plate '${meta.plate_id}' at ${plate_dir}: ${parquet_files.collect { it.name }.join(', ')}"
+                    errors << "Multiple parquet files found for plate '${meta.plate_id}' at ${plate_dir}: ${parquet_files.collect { f -> f.name }.join(', ')}"
                 }
             }
         }
@@ -213,8 +213,12 @@ def validateInputSamplesheet(metas) {
             }
         }
 
+        // read platemap columns so they travel with meta through the pipeline;
+        // condition columns are always included even if absent from this platemap
+        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column, params.platemap_condition_columns) : []
+
         // update and return
-        meta + [plate_dir: plate_dir, platemap_file: platemap_path]
+        meta + [plate_dir: plate_dir, platemap_file: platemap_path, plate_metadata_columns: platemap_cols]
     }
 
     if (errors) {
@@ -225,6 +229,8 @@ def validateInputSamplesheet(metas) {
 
     return validated_metas
 }
+
+
 
 //
 // Resolve the platemap file path for a plate from a platemaps directory tree.
@@ -272,6 +278,26 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
     // return the resolved platemap path as a URI string for storage in the meta map
     return resolved.toUriString()
 }
+
+//
+// Parse the columns from a platemap file, excluding the well column.
+// Returns a list of column names with "Metadata_" prefix added if not already present.
+//
+def parsePlatemapColumns(platemap_path, platemap_well_column, condition_columns_str = '') {
+    // read only the header line of the platemap file
+    def text = file(platemap_path).newReader().readLine()
+    // strip UTF-8 BOM if present
+    if (text.startsWith('\uFEFF')) text = text.substring(1)
+
+    def cols = (text.split('\t') + condition_columns_str.split(','))
+        .collect { it -> it.trim() }
+        .findAll { it -> it != platemap_well_column }
+        .collect { it -> it.startsWith('Metadata_') ? it : "Metadata_${it}" }
+    return cols.unique()
+}
+
+
+
 //
 // Generate methods description for MultiQC
 //

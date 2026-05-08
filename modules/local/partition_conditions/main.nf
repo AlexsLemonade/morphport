@@ -11,8 +11,7 @@ process PARTITION_CONDITIONS {
     }
 
     input:
-    tuple val(meta), path(parquet_file), path(platemap_file)
-    val platemap_well_column
+    tuple val(meta), path(parquet_file)
     val platemap_condition_columns
 
     output:
@@ -34,7 +33,6 @@ process PARTITION_CONDITIONS {
     cat <<-END_JSON > ${meta.plate_id}_platemap_summary.json
     {
         "plate_id": "${meta.plate_id}",
-        "platemap_file": "${platemap_file}",
         "condition_columns": ${groovy.json.JsonOutput.toJson(condition_cols)},
         "partitions": ${groovy.json.JsonOutput.toJson(condition_cols.collectEntries { x -> [(x): [:]] })}
     }
