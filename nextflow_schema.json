@@ -60,16 +60,15 @@
                 },
                 "platemap_condition_columns": {
                     "type": "string",
-                    "default": "gene_allele,treatment",
                     "pattern": "^\\w+(,\\w+)*$",
-                    "description": "Comma-separated list of column names in the input samplesheet to use for partitioning the data.",
-                    "help_text": "The pipeline partitions the data based on the values in the columns specified here. You can specify any columns in your input samplesheet, but typically these would be columns that describe experimental conditions, such as 'gene', 'treatment', or 'gene_allele'. The pipeline will create one partition for each unique combination of values in these columns. For example, if you specify 'gene' and 'treatment', and you have 3 unique genes and 2 unique treatments, then you will get 6 partitions (one for each gene-treatment combination)."
+                    "description": "Optional override for the columns used to partition each plate.",
+                    "help_text": "If not set, partition columns are derived as the union of every grouping column listed in analysis_groups_file (and the pipeline will skip partitioning entirely if no groupings are defined). Set this to a comma-separated list of platemap column names to force a specific partition set; the override must include every column that appears in any grouping. Useful when you want to partition on a column that no individual grouping needs, e.g., for inspecting intermediate output."
                 },
                 "analysis_groups_file": {
                     "type": "string",
                     "format": "file-path",
                     "description": "Path to a JSON file specifying how partitions should be grouped for downstream analysis.",
-                    "help_text": "The JSON file should contain an object with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a list of condition column names (with or without the 'Metadata_' prefix). A 'default' key can be used as a fallback for a level not explicitly specified. If not provided, the pipeline creates one single-column grouping for each column in platemap_condition_columns, applied to both cell and well levels.\n\nExample:\n{\n  \"cell\": [[\"treatment\"], [\"gene_allele\"]],\n  \"well\": [[\"treatment\"], [\"treatment\", \"gene_allele\"]]\n}"
+                    "help_text": "The JSON file should contain an object with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a list of condition column names (with or without the 'Metadata_' prefix). An optional 'default' key supplies groupings that are added to every level's groupings (de-duplicated). If the file is not provided, both levels collapse to a single empty grouping, meaning the pipeline skips partitioning entirely and treats all plates as one group per level. The partition columns used by the partition step are the union of every grouping column unless overridden by platemap_condition_columns.\n\nExample:\n{\n  \"default\": [[\"treatment\"]],\n  \"cell\": [[\"gene_allele\"], [\"treatment\", \"gene_allele\"]]\n}"
                 }
             }
         },

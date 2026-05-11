@@ -23,9 +23,12 @@ process PARTITION_CONDITIONS {
     template 'partition_conditions.py'
 
     stub:
-    def condition_cols = platemap_condition_columns.split(',')
-        .collect { col -> col.startsWith('Metadata_') ? col : "Metadata_${col}" }
-    def stub_path = condition_cols.collect { cond -> "${cond}=_NA_" }.join('/')
+    // Emit a single Hive directory per plate using the _Absent_ sentinel for every column.
+    // This matches what parsePlatemapCombos predicts for a column missing from the platemap,
+    // so the stub setup pairs with an analysis_groups file that references columns absent
+    // from the stub platemaps — no need to read the platemap here.
+    condition_cols = platemap_condition_columns.split(',') as List
+    stub_path = condition_cols.collect { col -> "${col}=_Absent_" }.join('/')
     """
     mkdir -p "${meta.plate_id}/${stub_path}"
     touch "${meta.plate_id}/${stub_path}/${meta.plate_id}_0.parquet"
