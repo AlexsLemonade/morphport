@@ -9,7 +9,7 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morp
 include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
 include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
-include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE } from '../modules/local/pycytominer'
+include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE; PYCYTOMINER_NORMALIZE } from '../modules/local/pycytominer'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -66,13 +66,36 @@ workflow MORPHPORT {
     // make well-level aggregates with pycytominer
     PYCYTOMINER_AGGREGATE(ch_filtered, params.pycytominer_aggregate_operation)
 
+    // combine well- and cell-level data into a single channel
+    ch_pre_normalize = ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result)
+        .map { meta, parquet ->
+            // add the correct normalization method to the tuple based on the aggregate level
+            def normalize_method = meta.aggregate_level == 'cell'
+                ? params.pycytominer_normalize_method_cell
+                : params.pycytominer_normalize_method_well
+            [meta, parquet, normalize_method]
+        }
+        .branch { _meta, _parquet, normalize_method ->
+            // skip normalization if method is 'none'
+            normalize: normalize_method != 'none'
+            skip:      true
+        }
+
+    PYCYTOMINER_NORMALIZE(
+        ch_pre_normalize.normalize.map { meta, parquet, normalize_method ->
+            [meta, parquet, params.pycytominer_normalize_samples, normalize_method]
+        },
+    )
+
+    // combine back normalized and non-normalized files
+    ch_normalized = PYCYTOMINER_NORMALIZE.out.result.mix(
+        ch_pre_normalize.skip.map { meta, parquet, _normalize_method -> [meta, parquet] }
+    )
+
     // partition analyses by condition
     // this does both cell and well level partitioning;
     // we can separate these out again later using the aggregate_level metadata
-    PARTITION_CONDITIONS(
-        ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result),
-        params.platemap_condition_columns,
-    )
+    PARTITION_CONDITIONS(ch_normalized, params.platemap_condition_columns)
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
         .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
 
