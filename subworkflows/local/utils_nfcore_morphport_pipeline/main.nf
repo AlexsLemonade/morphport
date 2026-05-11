@@ -178,7 +178,7 @@ workflow PIPELINE_COMPLETION {
 //
 // Validate channels from input samplesheet
 //
-def validateInputSamplesheet(metas, List partition_columns) {
+def validateInputSamplesheet(metas, partition_columns) {
     def errors = []
 
     def validated_metas = metas.collect { meta ->
@@ -308,7 +308,7 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
 //
 // Ensure a column name has the "Metadata_" prefix.
 //
-String addMetadataPrefix(String col) {
+def addMetadataPrefix(col) {
     return col.startsWith('Metadata_') ? col : 'Metadata_' + col
 }
 
@@ -317,7 +317,7 @@ String addMetadataPrefix(String col) {
 // string of column names; this returns a list of lists of Metadata_-prefixed column names.
 // An empty string parses to an empty grouping (no columns / "everything together").
 //
-List normalizeGroupings(List groupings_list) {
+def normalizeGroupings(groupings_list) {
     def normalized_groupings = groupings_list.collect { grouping ->
         // split the grouping string by commas, trim whitespace, and filter out empty column names
         def raw_cols = (grouping as String).split(',')*.trim().findAll()
@@ -336,7 +336,7 @@ List normalizeGroupings(List groupings_list) {
 // added to each level's groupings (de-duplicated). A level missing from the file with no
 // "default" entry resolves to [] (no analyses on that level).
 //
-Map parseGroupings(String groups_file) {
+def parseGroupings(groups_file) {
     if (!groups_file) {
         return [cell: [[]], well: [[]]]
     }
@@ -354,7 +354,7 @@ Map parseGroupings(String groups_file) {
 // fall back to the default groupings; otherwise add the level-specific groupings to the
 // defaults and de-duplicate.
 //
-List resolveLevelGroupings(Map parsed, String level, List default_groupings) {
+def resolveLevelGroupings(parsed, level, default_groupings) {
     if (!parsed.containsKey(level)) {
         return default_groupings
     }
@@ -370,7 +370,7 @@ List resolveLevelGroupings(Map parsed, String level, List default_groupings) {
 // union — otherwise grouping by an un-partitioned column would silently produce nonsense.
 // Returns a list of Metadata_-prefixed column names; may be empty (⇒ no partitioning).
 //
-List derivePartitionColumns(Map parsed_groups, String override_str) {
+def derivePartitionColumns(parsed_groups, override_str) {
     def grouping_union = (parsed_groups.cell + parsed_groups.well)
         .flatten()
         .unique() as List<String>
@@ -399,7 +399,7 @@ List derivePartitionColumns(Map parsed_groups, String override_str) {
 // downstream \u2014 like the partition columns \u2014 travel with meta even if a given platemap
 // happens to omit them.
 //
-def parsePlatemapColumns(platemap_path, platemap_well_column, List extra_columns = []) {
+def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []) {
     // read only the header line of the platemap file
     def text = file(platemap_path).newReader().readLine()
     // strip UTF-8 BOM if present
@@ -426,7 +426,7 @@ def parsePlatemapColumns(platemap_path, platemap_well_column, List extra_columns
 // partition won't materialise and that group falls back to channel-close emission via
 // remainder: true.
 //
-Map buildAnalysisGroups(Map groupings, List all_combos) {
+def buildAnalysisGroups(groupings, all_combos) {
     def result = [:]
     groupings.each { agg_level, level_groupings ->
         def level_map = [:]
@@ -452,7 +452,7 @@ Map buildAnalysisGroups(Map groupings, List all_combos) {
 // Keeping the encoding aligned is what lets buildAnalysisGroups predict sizes that actually match
 // the keys produced by expandHivePartitions.
 //
-def parsePlatemapCombos(platemap_path, List partition_columns) {
+def parsePlatemapCombos(platemap_path, partition_columns) {
     def lines = file(platemap_path).text.readLines()
     if (lines.size() < 2) return []
 
