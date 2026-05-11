@@ -5,7 +5,7 @@
 */
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText; parseGroupings; derivePartitionColumns } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
+include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
 include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
 include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
@@ -94,25 +94,29 @@ workflow MORPHPORT {
     )
 
     // partition analyses by condition
-    // this does both cell and well level partitioning;
-    // we can separate these out again later using the aggregate_level metadata.
-    // partition_columns is derived synchronously from params (same logic used during
-    // PIPELINE_INITIALISATION) so we can branch the DAG: when the set is empty
-    // (no groupings and no override) we skip PARTITION_CONDITIONS entirely and feed
-    // each plate's parquet straight into the grouping logic.
-    def partition_columns = derivePartitionColumns(
-        parseGroupings(params.analysis_groups_file),
-        params.platemap_condition_columns,
-    )
-    def ch_partitioned
-    if (partition_columns) {
-        PARTITION_CONDITIONS(ch_normalized, partition_columns.join(','))
-        ch_partitioned = PARTITION_CONDITIONS.out.partitions
-            .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
-    }
-    else {
-        ch_partitioned = ch_normalized.map { meta, parquet -> [meta, [parquet] as List] }
-    }
+    // this does both cell and well level partitioning; we separate them out again later
+    // using the aggregate_level metadata.
+    // The analysis_groups value channel carries the partition column set; branch on it
+    // so PARTITION_CONDITIONS only runs when there is something to partition. The empty
+    // case flows straight into grouping as a single "partition" per plate.
+    // Note that because ch_analysis_groups is a value channel,
+    // all values in ch_normalized will take the same branch path
+    ch_normalized_split = ch_normalized
+        .combine(ch_analysis_groups)
+        .branch { _meta, _parquet, groups ->
+            partition: groups.partition_columns.size() > 0
+            skip:      true
+        }
+
+    PARTITION_CONDITIONS(ch_normalized_split.partition)
+    ch_partitioned = PARTITION_CONDITIONS.out.partitions
+        // Hive-style partitioning means we get one directory per partition,
+        // which we need to expand back into tuples of metadata + parquet file(s) for each partition.
+        // The metadata is augmented with the partition conditions parsed from the directory names.
+        .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+        // if there were no partitions, we still need to emit the original metadata + parquet tuple for grouping,
+        // so we mix the partitioned output with the original tuples that were branched to skip.
+        .mix(ch_normalized_split.skip.map { meta, parquet, _groups -> [meta, [parquet] as List] })
 
     ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
 

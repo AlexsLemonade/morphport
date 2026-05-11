@@ -11,8 +11,7 @@ process PARTITION_CONDITIONS {
     }
 
     input:
-    tuple val(meta), path(parquet_file)
-    val platemap_condition_columns
+    tuple val(meta), path(parquet_file), val(analysis_groups)
 
     output:
     tuple val(meta), path("${meta.plate_id}"),         emit: partitions
@@ -20,6 +19,7 @@ process PARTITION_CONDITIONS {
     path "versions.yml",                               emit: versions, topic: versions
 
     script:
+    platemap_condition_columns = (analysis_groups.partition_columns as List).join(',')
     template 'partition_conditions.py'
 
     stub:
@@ -27,7 +27,7 @@ process PARTITION_CONDITIONS {
     // This matches what parsePlatemapCombos predicts for a column missing from the platemap,
     // so the stub setup pairs with an analysis_groups file that references columns absent
     // from the stub platemaps — no need to read the platemap here.
-    condition_cols = platemap_condition_columns.split(',') as List
+    condition_cols = analysis_groups.partition_columns as List
     stub_path = condition_cols.collect { col -> "${col}=_Absent_" }.join('/')
     """
     mkdir -p "${meta.plate_id}/${stub_path}"

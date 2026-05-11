@@ -105,14 +105,20 @@ workflow PIPELINE_INITIALISATION {
         .set { ch_samplesheet }
 
     //
-    // Build a value channel of `aggregate_level → grouping_cols → sub_combo → expected size`.
+    // Build a value channel bundling:
+    //   - partition_columns: list passed to PARTITION_CONDITIONS (empty ⇒ no partitioning)
+    //   - cell / well:       grouping_cols → sub_combo → expected group size, used to wrap
+    //                        downstream items with groupKey(...) for eager groupTuple emit.
     // Sizes are computed from each plate's platemap so downstream groupTuple can release
     // each group as soon as it's full, rather than waiting for upstream channel close.
     //
     def ch_analysis_groups = ch_samplesheet
         .map { meta -> parsePlatemapCombos(meta.platemap_file, partition_columns) }
         .collect()
-        .map { per_plate -> buildAnalysisGroups(parsed_groups, per_plate.flatten() as List) }
+        .map { per_plate ->
+            buildAnalysisGroups(parsed_groups, per_plate.flatten() as List) +
+                [partition_columns: partition_columns]
+        }
 
     emit:
     samplesheet     = ch_samplesheet
