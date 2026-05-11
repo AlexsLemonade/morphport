@@ -313,10 +313,18 @@ String addMetadataPrefix(String col) {
 }
 
 //
-// Apply addMetadataPrefix to every column name in every grouping in a list.
+// Normalize a list of groupings from the JSON file. Each grouping is a comma-separated
+// string of column names; this returns a list of lists of Metadata_-prefixed column names.
+// An empty string parses to an empty grouping (no columns / "everything together").
 //
-List normaliseGroupings(List groupings_list) {
-    return groupings_list.collect { cols -> cols.collect { col -> addMetadataPrefix(col as String) } }
+List normalizeGroupings(List groupings_list) {
+    def normalized_groupings = groupings_list.collect { grouping ->
+        // split the grouping string by commas, trim whitespace, and filter out empty column names
+        def raw_cols = (grouping as String).split(',')*.trim().findAll()
+        // add Metadata_ prefix to each column name if not already present
+        raw_cols.collect { col -> addMetadataPrefix(col) }
+    }
+    return normalized_groupings
 }
 
 //
@@ -334,7 +342,7 @@ Map parseGroupings(String groups_file) {
     }
 
     def parsed = new groovy.json.JsonSlurper().parse(file(groups_file)) as Map
-    def default_groupings = parsed.containsKey('default') ? normaliseGroupings(parsed['default'] as List) : []
+    def default_groupings = parsed.containsKey('default') ? normalizeGroupings(parsed['default'] as List) : []
     return [
         cell: resolveLevelGroupings(parsed, 'cell', default_groupings),
         well: resolveLevelGroupings(parsed, 'well', default_groupings),
@@ -350,7 +358,7 @@ List resolveLevelGroupings(Map parsed, String level, List default_groupings) {
     if (!parsed.containsKey(level)) {
         return default_groupings
     }
-    return (default_groupings + normaliseGroupings(parsed[level] as List)).unique()
+    return (default_groupings + normalizeGroupings(parsed[level] as List)).unique()
 }
 
 //
