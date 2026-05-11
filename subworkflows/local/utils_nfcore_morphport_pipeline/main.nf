@@ -375,14 +375,11 @@ List derivePartitionColumns(Map parsed_groups, String override_str) {
         .flatten()
         .unique() as List<String>
 
-    if (!override_str?.trim()) {
+    if (!override_str) {
         return grouping_union
     }
 
-    def override_cols = override_str.split(',')
-        .collect { col -> addMetadataPrefix(col.trim()) }
-        .findAll { col -> col != 'Metadata_' }
-        .unique()
+    def override_cols = normalizeGroupings([override_str])[0].unique()
     def missing = grouping_union.findAll { col -> !(col in override_cols) }
     if (missing) {
         error(
@@ -466,8 +463,7 @@ def parsePlatemapCombos(platemap_path, List partition_columns) {
     // partition_columns are already Metadata_-prefixed; strip the prefix to look them up
     // against the raw platemap header.
     def col_indices = partition_columns.collectEntries { col ->
-        def raw = col.startsWith('Metadata_') ? col.substring('Metadata_'.length()) : col
-        [(col): headers.indexOf(raw)]
+        [(col): headers.indexOf(col.substring('Metadata_'.length()))]
     }
 
     def combos = [] as LinkedHashSet
