@@ -85,26 +85,32 @@ workflow PIPELINE_INITIALISATION {
     // Create channel from input file provided through params.input
     //
 
+    //
+    // Resolve analysis groupings and the partition column set synchronously from params.
+    // Both are pure functions of params, so we compute them before any channel work and
+    // reuse the values for samplesheet validation, platemap-combo enumeration, and the
+    // analysis_groups bundle emitted downstream.
+    //
+    def parsed_groups = parseGroupings(params.analysis_groups_file)
+    def partition_columns = derivePartitionColumns(parsed_groups, params.platemap_condition_columns)
+
     channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
         .map { row -> row[0] }
         .toList()
         .map { samplesheet ->
-            validateInputSamplesheet(samplesheet)
+            validateInputSamplesheet(samplesheet, partition_columns)
         }
         .flatMap()
         .set { ch_samplesheet }
 
     //
-    // Build a nested map of analysis groupings → sub-combo → expected size, derived from the
-    // user's analysis_groups_file and the union of condition combinations across each plate's
-    // platemap. This is a single value channel that carries both the grouping structure (its
-    // keys) and the predicted sizes (its leaves), used downstream to fan out partitions and
-    // wrap them with groupKey(...).
+    // Build a value channel of `aggregate_level → grouping_cols → sub_combo → expected size`.
+    // Sizes are computed from each plate's platemap so downstream groupTuple can release
+    // each group as soon as it's full, rather than waiting for upstream channel close.
     //
-    def parsed_groups = parseGroupings(params.analysis_groups_file, params.platemap_condition_columns)
     def ch_analysis_groups = ch_samplesheet
-        .map { meta -> parsePlatemapCombos(meta.platemap_file, params.platemap_condition_columns) }
+        .map { meta -> parsePlatemapCombos(meta.platemap_file, partition_columns) }
         .collect()
         .map { per_plate -> buildAnalysisGroups(parsed_groups, per_plate.flatten() as List) }
 
@@ -166,7 +172,7 @@ workflow PIPELINE_COMPLETION {
 //
 // Validate channels from input samplesheet
 //
-def validateInputSamplesheet(metas) {
+def validateInputSamplesheet(metas, List partition_columns) {
     def errors = []
 
     def validated_metas = metas.collect { meta ->
@@ -228,8 +234,8 @@ def validateInputSamplesheet(metas) {
         }
 
         // read platemap columns so they travel with meta through the pipeline;
-        // condition columns are always included even if absent from this platemap
-        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column, params.platemap_condition_columns) : []
+        // partition columns are always included even if absent from this platemap
+        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column, partition_columns) : []
 
         // update and return
         meta + [plate_dir: plate_dir, platemap_file: platemap_path, plate_metadata_columns: platemap_cols]
@@ -310,38 +316,89 @@ List normaliseGroupings(List groupings_list) {
 //
 // Parse analysis_groups_file into a Map keyed by aggregate_level ('cell'/'well'), where each
 // value is a list of groupings and each grouping is a list of Metadata_-prefixed column names.
-// Falls back to one single-column grouping per condition column when no file is provided.
+// If no file is given, both levels resolve to a single empty-column grouping ([[]]), meaning
+// "one all-encompassing group per level" (no partitioning).
+// If a file is given, an optional top-level "default" key supplies groupings that are
+// added to each level's groupings (de-duplicated). A level missing from the file with no
+// "default" entry resolves to [] (no analyses on that level).
 //
-Map parseGroupings(String groups_file, String condition_columns_str) {
-    def default_groupings = condition_columns_str.split(',')
-        .collect { col -> [addMetadataPrefix(col.trim())] }
-
+Map parseGroupings(String groups_file) {
     if (!groups_file) {
-        return [cell: default_groupings, well: default_groupings]
+        return [cell: [[]], well: [[]]]
     }
 
     def parsed = new groovy.json.JsonSlurper().parse(file(groups_file)) as Map
+    def default_groupings = parsed.containsKey('default') ? normaliseGroupings(parsed['default'] as List) : []
     return [
-        cell: parsed.containsKey('cell') ? normaliseGroupings(parsed['cell'] as List) : [],
-        well: parsed.containsKey('well') ? normaliseGroupings(parsed['well'] as List) : [],
+        cell: resolveLevelGroupings(parsed, 'cell', default_groupings),
+        well: resolveLevelGroupings(parsed, 'well', default_groupings),
     ]
+}
+
+//
+// Resolve groupings for a single aggregate level: if the level is missing from the file,
+// fall back to the default groupings; otherwise add the level-specific groupings to the
+// defaults and de-duplicate.
+//
+List resolveLevelGroupings(Map parsed, String level, List default_groupings) {
+    if (!parsed.containsKey(level)) {
+        return default_groupings
+    }
+    return (default_groupings + normaliseGroupings(parsed[level] as List)).unique()
+}
+
+//
+// Derive the partition columns used by PARTITION_CONDITIONS, given parsed analysis groupings
+// and an optional override string (params.platemap_condition_columns).
+//
+// When no override is set, the partition columns are the union of every grouping column
+// across cell and well levels. When the override is set, it must be a superset of that
+// union — otherwise grouping by an un-partitioned column would silently produce nonsense.
+// Returns a list of Metadata_-prefixed column names; may be empty (⇒ no partitioning).
+//
+List derivePartitionColumns(Map parsed_groups, String override_str) {
+    def grouping_union = (parsed_groups.cell + parsed_groups.well)
+        .flatten()
+        .unique() as List<String>
+
+    if (!override_str?.trim()) {
+        return grouping_union
+    }
+
+    def override_cols = override_str.split(',')
+        .collect { col -> addMetadataPrefix(col.trim()) }
+        .findAll { col -> col != 'Metadata_' }
+        .unique()
+    def missing = grouping_union.findAll { col -> !(col in override_cols) }
+    if (missing) {
+        error(
+            "platemap_condition_columns must cover every grouping column.\n" +
+            "  override:   ${override_cols.join(', ')}\n" +
+            "  grouping union: ${grouping_union.join(', ')}\n" +
+            "  missing from override: ${missing.join(', ')}"
+        )
+    }
+    return override_cols
 }
 
 //
 // Parse the columns from a platemap file, excluding the well column.
 // Returns a list of column names with "Metadata_" prefix added if not already present.
+// `extra_columns` (already Metadata_-prefixed) are appended so that columns required
+// downstream \u2014 like the partition columns \u2014 travel with meta even if a given platemap
+// happens to omit them.
 //
-def parsePlatemapColumns(platemap_path, platemap_well_column, condition_columns_str = '') {
+def parsePlatemapColumns(platemap_path, platemap_well_column, List extra_columns = []) {
     // read only the header line of the platemap file
     def text = file(platemap_path).newReader().readLine()
     // strip UTF-8 BOM if present
     if (text.startsWith('\uFEFF')) text = text.substring(1)
 
-    def cols = (text.split('\t') + condition_columns_str.split(','))
+    def header_cols = text.split('\t')
         .collect { it -> it.trim() }
-        .findAll { it -> it != platemap_well_column }
-        .collect { it -> it.startsWith('Metadata_') ? it : "Metadata_${it}" }
-    return cols.unique()
+        .findAll { it -> it && it != platemap_well_column }
+        .collect { it -> addMetadataPrefix(it) }
+    return (header_cols + extra_columns).unique()
 }
 
 //
@@ -384,7 +441,7 @@ Map buildAnalysisGroups(Map groupings, List all_combos) {
 // Keeping the encoding aligned is what lets buildAnalysisGroups predict sizes that actually match
 // the keys produced by expandHivePartitions.
 //
-def parsePlatemapCombos(platemap_path, condition_columns_str) {
+def parsePlatemapCombos(platemap_path, List partition_columns) {
     def lines = file(platemap_path).text.readLines()
     if (lines.size() < 2) return []
 
@@ -392,12 +449,11 @@ def parsePlatemapCombos(platemap_path, condition_columns_str) {
     if (header_line.startsWith('\uFEFF')) header_line = header_line.substring(1)
     def headers = header_line.split('\t')*.trim()
 
-    def cond_cols = condition_columns_str.split(',')*.trim().findAll { it -> it }
-    def col_indices = cond_cols.collectEntries { col ->
-        def metadata_key = col.startsWith('Metadata_') ? col : 'Metadata_' + col
-        // strip the prefix to look up the raw column in the platemap header
+    // partition_columns are already Metadata_-prefixed; strip the prefix to look them up
+    // against the raw platemap header.
+    def col_indices = partition_columns.collectEntries { col ->
         def raw = col.startsWith('Metadata_') ? col.substring('Metadata_'.length()) : col
-        [(metadata_key): headers.indexOf(raw)]
+        [(col): headers.indexOf(raw)]
     }
 
     def combos = [] as LinkedHashSet

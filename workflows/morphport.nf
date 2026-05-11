@@ -5,7 +5,7 @@
 */
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
+include { methodsDescriptionText; parseGroupings; derivePartitionColumns } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
 include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
 include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
@@ -95,10 +95,24 @@ workflow MORPHPORT {
 
     // partition analyses by condition
     // this does both cell and well level partitioning;
-    // we can separate these out again later using the aggregate_level metadata
-    PARTITION_CONDITIONS(ch_normalized, params.platemap_condition_columns)
-    ch_partitioned = PARTITION_CONDITIONS.out.partitions
-        .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+    // we can separate these out again later using the aggregate_level metadata.
+    // partition_columns is derived synchronously from params (same logic used during
+    // PIPELINE_INITIALISATION) so we can branch the DAG: when the set is empty
+    // (no groupings and no override) we skip PARTITION_CONDITIONS entirely and feed
+    // each plate's parquet straight into the grouping logic.
+    def partition_columns = derivePartitionColumns(
+        parseGroupings(params.analysis_groups_file),
+        params.platemap_condition_columns,
+    )
+    def ch_partitioned
+    if (partition_columns) {
+        PARTITION_CONDITIONS(ch_normalized, partition_columns.join(','))
+        ch_partitioned = PARTITION_CONDITIONS.out.partitions
+            .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+    }
+    else {
+        ch_partitioned = ch_normalized.map { meta, parquet -> [meta, [parquet] as List] }
+    }
 
     ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
 
@@ -161,11 +175,17 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
                     aggregate_level  : agg_level,
                     grouping_columns : grouping_cols,
                 ]
-                // Predicted counts can be 0 if the platemap doesn't enumerate the actual
-                // combo (e.g. DuckDB's __HIVE_DEFAULT_PARTITION__ for NULL values, or the
-                // stub's _NA_ placeholder). Fall back to MAX_VALUE so groupTuple waits for
-                // channel close instead of emitting an underfilled group.
-                def expected = subcombo_sizes[sub_combo] ?: Integer.MAX_VALUE
+                // A missing predicted size means the partition's sub_combo wasn't seen in any
+                // platemap during init — usually a sentinel mismatch or a platemap-parsing
+                // bug. Warn and fall back to channel-close emission via remainder: true.
+                def expected
+                if (subcombo_sizes.containsKey(sub_combo)) {
+                    expected = subcombo_sizes[sub_combo]
+                }
+                else {
+                    log.warn "morphport: no predicted size for ${agg_level} grouping ${grouping_cols} sub_combo ${sub_combo}; falling back to channel-close emit"
+                    expected = Integer.MAX_VALUE
+                }
                 [groupKey(key_data, expected), meta, parquets]
             }
         }
