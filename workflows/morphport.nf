@@ -160,39 +160,10 @@ workflow MORPHPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-// Build a single mixed channel of all condition groupings across both aggregate levels.
-// Each tuple from ch_partitioned is fanned out into one tuple per matching grouping
-// (those whose aggregate_level matches the partition's level), keyed by groupKey(..., size)
-// so groupTuple can release each group as soon as size items have arrived.
-def createGroupChannels(ch_partitioned, ch_analysis_groups) {
-    return ch_partitioned
-        .combine(ch_analysis_groups)
-        .flatMap { meta, parquets, groups ->
-            def agg_level = meta.aggregate_level
-            def level_data = groups[agg_level] ?: [:]
-            level_data.collect { grouping_cols, subcombo_sizes ->
-                def sub_combo = meta.subMap(grouping_cols)
-                def key_data  = sub_combo + [
-                    aggregate_level  : agg_level,
-                    grouping_columns : grouping_cols,
-                ]
-                // A missing predicted size means the partition's sub_combo wasn't seen in any
-                // platemap during init — usually a sentinel mismatch or a platemap-parsing
-                // bug. Warn and fall back to channel-close emission via remainder: true.
-                def expected
-                if (subcombo_sizes.containsKey(sub_combo)) {
-                    expected = subcombo_sizes[sub_combo]
-                }
-                else {
-                    log.warn "morphport: no predicted size for ${agg_level} grouping ${grouping_cols} sub_combo ${sub_combo}; falling back to channel-close emit"
-                    expected = Integer.MAX_VALUE
-                }
-                [groupKey(key_data, expected), meta, parquets]
-            }
-        }
-        .groupTuple(by: 0, remainder: true)
-        .map { gk, metas, parquet_lists -> [gk, metas, parquet_lists.flatten()] }
-}
+//
+// Given a Hive partition directory, recursively find all parquet files and extract the partition
+// conditions from the directory structure, returning a list of tuples of the form:
+//   [meta + partition_conditions, list_of_parquet_files]
 
 def expandHivePartitions(meta, partition_dir) {
     def results = []
@@ -213,4 +184,48 @@ def expandHivePartitions(meta, partition_dir) {
         }
     }
     return results
+}
+
+//
+// Build a channel of all condition groupings across aggregate levels.
+// Each tuple from ch_partitioned is fanned out into one tuple per matching grouping
+// (those whose aggregate_level matches the partition's level), keyed by groupKey(..., size)
+// so groupTuple can release each group as soon as size items have arrived.
+//
+def createGroupChannels(ch_partitioned, ch_analysis_groups) {
+    def ch_grouping = ch_partitioned
+        // add full map to each ch_partitioned tuple
+        .combine(ch_analysis_groups)
+        // for each partition tuple, find the matching grouping(s) based on aggregate level and add the group key info
+        .flatMap { meta, parquets, groups ->
+            def agg_level = meta.aggregate_level
+            // look up the groupings for this aggregate level
+            //if not present, an empty list (no grouping)
+            def level_data = groups[agg_level] ?: [:]
+            // for each set of grouping values, create a tuple keyed by groupKey(..., size)
+            // with the grouping columns and values in the meta
+            level_data.collect { grouping_cols, grouping_value_sizes ->
+                // get the values of the grouping columns for this partition
+                // by subsetting the partition conditions from the meta
+                def grouping_value = meta.subMap(grouping_cols)
+                def key_data  = grouping_value + [
+                    aggregate_level  : agg_level,
+                    grouping_columns : grouping_cols,
+                ]
+                // Look up the expected size for this grouping
+                // A missing predicted size means the partition's grouping values weren't seen in any
+                // platemap during init
+                // Warn and set the expected value to max so emission happens at end with remainder: true.
+                def expected_size = grouping_value_sizes.get(grouping_value, Integer.MAX_VALUE)
+                if (expected_size == Integer.MAX_VALUE) {
+                    log.warn "morphport: no predicted size for ${agg_level} grouping ${grouping_cols} grouping_value ${grouping_value}"
+                }
+
+                [groupKey(key_data, expected_size), meta, parquets]
+            }
+        }
+    // do the grouping, flatten the parquet lists, and return a channel of tuples of the form:
+    //   [group_key, list_of_meta, list_of_parquet_files]
+    return ch_grouping.groupTuple(by: 0, remainder: true)
+        .map { group_key, metas, parquet_lists -> [group_key, metas, parquet_lists.flatten()] }
 }
