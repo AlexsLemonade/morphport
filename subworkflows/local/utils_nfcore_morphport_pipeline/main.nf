@@ -343,26 +343,16 @@ def parseGroupings(groups_file) {
 
     def parsed = new groovy.json.JsonSlurper().parse(file(groups_file)) as Map
     def default_groupings = parsed.containsKey('default') ? normalizeGroupings(parsed['default'] as List) : []
-    return [
-        cell: resolveLevelGroupings(parsed, 'cell', default_groupings),
-        well: resolveLevelGroupings(parsed, 'well', default_groupings),
-    ]
-}
 
-//
-// Resolve groupings for a single aggregate level: if the level is missing from the file,
-// fall back to the default groupings; otherwise add the level-specific groupings to the
-// defaults and de-duplicate.
-//
-def resolveLevelGroupings(parsed, level, default_groupings) {
-    if (!parsed.containsKey(level)) {
-        return default_groupings
+    // make a map of aggregate_level: groupings, where groupings is a list of lists of Metadata_-prefixed column names
+    def level_groupings = ['cell', 'well'].collectEntries{ level ->
+        [level, default_groupings + normalizeGroupings(parsed.get(level, []) as List)]
     }
-    return (default_groupings + normalizeGroupings(parsed[level] as List)).unique()
+    return level_groupings
 }
 
 //
-// Derive the partition columns used by PARTITION_CONDITIONS, given parsed analysis groupings
+// Construct the partition columns used by PARTITION_CONDITIONS, given parsed analysis groupings
 // and an optional override string (params.platemap_condition_columns).
 //
 // When no override is set, the partition columns are the union of every grouping column
@@ -396,7 +386,7 @@ def derivePartitionColumns(parsed_groups, override_str) {
 // Parse the columns from a platemap file, excluding the well column.
 // Returns a list of column names with "Metadata_" prefix added if not already present.
 // `extra_columns` (already Metadata_-prefixed) are appended so that columns required
-// downstream \u2014 like the partition columns \u2014 travel with meta even if a given platemap
+// downstream, like the partition columns, travel with meta even if a given platemap
 // happens to omit them.
 //
 def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []) {
@@ -414,11 +404,11 @@ def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []
 
 //
 // Combine parsed analysis-group definitions with the union of platemap condition combos to
-// produce a nested map: aggregate_level → grouping_cols → sub_combo → expected size.
+// produce a nested map: aggregate_level → grouping_cols → grouping_values → expected plate count.
 //
 // The structure carries both the grouping definitions (its keys) and the predicted group
-// sizes (its leaves). Sizes count, for each (level, grouping_cols, sub_combo) triple, the
-// number of (plate × full_combo) pairs whose projection onto grouping_cols equals sub_combo.
+// sizes (its leaves). Sizes count, for each (level, grouping_cols, grouping_values) triple, the
+// number of (plate × grouping_values) pairs that match.
 // They're used as the `size` argument to groupKey(...) so groupTuple can emit each group
 // eagerly rather than waiting for the upstream channel to close.
 //
@@ -426,29 +416,22 @@ def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []
 // partition won't materialise and that group falls back to channel-close emission via
 // remainder: true.
 //
-def buildAnalysisGroups(groupings, all_combos) {
-    def result = [:]
-    groupings.each { agg_level, level_groupings ->
-        def level_map = [:]
-        level_groupings.each { grouping_cols ->
-            def subcombo_sizes = [:]
-            all_combos.each { full_combo ->
-                def sub = full_combo.subMap(grouping_cols)
-                subcombo_sizes[sub] = (subcombo_sizes[sub] ?: 0) + 1
-            }
-            level_map[grouping_cols] = subcombo_sizes
+def buildAnalysisGroups(groupings, plate_combos) {
+    groupings.collectEntries { agg_level, level_groupings ->
+        def level_map = level_groupings.collectEntries { grouping_cols ->
+            // inner map: grouping_cols → grouping_values → expected plate count
+            [grouping_cols, plate_combos.countBy { it -> it.subMap(grouping_cols) }]
         }
-        result[agg_level] = level_map
+        [agg_level, level_map]
     }
-    return result
 }
 
 //
 // Read a platemap file and return the list of unique condition combinations present on the plate.
-// Each combination is a Map keyed by Metadata_-prefixed column names \u2192 row values, with the same
+// Each combination is a Map keyed by Metadata_-prefixed column names → row values, with the same
 // sentinel encoding that pycytominer_annotate.py applies before partitioning:
-//   - blank cell                                 \u2192 '_NA_'    (mirrors fillna("_NA_"))
-//   - condition column absent from this platemap \u2192 '_Absent_' (mirrors the plate_metadata_columns fill)
+//   - blank cell                                 → '_NA_'    (mirrors fillna("_NA_"))
+//   - condition column absent from this platemap → '_Absent_' (mirrors the plate_metadata_columns fill)
 // Keeping the encoding aligned is what lets buildAnalysisGroups predict sizes that actually match
 // the keys produced by expandHivePartitions.
 //
@@ -463,27 +446,25 @@ def parsePlatemapCombos(platemap_path, partition_columns) {
     // partition_columns are already Metadata_-prefixed; strip the prefix to look them up
     // against the raw platemap header.
     def col_indices = partition_columns.collectEntries { col ->
-        [(col): headers.indexOf(col.substring('Metadata_'.length()))]
+        [col, headers.indexOf(col.substring('Metadata_'.length()))]
     }
 
-    def combos = [] as LinkedHashSet
-    lines.drop(1).each { line ->
-        if (!line.trim()) return
-        def parts = line.split('\t', -1)*.trim()
-        def combo = col_indices.collectEntries { metadata_key, idx ->
-            def value
-            if (idx < 0) {
-                value = '_Absent_'
+    def combos = lines.drop(1)
+        .findAll { it -> it.trim() }
+        .collect { line ->
+            def parts = line.split('\t', -1)*.trim()
+            col_indices.collectEntries { metadata_key, idx ->
+                def value
+                if (idx < 0) {
+                    value = '_Absent_'
+                } else {
+                    def raw_value = idx < parts.size() ? parts[idx] : ''
+                    value = raw_value ?: '_NA_'
+                }
+                [metadata_key, value]
             }
-            else {
-                def raw_value = (idx < parts.size()) ? parts[idx] : ''
-                value = raw_value ?: '_NA_'
-            }
-            [(metadata_key): value]
         }
-        combos << combo
-    }
-    return combos.toList()
+    return combos.unique()
 }
 
 
