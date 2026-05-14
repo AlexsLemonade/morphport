@@ -19,7 +19,7 @@ process PARTITION_CONDITIONS {
     path "versions.yml",                               emit: versions, topic: versions
 
     script:
-    platemap_condition_columns = (analysis_groups.partition_columns as List).join(',')
+    partition_columns_str = (analysis_groups.partition_columns as List).join(',')
     template 'partition_conditions.py'
 
     stub:

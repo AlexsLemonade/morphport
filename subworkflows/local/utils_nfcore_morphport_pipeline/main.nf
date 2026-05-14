@@ -92,7 +92,7 @@ workflow PIPELINE_INITIALISATION {
     // analysis_groups bundle emitted downstream.
     //
     def parsed_groups = parseGroupings(params.analysis_groups_file)
-    def partition_columns = derivePartitionColumns(parsed_groups, params.platemap_condition_columns)
+    def partition_columns = (parsed_groups.cell + parsed_groups.well).flatten().unique() as List<String>
 
     channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
@@ -349,37 +349,6 @@ def parseGroupings(groups_file) {
         [level, default_groupings + normalizeGroupings(parsed.get(level, []) as List)]
     }
     return level_groupings
-}
-
-//
-// Construct the partition columns used by PARTITION_CONDITIONS, given parsed analysis groupings
-// and an optional override string (params.platemap_condition_columns).
-//
-// When no override is set, the partition columns are the union of every grouping column
-// across cell and well levels. When the override is set, it must be a superset of that
-// union — otherwise grouping by an un-partitioned column would silently produce nonsense.
-// Returns a list of Metadata_-prefixed column names; may be empty (⇒ no partitioning).
-//
-def derivePartitionColumns(parsed_groups, override_str) {
-    def grouping_union = (parsed_groups.cell + parsed_groups.well)
-        .flatten()
-        .unique() as List<String>
-
-    if (!override_str) {
-        return grouping_union
-    }
-
-    def override_cols = normalizeGroupings([override_str])[0].unique()
-    def missing = grouping_union.findAll { col -> !(col in override_cols) }
-    if (missing) {
-        error(
-            "platemap_condition_columns must cover every grouping column.\n" +
-            "  override:   ${override_cols.join(', ')}\n" +
-            "  grouping union: ${grouping_union.join(', ')}\n" +
-            "  missing from override: ${missing.join(', ')}"
-        )
-    }
-    return override_cols
 }
 
 //
