@@ -337,7 +337,7 @@ def normalizeGroupings(groupings_list) {
 // If no file is given, both levels resolve to a single empty-column grouping ([[]]), meaning
 // "one all-encompassing group per level" (no partitioning).
 // If a file is given, an optional top-level "default" key supplies groupings that are
-// added to each level's groupings (de-duplicated). If the file has no "default" entry, 
+// added to each level's groupings (de-duplicated). If the file has no "default" entry,
 // any missing levels will resolve to [] (no groupings on that level).
 //
 def parseGroupings(groups_file) {
@@ -427,14 +427,13 @@ def parsePlatemapCombos(platemap_path, partition_columns) {
     def combos = lines.drop(1)
         .findAll { it -> it.trim() }
         .collect { line ->
-            def parts = line.split('\t', -1)*.trim()
+            def row = line.split('\t', -1)*.trim()
             col_indices.collectEntries { metadata_key, idx ->
                 def value
                 if (idx < 0) {
                     value = '_Absent_'
                 } else {
-                    def raw_value = idx < parts.size() ? parts[idx] : ''
-                    value = raw_value ?: '_NA_'
+                    value = idx < row.size() && row[idx] ? row[idx] : '_NA_'
                 }
                 [(metadata_key): value]
             }
