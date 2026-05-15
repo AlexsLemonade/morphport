@@ -4,9 +4,13 @@ Nextflow template script to compute PCA and UMAP embeddings for one analysis gro
 
 Reads the parquet files staged in the work directory, drops Metadata_ columns
 and non-numeric columns to build a measurement matrix, removes any rows with
-NaN values in the feature columns, standard-scales the features, fits PCA,
-and then runs UMAP on the top PCs. Writes one combined embeddings parquet
-(Metadata_* columns + PC1..PCk + UMAP1 + UMAP2) and a JSON summary sidecar.
+NaN values in the feature columns, fits PCA, and then runs UMAP on the top PCs.
+Writes one combined embeddings parquet (Metadata_* columns + PC1..PCk +
+UMAP1 + UMAP2) and a JSON summary sidecar.
+
+NOTE: features are passed to PCA without any additional scaling. This module
+assumes the upstream pycytominer normalization has
+already produced approximately unit-variance features.
 """
 
 import json
@@ -25,7 +29,6 @@ os.environ.setdefault("POLARS_MAX_THREADS", task_cpus_str)
 import numpy as np  # noqa: E402
 import polars as pl  # noqa: E402
 from sklearn.decomposition import PCA  # noqa: E402
-from sklearn.preprocessing import StandardScaler  # noqa: E402
 from umap import UMAP  # noqa: E402
 
 
@@ -61,6 +64,7 @@ def main():
     n_neighbors = int("${n_neighbors}")
     min_dist = float("${min_dist}")
     random_seed = int("${random_seed}")
+    max_nan_fraction = float("${max_nan_fraction}")
     task_cpus = int("${task.cpus}")
     task_process = "${task.process}"
 
@@ -73,10 +77,7 @@ def main():
     if not parquet_paths:
         raise RuntimeError("No input parquet files found in the working directory.")
 
-    df = pl.concat(
-        [pl.read_parquet(p) for p in parquet_paths],
-        how="vertical_relaxed",
-    )
+    df = pl.read_parquet(parquet_paths)
     n_rows_input = df.height
 
     # ---- Split metadata vs. numeric measurement columns --------------------
@@ -97,32 +98,53 @@ def main():
             "No numeric measurement columns found after excluding Metadata_*."
         )
 
-    # ---- Build feature matrix and drop NaN rows ----------------------------
+    # ---- Build feature matrix and handle NaN rows --------------------------
+    # Extract features to numpy and keep metadata separately so we can free the
+    # original DataFrame (which redundantly holds the feature columns).
     X = df.select(feat_cols).to_numpy()
-    keep_mask = ~np.isnan(X).any(axis=1)
+    df_metadata = df.select(metadata_cols)
+    del df
+
+    # Per-row NaN handling, expressed as a fraction of feature columns:
+    #   * rows with nan_fraction > max_nan_fraction are dropped
+    #   * surviving rows with any NaN have those entries filled with 0
+    # Default max_nan_fraction=0.0 reproduces strict "drop any row with a NaN".
+    n_feat_cols = len(feat_cols)
+    nan_per_row = np.isnan(X).sum(axis=1)
+    nan_fraction = nan_per_row / n_feat_cols
+    keep_mask = nan_fraction <= max_nan_fraction
     n_rows_dropped = int((~keep_mask).sum())
+    n_rows_nan_filled = int(((nan_per_row > 0) & keep_mask).sum())
     if n_rows_dropped:
         print(
             f"compute_embeddings: dropping {n_rows_dropped} of {n_rows_input} rows "
-            f"with NaN values in feature columns.",
+            f"with NaN fraction greater than {max_nan_fraction:.4f}.",
             file=sys.stderr,
         )
-    df_clean = df.filter(pl.Series("__keep_mask", keep_mask))
-    X_clean = X[keep_mask]
+    if n_rows_nan_filled:
+        print(
+            f"compute_embeddings: filling NaN with 0 in {n_rows_nan_filled} surviving rows "
+            f"(each had NaN fraction <= {max_nan_fraction:.4f}).",
+            file=sys.stderr,
+        )
+    df_metadata = df_metadata.filter(pl.Series("__keep_mask", keep_mask))
+    X = X[keep_mask]
+    if n_rows_nan_filled:
+        X = np.nan_to_num(X, copy=False, nan=0.0)
 
-    if X_clean.shape[0] == 0:
+    if X.shape[0] == 0:
         raise RuntimeError(
-            "All rows contain NaN values in feature columns; nothing left to embed. "
-            "Upstream normalization or feature curation should remove degenerate features."
+            "All rows have too many NaN feature values; nothing left to embed. "
+            "Upstream normalization or feature curation should remove degenerate features, "
+            "or raise max_nan_fraction to tolerate sparse NaNs."
         )
 
-    # ---- Scale, PCA, UMAP --------------------------------------------------
-    X_scaled = StandardScaler().fit_transform(X_clean)
-
-    n_rows_clean, n_features = X_scaled.shape
+    # ---- PCA, UMAP ---------------------------------------------------------
+    # NOTE: no feature scaling is applied here.
+    n_rows_clean, n_features = X.shape
     n_components_eff = max(1, min(n_components_req, n_features, n_rows_clean))
     pca = PCA(n_components=n_components_eff, random_state=random_seed)
-    pcs = pca.fit_transform(X_scaled)
+    pcs = pca.fit_transform(X)
 
     # UMAP requires at least n_neighbors + 1 samples. If the group is small,
     # cap n_neighbors to keep UMAP runnable.
@@ -141,7 +163,7 @@ def main():
     umap_names = ["UMAP1", "UMAP2"]
     frames = []
     if metadata_cols:
-        frames.append(df_clean.select(metadata_cols))
+        frames.append(df_metadata)
     frames.append(pl.DataFrame(pcs, schema=pc_names))
     frames.append(pl.DataFrame(umap_emb, schema=umap_names))
     out_df = pl.concat(frames, how="horizontal")
@@ -157,7 +179,9 @@ def main():
         "n_parquets_read": len(parquet_paths),
         "n_rows_input": n_rows_input,
         "n_rows_dropped_nan": n_rows_dropped,
-        "n_rows_output": int(X_clean.shape[0]),
+        "n_rows_nan_filled": n_rows_nan_filled,
+        "max_nan_fraction": max_nan_fraction,
+        "n_rows_output": int(X.shape[0]),
         "n_features_input": int(n_features),
         "n_dropped_non_numeric_columns": len(dropped_cols),
         "pca": {

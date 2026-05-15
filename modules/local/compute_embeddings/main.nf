@@ -12,6 +12,7 @@ process COMPUTE_EMBEDDINGS {
     val(n_neighbors)
     val(min_dist)
     val(random_seed)
+    val(max_nan_fraction)
 
     output:
     tuple val(group_meta), path("${prefix}_embeddings.parquet"), path("${prefix}_summary.json"), emit: result

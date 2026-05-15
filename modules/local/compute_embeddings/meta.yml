@@ -56,6 +56,13 @@ input:
   - - random_seed:
         type: integer
         description: Random seed passed to PCA and UMAP as random_state.
+  - - max_nan_fraction:
+        type: float
+        description: |
+          Per-row NaN tolerance, expressed as a fraction of feature columns in [0.0, 1.0].
+          Rows whose NaN fraction exceeds this threshold are dropped; surviving rows with
+          any NaN values have those entries filled with 0 before PCA.
+          Default of 0 drops any row with a NaN.
 
 output:
   - result:
