@@ -6,9 +6,9 @@
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
-include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
-include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
-include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
+include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
+include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
+include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
 include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE; PYCYTOMINER_NORMALIZE } from '../modules/local/pycytominer'
 
 /*
@@ -205,9 +205,10 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
             // for each set of grouping values, create a tuple keyed by groupKey(..., size)
             // with the grouping columns and values in the meta
             level_data.collect { grouping_cols, grouping_value_sizes ->
-                // get the values of the grouping columns for this partition
-                // by subsetting the partition conditions from the meta
-                def grouping_value = meta.subMap(grouping_cols)
+                // get the values of the grouping columns for this partition by subsetting the
+                // partition conditions from the meta.
+                // Add project so analysis groups stay separated by project
+                def grouping_value = meta.subMap(grouping_cols + ['project'])
                 def key_data  = grouping_value + [
                     aggregate_level  : agg_level,
                     grouping_columns : grouping_cols,
