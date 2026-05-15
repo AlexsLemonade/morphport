@@ -1,0 +1,90 @@
+name: compute_embeddings
+description: |
+  Computes PCA and UMAP embeddings for an analysis group.
+  Reads parquet files belonging to one group, selects numeric non-Metadata columns,
+  drops rows with NaN feature values, standard-scales the features, fits PCA, and
+  runs UMAP on the top principal components.
+keywords:
+  - cell painting
+  - pca
+  - umap
+  - embeddings
+  - dimensionality reduction
+
+tools:
+  - scikit-learn:
+      description: Machine learning library used here for PCA and StandardScaler.
+      homepage: https://scikit-learn.org
+      documentation: https://scikit-learn.org/stable/
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+  - umap-learn:
+      description: Uniform Manifold Approximation and Projection for dimension reduction.
+      homepage: https://github.com/lmcinnes/umap
+      documentation: https://umap-learn.readthedocs.io
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+  - polars:
+      description: Fast multi-threaded DataFrame library used for parquet IO and concat.
+      homepage: https://pola.rs
+      documentation: https://docs.pola.rs
+      licence: ["MIT"]
+      identifier: ""
+
+input:
+  - - group_meta:
+        type: map
+        description: |
+          Group key map from createGroupChannels, e.g.
+          [ aggregate_level:'cell', grouping_columns:['Metadata_treatment'], Metadata_treatment:'drugA' ]
+    - plate_metas:
+        type: list
+        description: List of per-plate meta maps for all plates contributing to this group.
+    - parquets:
+        type: file
+        description: Normalized, partitioned parquet files for this group (one per source plate per partition).
+        pattern: "*.parquet"
+  - - n_components:
+        type: integer
+        description: Number of PCA components requested; capped at min(n_rows, n_features) at runtime.
+  - - n_neighbors:
+        type: integer
+        description: UMAP n_neighbors; capped at n_rows - 1 for small groups.
+  - - min_dist:
+        type: float
+        description: UMAP min_dist.
+  - - random_seed:
+        type: integer
+        description: Random seed passed to PCA and UMAP as random_state.
+
+output:
+  - result:
+      - group_meta:
+          type: map
+          description: Group key map (unchanged from input).
+      - "*_embeddings.parquet":
+          type: file
+          description: |
+            Embeddings parquet keyed on the surviving input rows.
+            Columns: all Metadata_* columns + PC1..PCk + UMAP1 + UMAP2.
+          pattern: "*_embeddings.parquet"
+      - "*_summary.json":
+          type: file
+          description: |
+            Summary JSON with row counts, dropped-NaN count, PCA explained variance ratio,
+            and the UMAP parameters used.
+          pattern: "*_summary.json"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module.
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
