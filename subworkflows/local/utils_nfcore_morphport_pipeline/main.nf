@@ -106,7 +106,7 @@ workflow PIPELINE_INITIALISATION {
 
     //
     // Build a value channel bundling:
-    //   - partition_columns: list passed to PARTITION_CONDITIONS (empty ⇒ no partitioning)
+    //   - partition_columns: list passed to PARTITION_CONDITIONS (if list is empty ⇒ no partitioning)
     //   - cell / well:       grouping_cols → sub_combo → expected group size, used to wrap
     //                        downstream items with groupKey(...) for eager groupTuple emit.
     // Sizes are computed from each plate's platemap so downstream groupTuple can release
@@ -318,7 +318,7 @@ def addMetadataPrefix(col) {
 
 //
 // Normalize a list of groupings from the JSON file. Each grouping is a comma-separated
-// string of column names; this returns a list of lists of Metadata_-prefixed column names.
+// string of column names; this returns a list of groupings, where each grouping is a list of column names with the Metadata_ prefix added if not already present.
 // An empty string parses to an empty grouping (no columns / "everything together").
 //
 def normalizeGroupings(groupings_list) {
@@ -337,8 +337,8 @@ def normalizeGroupings(groupings_list) {
 // If no file is given, both levels resolve to a single empty-column grouping ([[]]), meaning
 // "one all-encompassing group per level" (no partitioning).
 // If a file is given, an optional top-level "default" key supplies groupings that are
-// added to each level's groupings (de-duplicated). A level missing from the file with no
-// "default" entry resolves to [] (no analyses on that level).
+// added to each level's groupings (de-duplicated). If the file has no "default" entry, 
+// any missing levels will resolve to [] (no groupings on that level).
 //
 def parseGroupings(groups_file) {
     if (!groups_file) {
