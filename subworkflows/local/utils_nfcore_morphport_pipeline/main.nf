@@ -113,7 +113,11 @@ workflow PIPELINE_INITIALISATION {
     // each group as soon as it's full, rather than waiting for upstream channel close.
     //
     def ch_analysis_groups = ch_samplesheet
-        .map { meta -> parsePlatemapCombos(meta.platemap_file, partition_columns) }
+        .map { meta ->
+            // add project onto every combo so analysis groups stay partitioned per-project.
+            parsePlatemapCombos(meta.platemap_file, partition_columns)
+                .collect { combo -> combo + [project: meta.project] }
+        }
         .collect()
         .map { per_plate ->
             buildAnalysisGroups(parsed_groups, per_plate.flatten() as List) +
@@ -388,8 +392,10 @@ def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []
 def buildAnalysisGroups(groupings, plate_combos) {
     groupings.collectEntries { agg_level, level_groupings ->
         def level_map = level_groupings.collectEntries { grouping_cols ->
-            // inner map: grouping_cols → grouping_values → expected plate count
-            [grouping_cols, plate_combos.countBy { it -> it.subMap(grouping_cols) }]
+            // inner map: (grouping_cols + project) values → expected plate count.
+            // project is included so analysis groups stay partitioned per-project, even though
+            // it is not exposed as an analysis grouping column.
+            [grouping_cols, plate_combos.countBy { it -> it.subMap(grouping_cols + ['project']) }]
         }
         [agg_level, level_map]
     }
