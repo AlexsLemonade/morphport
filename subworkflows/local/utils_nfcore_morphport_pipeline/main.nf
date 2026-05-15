@@ -86,10 +86,8 @@ workflow PIPELINE_INITIALISATION {
     //
 
     //
-    // Resolve analysis groupings and the partition column set synchronously from params.
-    // Both are pure functions of params, so we compute them before any channel work and
-    // reuse the values for samplesheet validation, platemap-combo enumeration, and the
-    // analysis_groups bundle emitted downstream.
+    // Compute analysis groupings and the partition column set using the information in the analysis groups file
+    // Since these don't depend on any channel elements, they don't need to be a channel process.
     //
     def parsed_groups = parseGroupings(params.analysis_groups_file)
     def partition_columns = (parsed_groups.cell + parsed_groups.well).flatten().unique() as List<String>
@@ -345,7 +343,7 @@ def parseGroupings(groups_file) {
         return [cell: [[]], well: [[]]]
     }
 
-    def parsed = new groovy.json.JsonSlurper().parse(file(groups_file)) as Map
+    def parsed = new groovy.json.JsonSlurper().parse(file(groups_file, checkIfExists: true)) as Map
     def default_groupings = parsed.containsKey('default') ? normalizeGroupings(parsed['default'] as List) : []
 
     // make a map of aggregate_level: groupings, where groupings is a list of lists of Metadata_-prefixed column names
