@@ -127,7 +127,7 @@ workflow PIPELINE_INITIALISATION {
     def ch_analysis_groups = ch_samplesheet
         .map { meta ->
             // add project onto every combo so analysis groups stay partitioned per-project.
-            parsePlatemapCombos(meta.platemap_file, partition_columns)
+            enumeratePlatemapCombos(meta.platemap_file, partition_columns)
                 .collect { combo -> combo + [project: meta.project] }
         }
         .collect() // Nextflow collect into a single value channel: list of lists of combos
@@ -422,32 +422,30 @@ def buildAnalysisGroups(groupings, plate_combos) {
 // Keeping the encoding aligned is what lets buildAnalysisGroups predict sizes that actually match
 // the keys produced by expandHivePartitions.
 //
-def parsePlatemapCombos(platemap_path, partition_columns) {
+def enumeratePlatemapCombos(platemap_path, partition_columns) {
     def lines = file(platemap_path).text.readLines()
     if (lines.size() < 2) return []
 
     def header_line = lines[0]
     if (header_line.startsWith('\uFEFF')) header_line = header_line.substring(1)
-    def headers = header_line.split('\t')*.trim()
 
-    // partition_columns are already Metadata_-prefixed; strip the prefix to look them up
-    // against the raw platemap header.
-    def col_indices = partition_columns.collectEntries { col ->
-        [(col): headers.indexOf(col.substring('Metadata_'.length()))]
-    }
+    // Normalize headers to Metadata_-prefixed form so lookup against the already-prefixed
+    // partition_columns works whether or not the platemap shipped headers with the prefix.
+    def headers = header_line.split('\t')*.trim().collect { col -> addMetadataPrefix(col) }
 
     def combos = lines.drop(1)
         .findAll { it -> it.trim() }
         .collect { line ->
             def row = line.split('\t', -1)*.trim()
-            col_indices.collectEntries { metadata_key, idx ->
+            partition_columns.collectEntries { col ->
+                def idx = headers.indexOf(col) // returns -1 if not found
                 def value
                 if (idx < 0) {
                     value = '_Absent_'
                 } else {
                     value = idx < row.size() && row[idx] ? row[idx] : '_NA_'
                 }
-                [(metadata_key): value]
+                [(col): value]
             }
         }
     return combos.unique()
