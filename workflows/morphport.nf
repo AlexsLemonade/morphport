@@ -231,8 +231,12 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
                 [groupKey(key_data, expected_size), meta, parquets]
             }
         }
-    // do the grouping, flatten the parquet lists, and return a channel of tuples of the form:
-    //   [group_key, list_of_meta, list_of_parquet_files]
+    // do the grouping, flatten the parquet lists, and add plate_ids to the group meta so
+    // downstream consumers can read it without walking metas. Returns tuples of the form:
+    //   [group_meta, list_of_meta, list_of_parquet_files]
     return ch_grouping.groupTuple(by: 0, remainder: true)
-        .map { group_key, metas, parquet_lists -> [group_key, metas, parquet_lists.flatten()] }
+        .map { group_key, metas, parquet_lists ->
+            def group_meta = group_key + [plate_ids: metas.collect { it.plate_id }]
+            [group_meta, metas, parquet_lists.flatten()]
+        }
 }

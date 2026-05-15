@@ -42,24 +42,10 @@ def write_versions(task_process: str):
         f.write(f"    umap-learn: {version('umap-learn')}\\n")
 
 
-def parse_grouping_values(values_str: str) -> dict:
-    if not values_str:
-        return {}
-    out = {}
-    for piece in values_str.split(","):
-        if "=" in piece:
-            col, val = piece.split("=", 1)
-            out[col] = val
-    return out
-
-
 def main():
     # ---- Capture Nextflow variables ----------------------------------------
     prefix = "${prefix}"
     aggregate_level = "${meta.aggregate_level}"
-    grouping_cols_str = "${grouping_cols_str}"
-    grouping_values_str = "${grouping_values_str}"
-    plate_ids_str = "${plate_ids}"
     n_components_req = int("${pca_components}")
     n_neighbors = int("${umap_neighbors}")
     min_dist = float("${umap_min_dist}")
@@ -68,9 +54,9 @@ def main():
     task_cpus = int("${task.cpus}")
     task_process = "${task.process}"
 
-    grouping_cols = [c for c in grouping_cols_str.split(",") if c]
-    grouping_values = parse_grouping_values(grouping_values_str)
-    plate_ids = [p for p in plate_ids_str.split(",") if p]
+    grouping_info = json.loads("""${grouping_info}""")
+    grouping_values = grouping_info["grouping_values"]
+    plate_ids = grouping_info["plate_ids"]
 
     # ---- Load and concatenate input parquets -------------------------------
     parquet_paths = sorted(str(p) for p in pathlib.Path(".").glob("*.parquet"))
@@ -81,11 +67,14 @@ def main():
     n_rows_input = df.height
 
     # ---- Split metadata vs. numeric measurement columns --------------------
-    metadata_cols = [c for c in df.columns if c.startswith("Metadata_")]
-    candidate_cols = [c for c in df.columns if c not in metadata_cols]
-    schema = df.schema
-    feat_cols = [c for c in candidate_cols if schema[c].is_numeric()]
-    dropped_cols = [c for c in candidate_cols if c not in feat_cols]
+    metadata_cols, feature_cols, dropped_cols = [], [], []
+    for col, dtype in df.schema.items():
+        if col.startswith("Metadata_"):
+            metadata_cols.append(col)
+        elif dtype.is_numeric():
+            feature_cols.append(col)
+        else:
+            dropped_cols.append(col)
     if dropped_cols:
         print(
             f"compute_embeddings: dropping {len(dropped_cols)} non-numeric, "
@@ -93,7 +82,7 @@ def main():
             + ("..." if len(dropped_cols) > 10 else ""),
             file=sys.stderr,
         )
-    if not feat_cols:
+    if not feature_cols:
         raise RuntimeError(
             "No numeric measurement columns found after excluding Metadata_*."
         )
@@ -101,7 +90,7 @@ def main():
     # ---- Build feature matrix and handle NaN rows --------------------------
     # Extract features to numpy and keep metadata separately so we can free the
     # original DataFrame (which redundantly holds the feature columns).
-    X = df.select(feat_cols).to_numpy()
+    X = df.select(feature_cols).to_numpy()
     df_metadata = df.select(metadata_cols)
     del df
 
@@ -109,10 +98,10 @@ def main():
     #   * rows with nan_fraction > max_nan_fraction are dropped
     #   * surviving rows with any NaN have those entries filled with 0
     # Default max_nan_fraction=0.0 reproduces strict "drop any row with a NaN".
-    n_feat_cols = len(feat_cols)
+    n_features = len(feature_cols)
     nan_per_row = np.isnan(X).sum(axis=1)
-    nan_fraction = nan_per_row / n_feat_cols
-    keep_mask = nan_fraction <= max_nan_fraction
+    nan_limit = max_nan_fraction * n_features
+    keep_mask = nan_per_row <= nan_limit
     n_rows_dropped = int((~keep_mask).sum())
     n_rows_nan_filled = int(((nan_per_row > 0) & keep_mask).sum())
     if n_rows_dropped:
@@ -127,7 +116,7 @@ def main():
             f"(each had NaN fraction <= {max_nan_fraction:.4f}).",
             file=sys.stderr,
         )
-    df_metadata = df_metadata.filter(pl.Series("__keep_mask", keep_mask))
+    df_metadata = df_metadata.filter(pl.Series(keep_mask))
     X = X[keep_mask]
     if n_rows_nan_filled:
         X = np.nan_to_num(X, copy=False, nan=0.0)
@@ -172,7 +161,6 @@ def main():
     summary = {
         "prefix": prefix,
         "aggregate_level": aggregate_level,
-        "grouping_columns": grouping_cols,
         "grouping_values": grouping_values,
         "source_plate_ids": plate_ids,
         "n_plates": len(plate_ids),

@@ -19,12 +19,13 @@ process COMPUTE_EMBEDDINGS {
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    prefix      = groupTag(meta)
-    plate_ids   = plate_metas.collect { it.plate_id }.join(',')
-    grouping_cols_str   = (meta.grouping_columns ?: []).join(',')
-    grouping_values_str = (meta.grouping_columns ?: [])
-        .collect { col -> "${col}=${meta[col]}" }
-        .join(',')
+    prefix = groupTag(meta)
+    // Bundle group identity for the template as one JSON blob. Lets the Python side
+    // parse a single value rather than several stringly-typed bindings.
+    grouping_info = groovy.json.JsonOutput.toJson([
+        grouping_values: (meta.grouping_columns ?: []).collectEntries { col -> [(col): meta[col]] },
+        plate_ids      : meta.plate_ids,
+    ])
     template 'compute_embeddings.py'
 
     stub:
