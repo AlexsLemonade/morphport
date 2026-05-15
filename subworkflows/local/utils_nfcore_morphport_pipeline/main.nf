@@ -350,7 +350,7 @@ def parseGroupings(groups_file) {
 
     // make a map of aggregate_level: groupings, where groupings is a list of lists of Metadata_-prefixed column names
     def level_groupings = ['cell', 'well'].collectEntries{ level ->
-        [level, default_groupings + normalizeGroupings(parsed.get(level, []) as List)]
+        [(level): default_groupings + normalizeGroupings(parsed.get(level, []) as List)]
     }
     return level_groupings
 }
@@ -395,9 +395,9 @@ def buildAnalysisGroups(groupings, plate_combos) {
             // inner map: (grouping_cols + project) values → expected plate count.
             // project is included so analysis groups stay partitioned per-project, even though
             // it is not exposed as an analysis grouping column.
-            [grouping_cols, plate_combos.countBy { it -> it.subMap(grouping_cols + ['project']) }]
+            [(grouping_cols): plate_combos.countBy { it -> it.subMap(grouping_cols + ['project']) }]
         }
-        [agg_level, level_map]
+        [(agg_level): level_map]
     }
 }
 
@@ -421,7 +421,7 @@ def parsePlatemapCombos(platemap_path, partition_columns) {
     // partition_columns are already Metadata_-prefixed; strip the prefix to look them up
     // against the raw platemap header.
     def col_indices = partition_columns.collectEntries { col ->
-        [col, headers.indexOf(col.substring('Metadata_'.length()))]
+        [(col): headers.indexOf(col.substring('Metadata_'.length()))]
     }
 
     def combos = lines.drop(1)
@@ -436,7 +436,7 @@ def parsePlatemapCombos(platemap_path, partition_columns) {
                     def raw_value = idx < parts.size() ? parts[idx] : ''
                     value = raw_value ?: '_NA_'
                 }
-                [metadata_key, value]
+                [(metadata_key): value]
             }
         }
     return combos.unique()
