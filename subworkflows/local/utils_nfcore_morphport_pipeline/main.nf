@@ -110,6 +110,20 @@ workflow PIPELINE_INITIALISATION {
     // Sizes are computed from each plate's platemap so downstream groupTuple can release
     // each group as soon as it's full, rather than waiting for upstream channel close.
     //
+    // Example output structure (two plates, groupings by treatment and cell_type):
+    //
+    //   [
+    //     partition_columns: ['Metadata_treatment', 'Metadata_cell_type'],
+    //     cell: [
+    //       ['Metadata_treatment']: [
+    //         [Metadata_treatment: 'DMSO', project: 'cpg0016']: 2,
+    //         [Metadata_treatment: 'Drug_A', Project: 'cpg0016']: 1,
+    //         [Metadata_treatment: '_NA_', project: 'cpg0016']: 1,
+    //       ],
+    //       ['Metadata_cell_type']: [...],
+    //     ],
+    //     well: [...]
+    //   ]
     def ch_analysis_groups = ch_samplesheet
         .map { meta ->
             // add project onto every combo so analysis groups stay partitioned per-project.
