@@ -32,7 +32,7 @@ tools:
       identifier: ""
 
 input:
-  - - group_meta:
+  - - meta:
         type: map
         description: |
           Group key map from createGroupChannels, e.g.
@@ -44,13 +44,13 @@ input:
         type: file
         description: Normalized, partitioned parquet files for this group (one per source plate per partition).
         pattern: "*.parquet"
-  - - n_components:
+  - - pca_components:
         type: integer
         description: Number of PCA components requested; capped at min(n_rows, n_features) at runtime.
-  - - n_neighbors:
+  - - umap_neighbors:
         type: integer
         description: UMAP n_neighbors; capped at n_rows - 1 for small groups.
-  - - min_dist:
+  - - umap_min_dist:
         type: float
         description: UMAP min_dist.
   - - random_seed:
@@ -66,7 +66,7 @@ input:
 
 output:
   - result:
-      - group_meta:
+      - meta:
           type: map
           description: Group key map (unchanged from input).
       - "*_embeddings.parquet":

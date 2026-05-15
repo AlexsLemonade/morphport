@@ -56,13 +56,13 @@ def parse_grouping_values(values_str: str) -> dict:
 def main():
     # ---- Capture Nextflow variables ----------------------------------------
     prefix = "${prefix}"
-    aggregate_level = "${group_meta.aggregate_level}"
+    aggregate_level = "${meta.aggregate_level}"
     grouping_cols_str = "${grouping_cols_str}"
     grouping_values_str = "${grouping_values_str}"
     plate_ids_str = "${plate_ids}"
-    n_components_req = int("${n_components}")
-    n_neighbors = int("${n_neighbors}")
-    min_dist = float("${min_dist}")
+    n_components_req = int("${pca_components}")
+    n_neighbors = int("${umap_neighbors}")
+    min_dist = float("${umap_min_dist}")
     random_seed = int("${random_seed}")
     max_nan_fraction = float("${max_nan_fraction}")
     task_cpus = int("${task.cpus}")
