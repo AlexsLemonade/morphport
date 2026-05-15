@@ -130,9 +130,9 @@ workflow PIPELINE_INITIALISATION {
             parsePlatemapCombos(meta.platemap_file, partition_columns)
                 .collect { combo -> combo + [project: meta.project] }
         }
-        .collect()
-        .map { per_plate ->
-            buildAnalysisGroups(parsed_groups, per_plate.flatten() as List) +
+        .collect() // Nextflow collect into a single value channel: list of lists of combos
+        .map { all_combos ->
+            buildAnalysisGroups(parsed_groups, all_combos.flatten() as List) +
                 [partition_columns: partition_columns]
         }
 
