@@ -51,6 +51,7 @@ def main():
     min_dist = float("${umap_min_dist}")
     random_seed = int("${random_seed}")
     max_nan_fraction = float("${max_nan_fraction}")
+    min_rows = int("${min_rows}")
     task_cpus = int("${task.cpus}")
     task_process = "${task.process}"
 
@@ -121,16 +122,46 @@ def main():
     if n_rows_nan_filled:
         X = np.nan_to_num(X, copy=False, nan=0.0)
 
-    if X.shape[0] == 0:
-        raise RuntimeError(
-            "All rows have too many NaN feature values; nothing left to embed. "
-            "Upstream normalization or feature curation should remove degenerate features, "
-            "or raise max_nan_fraction to tolerate sparse NaNs."
+    n_rows_clean = X.shape[0]
+    summary = {
+        "prefix": prefix,
+        "aggregate_level": aggregate_level,
+        "grouping_values": grouping_values,
+        "source_plate_ids": plate_ids,
+        "n_plates": len(plate_ids),
+        "n_parquets_read": len(parquet_paths),
+        "n_rows_input": n_rows_input,
+        "n_rows_dropped_nan": n_rows_dropped,
+        "n_rows_nan_filled": n_rows_nan_filled,
+        "max_nan_fraction": max_nan_fraction,
+        "n_rows_output": int(n_rows_clean),
+        "n_features_input": int(n_features),
+        "n_dropped_non_numeric_columns": len(dropped_cols),
+        "min_rows": min_rows,
+    }
+
+    # ---- Skip groups that are too small to embed ---------------------------
+    if n_rows_clean < min_rows:
+        skip_reason = (
+            f"n_rows_clean ({n_rows_clean}) < min_rows ({min_rows})"
+            if n_rows_clean > 0
+            else "no rows survived NaN filtering"
         )
+        print(
+            f"compute_embeddings: skipping {prefix} - {skip_reason}; "
+            "writing metadata-only parquet.",
+            file=sys.stderr,
+        )
+        summary["skipped"] = True
+        summary["skip_reason"] = skip_reason
+        df_metadata.write_parquet(f"{prefix}_embeddings.parquet")
+        with open(f"{prefix}_summary.json", "w") as f:
+            json.dump(summary, f, indent=2)
+        write_versions(task_process)
+        return
 
     # ---- PCA, UMAP ---------------------------------------------------------
     # NOTE: no feature scaling is applied here.
-    n_rows_clean, n_features = X.shape
     n_components_eff = max(1, min(n_components_req, n_features, n_rows_clean))
     pca = PCA(n_components=n_components_eff, random_state=random_seed)
     pcs = pca.fit_transform(X)
@@ -171,31 +202,16 @@ def main():
     out_df = pl.concat(frames, how="horizontal")
     out_df.write_parquet(f"{prefix}_embeddings.parquet")
 
-    summary = {
-        "prefix": prefix,
-        "aggregate_level": aggregate_level,
-        "grouping_values": grouping_values,
-        "source_plate_ids": plate_ids,
-        "n_plates": len(plate_ids),
-        "n_parquets_read": len(parquet_paths),
-        "n_rows_input": n_rows_input,
-        "n_rows_dropped_nan": n_rows_dropped,
-        "n_rows_nan_filled": n_rows_nan_filled,
-        "max_nan_fraction": max_nan_fraction,
-        "n_rows_output": int(X.shape[0]),
-        "n_features_input": int(n_features),
-        "n_dropped_non_numeric_columns": len(dropped_cols),
-        "pca": {
-            "n_components_requested": n_components_req,
-            "n_components": n_components_eff,
-            "explained_variance_ratio": pca.explained_variance_ratio_.tolist(),
-        },
-        "umap": {
-            "n_neighbors_requested": n_neighbors,
-            "n_neighbors": n_neighbors_eff,
-            "min_dist": min_dist,
-            "random_seed": random_seed,
-        },
+    summary["pca"] = {
+        "n_components_requested": n_components_req,
+        "n_components": n_components_eff,
+        "explained_variance_ratio": pca.explained_variance_ratio_.tolist(),
+    }
+    summary["umap"] = {
+        "n_neighbors_requested": n_neighbors,
+        "n_neighbors": n_neighbors_eff,
+        "min_dist": min_dist,
+        "random_seed": random_seed,
     }
     with open(f"{prefix}_summary.json", "w") as f:
         json.dump(summary, f, indent=2)

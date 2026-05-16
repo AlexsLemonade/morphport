@@ -125,6 +125,7 @@ workflow MORPHPORT {
         params.embedding_umap_min_dist,
         params.random_seed,
         params.embedding_max_nan_fraction,
+        params.embedding_min_rows,
     )
 
     //

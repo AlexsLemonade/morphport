@@ -15,6 +15,7 @@ process COMPUTE_EMBEDDINGS {
     val(umap_min_dist)
     val(random_seed)
     val(max_nan_fraction)
+    val(min_rows)
 
     output:
     tuple val(meta), path("${prefix}_embeddings.parquet"), path("${prefix}_summary.json"), emit: result

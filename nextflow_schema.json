@@ -145,6 +145,12 @@
                     "minimum": 0.0,
                     "maximum": 1.0,
                     "description": "Per-row NaN tolerance as a fraction of feature columns. Rows above the threshold are dropped; surviving rows have NaNs filled with 0. Default 0.0 drops any row with a NaN."
+                },
+                "embedding_min_rows": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 1,
+                    "description": "Minimum number of rows (after NaN filtering) required to compute PCA + UMAP for a group. Groups below this threshold are skipped: a metadata-only parquet is emitted and the summary JSON records skipped=true."
                 }
             }
         },

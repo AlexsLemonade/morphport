@@ -63,6 +63,12 @@ input:
           Rows whose NaN fraction exceeds this threshold are dropped; surviving rows with
           any NaN values have those entries filled with 0 before PCA.
           Default of 0 drops any row with a NaN.
+  - - min_rows:
+        type: integer
+        description: |
+          Minimum number of rows (after NaN filtering) required to compute PCA + UMAP.
+          Groups with fewer rows are skipped: a metadata-only parquet is emitted and the
+          summary JSON records skipped=true with the reason.
 
 output:
   - result:
