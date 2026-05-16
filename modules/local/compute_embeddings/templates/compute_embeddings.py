@@ -138,14 +138,27 @@ def main():
     # UMAP requires at least n_neighbors + 1 samples. If the group is small,
     # cap n_neighbors to keep UMAP runnable.
     n_neighbors_eff = max(2, min(n_neighbors, n_rows_clean - 1))
-    umap = UMAP(
+    umap_kwargs = dict(
         n_neighbors=n_neighbors_eff,
         min_dist=min_dist,
         n_components=2,
         random_state=random_seed,
         n_jobs=task_cpus,
     )
-    umap_emb = umap.fit_transform(pcs)
+    try:
+        umap_emb = UMAP(**umap_kwargs).fit_transform(pcs)
+    except TypeError as exc:
+        # UMAP's default spectral init calls ARPACK eigsh, which requires
+        # k < N per connected component. Tiny groups (or k-NN graphs that
+        # split into tiny components) hit "k >= N"; retry with random init.
+        if "k >= N" not in str(exc):
+            raise
+        print(
+            "compute_embeddings: spectral UMAP init failed for small data; "
+            "falling back to random init.",
+            file=sys.stderr,
+        )
+        umap_emb = UMAP(init="random", **umap_kwargs).fit_transform(pcs)
 
     # ---- Assemble output dataframe and write -------------------------------
     pc_names = [f"PC{i + 1}" for i in range(n_components_eff)]
