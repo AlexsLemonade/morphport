@@ -7,9 +7,10 @@ process COMPUTE_EMBEDDINGS {
     // environment is locked. Pipeline currently runs via the conda or wave profile.
 
     input:
-    // stageAs renames each parquet to input_0.parquet, input_1.parquet, ...
+    // stageAs puts input parquets into an input_parquet directory and renames them as
+    //  0.parquet, 1.parquet, ... to avoid name collisions
     // This is to avoid collisions for multiple files from the same plate
-    tuple val(meta), val(plate_metas), path(parquets, stageAs: 'input_*.parquet')
+    tuple val(meta), val(plate_metas), path(parquets, stageAs: 'input_parquet/*.parquet')
     val(pca_components)
     val(umap_neighbors)
     val(umap_min_dist)

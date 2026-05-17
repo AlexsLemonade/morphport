@@ -44,6 +44,7 @@ def write_versions(task_process: str):
 
 def main():
     # ---- Capture Nextflow variables ----------------------------------------
+    parquet_dir = pathlib.Path("input_parquet")
     prefix = "${prefix}"
     aggregate_level = "${meta.aggregate_level}"
     n_components_req = int("${pca_components}")
@@ -60,16 +61,17 @@ def main():
     plate_ids = grouping_info["plate_ids"]
 
     # ---- Load and concatenate input parquets -------------------------------
-    parquet_paths = sorted(str(p) for p in pathlib.Path(".").glob("*.parquet"))
+    # stageAs places all input parquets in input_parquet/ (numbered to avoid name collisions).
+    parquet_paths = list(parquet_dir.glob("*.parquet"))
     if not parquet_paths:
-        raise RuntimeError("No input parquet files found in the working directory.")
+        raise RuntimeError(f"No input parquet files found in {parquet_dir}/.")
 
     # vertical_relaxed lets polars widen compatible types across files
     # (e.g. Int64 + Float64 -> Float64) instead of erroring on schema mismatch.
     df = pl.concat(
-        [pl.read_parquet(p) for p in parquet_paths],
+        [pl.scan_parquet(p) for p in parquet_paths],
         how="vertical_relaxed",
-    )
+    ).collect()
     n_rows_input = df.height
 
     # ---- Split metadata vs. numeric measurement columns --------------------
