@@ -1,4 +1,0 @@
-{
-    "default": ["treatment"],
-    "cell": ["gene_allele", "treatment,gene_allele"]
-}

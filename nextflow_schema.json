@@ -61,8 +61,8 @@
                 "analysis_groups_file": {
                     "type": "string",
                     "format": "file-path",
-                    "description": "Path to a JSON file specifying how partitions should be grouped for downstream analysis.",
-                    "help_text": "The JSON file should contain an object with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a string naming a condition column (with or without the 'Metadata_' prefix); use a comma-separated string to group on multiple columns. An optional 'default' key supplies groupings that are added to every level's groupings (de-duplicated). If the file is not provided, both levels collapse to a single empty grouping, meaning the pipeline skips partitioning entirely and treats all plates as one group per level. The partition columns used by the partition step are the union of every grouping column.\n\nExample:\n{\n  \"default\": [\"treatment\"],\n  \"cell\": [\"gene_allele\", \"treatment,gene_allele\"]\n}"
+                    "description": "Path to a YAML (or JSON) file specifying how partitions should be grouped for downstream analysis.",
+                    "help_text": "The file should contain a mapping with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a string naming a condition column (with or without the 'Metadata_' prefix); use a comma-separated string to group on multiple columns. An optional 'default' key supplies groupings that are added to every level's groupings (de-duplicated). If the file is not provided, both levels collapse to a single empty grouping, meaning the pipeline skips partitioning entirely and treats all plates as one group per level. The partition columns used by the partition step are the union of every grouping column.\n\nExample (YAML):\ndefault:\n  - treatment\ncell:\n  - gene_allele\n  - treatment,gene_allele"
                 }
             }
         },
