@@ -357,7 +357,7 @@ def parseGroupings(groups_file) {
         return [cell: [[]], well: [[]]]
     }
 
-    def parsed = new groovy.json.JsonSlurper().parse(file(groups_file, checkIfExists: true)) as Map
+    def parsed = new org.yaml.snakeyaml.Yaml().load(file(groups_file, checkIfExists: true).text) as Map
     def default_groupings = parsed.containsKey('default') ? normalizeGroupings(parsed['default'] as List) : []
 
     // make a map of aggregate_level: groupings, where groupings is a list of lists of Metadata_-prefixed column names
