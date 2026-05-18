@@ -7,10 +7,14 @@ pycytominer. The aggregated DataFrame is written back out as parquet.
 """
 
 import sys
+import warnings
 from importlib.metadata import version
 
 import pandas as pd
 import pycytominer
+
+# pyarrow-backed DataFrames trigger pandas' fragmentation warning; quiet it.
+warnings.filterwarnings("ignore", category=pd.errors.PerformanceWarning)
 
 
 def write_versions(task_process: str):

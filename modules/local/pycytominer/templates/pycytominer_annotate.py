@@ -16,10 +16,14 @@ Cells/Cytoplasm/Nuclei tables) are dropped when they agree with their un-suffixe
 
 import re
 import sys
+import warnings
 from importlib.metadata import version
 
 import pandas as pd
 import pycytominer
+
+# pyarrow-backed DataFrames trigger pandas' fragmentation warning; quiet it.
+warnings.filterwarnings("ignore", category=pd.errors.PerformanceWarning)
 
 # A suffixed Metadata column is dropped if it disagrees with its base column in
 # no more than this fraction of rows where both are non-null. 0.1% allows for
