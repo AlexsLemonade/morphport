@@ -5,8 +5,8 @@ process CYTOTABLE_CONVERT {
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/83/830f89b36c91fedc0d1f6608844f45cf615327abe03272a11ea0513ed446dc46/data'
-            : 'community.wave.seqera.io/library/pip_cytotable:2c29a8bfc594d5ea'
+            ? 'oras://community.wave.seqera.io/library/python_python-duckdb_pyarrow_pip_cytotable:d0acdaa4b0a8a3e2'
+            : 'community.wave.seqera.io/library/python_python-duckdb_pyarrow_pip_cytotable:acfb964f6f1660a0'
     }
 
     input:
