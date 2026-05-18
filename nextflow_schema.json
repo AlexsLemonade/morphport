@@ -68,7 +68,6 @@
                     "type": "integer",
                     "default": 1674,
                     "description": "Seed for stochastic steps in the pipeline (e.g., PCA, UMAP)."
-
                 }
             }
         },
