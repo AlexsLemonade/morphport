@@ -54,24 +54,7 @@ process PYCYTOMINER_AGGREGATE {
     assert meta_in.aggregate_level == 'cell' : "PYCYTOMINER_AGGREGATE expects aggregate_level='cell', got '${meta_in.aggregate_level}'"
     assert operation in ['median', 'mean'] : "PYCYTOMINER_AGGREGATE: operation must be 'median' or 'mean', got '${operation}'"
     meta = meta_in + [aggregate_level: 'well']
-    // all plate metadata columns are included as strata to ensure they are retained in the output
-    // these are are well-level data, so they won't interfere with aggregation
-    def platemap_strata = meta_in.plate_metadata_columns.join(',')
-    """
-    pycytominer aggregate \\
-        --profiles "${parquet_file}" \\
-        --output_file "${meta.plate_id}_bulk.parquet" \\
-        --strata "Metadata_Plate,Metadata_Well,${platemap_strata}" \\
-        --operation "${operation}" \\
-        --output_type parquet
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python --version | awk '{print \$2}')
-        pycytominer: \$(python -c "import importlib.metadata; print(importlib.metadata.version('pycytominer'))")
-        pandas: \$(python -c "import pandas; print(pandas.__version__)")
-    END_VERSIONS
-    """
+    template 'pycytominer_aggregate.py'
 
     stub:
     assert meta_in.aggregate_level == 'cell' : "PYCYTOMINER_AGGREGATE expects aggregate_level='cell', got '${meta_in.aggregate_level}'"
@@ -108,23 +91,7 @@ process PYCYTOMINER_NORMALIZE {
     assert normalize_method in ["mad_robustize", "standardize", "robustize", "spherize"]
         : "PYCYTOMINER_NORMALIZE: normalize_method must be one of 'mad_robustize', 'standardize', 'robustize', or 'spherize', got '${normalize_method}'"
     meta = meta_in + [plate_normalized: true, plate_normalization_method: normalize_method, plate_normalization_samples: normalize_samples]
-    """
-    pycytominer normalize \\
-        --profiles "${parquet_file}" \\
-        --output_file "${meta.plate_id}_${meta.aggregate_level}_normalized.parquet" \\
-        --features infer \\
-        --meta_features infer \\
-        --samples "${normalize_samples}" \\
-        --method "${normalize_method}" \\
-        --output_type parquet
-
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        python: \$(python --version | awk '{print \$2}')
-        pycytominer: \$(python -c "import importlib.metadata; print(importlib.metadata.version('pycytominer'))")
-        pandas: \$(python -c "import pandas; print(pandas.__version__)")
-    END_VERSIONS
-    """
+    template 'pycytominer_normalize.py'
 
     stub:
     assert normalize_method in ["mad_robustize", "standardize", "robustize", "spherize"]

@@ -119,6 +119,7 @@ def main():
     # merge the metadata column list during import from Nextflow to make them a string
     plate_metadata_columns = "${meta.plate_metadata_columns.join(',')}"
 
+    # Read with pyarrow so null values are preserved through pycytominer.
     platemap_df = pd.read_csv(
         platemap_file,
         sep="\\t",
@@ -136,11 +137,11 @@ def main():
             and col.removeprefix("Metadata_") not in existing_cols
         ):
             platemap_df[col] = "_Absent_"
-    # cast to pyarrow-backed string first so NA is preserved across all column types,
-    # then fill nulls with _NA_ so pycytominer doesn't drop them during annotation or aggregation
+    # cast to string first so NA is preserved, then fill nulls with _NA_ so
+    # pycytominer doesn't drop them during annotation or aggregation
     platemap_df = platemap_df.astype("string[pyarrow]").fillna("_NA_")
 
-    # Read the parquet with the pyarrow backend to preserve dtypes
+    # Read with pyarrow so null values are preserved through pycytominer.
     profiles_df = pd.read_parquet(parquet_file, dtype_backend="pyarrow")
 
     try:
