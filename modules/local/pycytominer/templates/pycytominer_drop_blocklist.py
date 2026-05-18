@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 """
-Nextflow template script to deterministically drop columns from a per-cell parquet
-prior to annotation.
+Nextflow template script to deterministically drop columns from a parquet file
 
-Two passes are applied:
-  - Drop redundant Metadata_*_N columns that cytotable emits when joining
-    Cells/Cytoplasm/Nuclei tables, when those columns agree with their un-suffixed base.
-  - Drop CellProfiler feature columns in pycytominer's default blocklist via
-    pycytominer.feature_select(operation="blocklist").
+- Drop redundant Metadata_*_N columns that cytotable emits when joining
+Cells/Cytoplasm/Nuclei tables, when those columns agree with their un-suffixed base.
+- Drop CellProfiler feature columns in pycytominer's default blocklist via
+pycytominer.feature_select(operation="blocklist").
 
-The parquet is read directly with pyarrow so null values are preserved through
-pycytominer. The filtered DataFrame is written back as parquet.
 """
 
 import re
@@ -28,7 +24,7 @@ warnings.filterwarnings("ignore", category=pd.errors.PerformanceWarning)
 # no more than this fraction of rows where both are non-null. 0.1% allows for
 # segmentation edge cases (e.g. orphan nuclei) without keeping the column.
 SUFFIXED_METADATA_MAX_MISMATCH_FRACTION = 0.001
-SUFFIXED_METADATA_RE = re.compile(r"^(Metadata_.+)_(\d+)$")
+SUFFIXED_METADATA_RE = re.compile(r"(Metadata_.+)_(\\d+)")
 
 
 def drop_redundant_metadata(df: pd.DataFrame) -> pd.DataFrame:
@@ -45,7 +41,7 @@ def drop_redundant_metadata(df: pd.DataFrame) -> pd.DataFrame:
     # e.g., "Metadata_ObjectNumber_1" and "Metadata_ObjectNumber_2" would both be stored under "Metadata_ObjectNumber"
     candidates_by_base: dict[str, list[str]] = {}
     for col in df.columns:
-        m = SUFFIXED_METADATA_RE.match(col)
+        m = SUFFIXED_METADATA_RE.fullmatch(col)
         if m and m.group(1) in df.columns:
             candidates_by_base.setdefault(m.group(1), []).append(col)
 
