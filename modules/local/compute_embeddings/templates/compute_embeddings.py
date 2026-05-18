@@ -70,7 +70,7 @@ def main():
     # (e.g. Int64 + Float64 -> Float64) instead of erroring on schema mismatch.
     df = pl.concat(
         [pl.scan_parquet(p) for p in parquet_paths],
-        how="vertical_relaxed",
+        # how="vertical_relaxed",
     ).collect()
     n_rows_input = df.height
 
