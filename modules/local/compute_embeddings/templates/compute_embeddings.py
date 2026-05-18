@@ -112,6 +112,8 @@ def main():
     keep_mask = nan_per_row <= nan_limit
     n_rows_dropped = int((~keep_mask).sum())
     n_rows_nan_filled = int(((nan_per_row > 0) & keep_mask).sum())
+   df_metadata = df_metadata.filter(pl.Series(keep_mask))
+    X = X[keep_mask]
     if n_rows_dropped:
         print(
             f"compute_embeddings: dropping {n_rows_dropped} of {n_rows_input} rows "
@@ -124,9 +126,6 @@ def main():
             f"(each had NaN fraction <= {max_nan_fraction:.4f}).",
             file=sys.stderr,
         )
-    df_metadata = df_metadata.filter(pl.Series(keep_mask))
-    X = X[keep_mask]
-    if n_rows_nan_filled:
         X = np.nan_to_num(X, copy=False, nan=0.0)
 
     n_rows_clean = X.shape[0]
