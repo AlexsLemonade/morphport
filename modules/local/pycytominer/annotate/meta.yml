@@ -1,0 +1,60 @@
+name: pycytominer_annotate
+description: Annotate a per-plate parquet file with platemap metadata using pycytominer.annotate
+keywords:
+  - cell painting
+  - pycytominer
+  - annotate
+  - platemap
+  - parquet
+
+tools:
+  - pycytominer:
+      description: >
+        pycytominer is a suite of common functions used to process high-throughput
+        cell morphology data. This process calls pycytominer.annotate.
+      homepage: https://github.com/cytomining/pycytominer
+      documentation: https://pycytominer.readthedocs.io
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing plate metadata,
+          e.g. [ plate_id:'plate_001', batch:'batch_1', plate_metadata_columns:['Metadata_compound','Metadata_dose'] ]
+    - parquet_file:
+        type: file
+        description: Per-cell parquet file (e.g. from PYCYTOMINER_DROP_BLOCKLIST)
+        pattern: "*.parquet"
+    - platemap_file:
+        type: file
+        description: Tab-delimited platemap with a column matching the well identifier
+        pattern: "*.{tsv,txt}"
+  - - platemap_well_column:
+        type: string
+        description: Name of the well column in the platemap (without the Metadata_ prefix)
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Groovy Map containing plate metadata (passed through unchanged)
+      - "*.parquet":
+          type: file
+          description: Annotated per-cell parquet with platemap-derived Metadata_* columns merged in
+          pattern: "*_annotated.parquet"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
