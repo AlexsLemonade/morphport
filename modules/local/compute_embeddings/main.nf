@@ -3,8 +3,11 @@ process COMPUTE_EMBEDDINGS {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    // Container directive omitted; add Wave-generated container URLs here once the
-    // environment is locked. Pipeline currently runs via the conda or wave profile.
+    container {
+        workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
+            ? 'oras://community.wave.seqera.io/library/python_polars_numpy_scikit-learn_umap-learn:c494cfb880b7d300'
+            : 'community.wave.seqera.io/library/python_polars_numpy_scikit-learn_umap-learn:6c9c9e0c1f5c856e'
+    }
 
     input:
     // stageAs puts input parquets into an input_parquet directory and renames them as
