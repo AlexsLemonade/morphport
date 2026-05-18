@@ -237,7 +237,7 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
     //   [group_meta, list_of_meta, list_of_parquet_files]
     return ch_grouping.groupTuple(by: 0, remainder: true)
         .map { group_key, metas, parquet_lists ->
-            def group_meta = group_key + [plate_ids: metas.collect { it.plate_id }]
+            def group_meta = group_key + [plate_ids: metas.collect { it -> it.plate_id }]
             [group_meta, metas, parquet_lists.flatten()]
         }
 }
