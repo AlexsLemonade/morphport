@@ -53,9 +53,9 @@ def main():
             and col.removeprefix("Metadata_") not in existing_cols
         ):
             platemap_df[col] = "_Absent_"
-    # fill any null values with _NA_ so pycytominer doesn't drop them during annotation or aggregation
-    # cast to string after filling so numeric columns don't produce mixed types
-    platemap_df = platemap_df.fillna("_NA_").astype(str)
+    # cast to pandas StringDtype first so NA is preserved across Int64/Float64/StringDtype columns,
+    # then fill nulls with _NA_ so pycytominer doesn't drop them during annotation or aggregation
+    platemap_df = platemap_df.astype("string").fillna("_NA_")
 
     try:
         pycytominer.annotate(

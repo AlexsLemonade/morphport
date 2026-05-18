@@ -70,7 +70,7 @@ def main():
         filter_conditions = json.load(f)
     validate_filter_conditions(filter_conditions, filter_settings_file)
 
-    df = pd.read_parquet(parquet_file, dtype_backend="numpy_nullable")
+    df = pd.read_parquet(parquet_file)
     cells_input = len(df)
 
     # check for required metadata columns and include any optional ones that are present
