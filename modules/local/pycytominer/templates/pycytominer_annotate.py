@@ -36,7 +36,12 @@ def main():
     # merge the metadata column list during import from Nextflow to make them a string
     plate_metadata_columns = "${meta.plate_metadata_columns.join(',')}"
 
-    platemap_df = pd.read_csv(platemap_file, sep="\\t", encoding="utf-8-sig")
+    platemap_df = pd.read_csv(
+        platemap_file,
+        sep="\\t",
+        encoding="utf-8-sig",
+        dtype_backend="numpy_nullable",
+    )
 
     # ensure all partition columns exist in the platemap before annotation,
     # either with raw names or without the Metadata_ prefix;
