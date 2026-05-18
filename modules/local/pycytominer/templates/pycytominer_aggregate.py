@@ -23,6 +23,7 @@ def write_versions(task_process: str):
         f.write(f"    python: {sys.version.split()[0]}\\n")
         f.write(f"    pycytominer: {version('pycytominer')}\\n")
         f.write(f"    pandas: {version('pandas')}\\n")
+        f.write(f"    pyarrow: {version('pyarrow')}\\n")
 
 
 def main():
