@@ -96,7 +96,7 @@ def main():
     # ---- Build feature matrix and handle NaN rows --------------------------
     # Extract features to numpy and keep metadata separately so we can free the
     # original DataFrame (which redundantly holds the feature columns).
-    X = df.select(feature_cols).to_numpy()
+    feature_mat = df.select(feature_cols).to_numpy()
     df_metadata = df.select(metadata_cols)
     del df
 
@@ -105,11 +105,15 @@ def main():
     #   * surviving rows with any NaN have those entries filled with 0
     # Default max_nan_fraction=0.0 reproduces strict "drop any row with a NaN".
     n_features = len(feature_cols)
-    nan_per_row = np.isnan(X).sum(axis=1)
+    nan_per_row = np.isnan(feature_mat).sum(axis=1)
     nan_limit = max_nan_fraction * n_features
     keep_mask = nan_per_row <= nan_limit
+
     n_rows_dropped = int((~keep_mask).sum())
     n_rows_nan_filled = int(((nan_per_row > 0) & keep_mask).sum())
+
+    df_metadata = df_metadata.filter(pl.Series(keep_mask))
+    feature_mat = feature_mat[keep_mask]
     if n_rows_dropped:
         print(
             f"compute_embeddings: dropping {n_rows_dropped} of {n_rows_input} rows "
@@ -117,17 +121,14 @@ def main():
             file=sys.stderr,
         )
     if n_rows_nan_filled:
+        feature_mat = np.nan_to_num(feature_mat, copy=False, nan=0.0)
         print(
             f"compute_embeddings: filling NaN with 0 in {n_rows_nan_filled} surviving rows "
             f"(each had NaN fraction <= {max_nan_fraction:.4f}).",
             file=sys.stderr,
         )
-    df_metadata = df_metadata.filter(pl.Series(keep_mask))
-    X = X[keep_mask]
-    if n_rows_nan_filled:
-        X = np.nan_to_num(X, copy=False, nan=0.0)
 
-    n_rows_clean = X.shape[0]
+    n_rows_clean = feature_mat.shape[0]
     summary = {
         "prefix": prefix,
         "aggregate_level": aggregate_level,
@@ -139,8 +140,8 @@ def main():
         "n_rows_dropped_nan": n_rows_dropped,
         "n_rows_nan_filled": n_rows_nan_filled,
         "max_nan_fraction": max_nan_fraction,
-        "n_rows_output": int(n_rows_clean),
-        "n_features_input": int(n_features),
+        "n_rows_output": n_rows_clean,
+        "n_features_input": n_features,
         "n_dropped_non_numeric_columns": len(dropped_cols),
         "min_rows": min_rows,
     }
@@ -169,7 +170,7 @@ def main():
     # NOTE: no feature scaling is applied here.
     n_components_eff = max(1, min(n_components_req, n_features, n_rows_clean))
     pca = PCA(n_components=n_components_eff, random_state=random_seed)
-    pcs = pca.fit_transform(X)
+    pcs = pca.fit_transform(feature_mat)
 
     # UMAP requires at least n_neighbors + 1 samples. If the group is small,
     # cap n_neighbors to keep UMAP runnable.
