@@ -123,7 +123,7 @@ def main():
         platemap_file,
         sep="\\t",
         encoding="utf-8-sig",
-        dtype_backend="numpy_nullable",
+        dtype_backend="pyarrow",
     )
 
     # ensure all partition columns exist in the platemap before annotation,
@@ -136,13 +136,16 @@ def main():
             and col.removeprefix("Metadata_") not in existing_cols
         ):
             platemap_df[col] = "_Absent_"
-    # cast to pandas StringDtype first so NA is preserved across Int64/Float64/StringDtype columns,
+    # cast to pyarrow-backed string first so NA is preserved across all column types,
     # then fill nulls with _NA_ so pycytominer doesn't drop them during annotation or aggregation
-    platemap_df = platemap_df.astype("string").fillna("_NA_")
+    platemap_df = platemap_df.astype("string[pyarrow]").fillna("_NA_")
+
+    # Read the parquet with the pyarrow backend to preserve dtypes
+    profiles_df = pd.read_parquet(parquet_file, dtype_backend="pyarrow")
 
     try:
         annotated_df = pycytominer.annotate(
-            profiles=parquet_file,
+            profiles=profiles_df,
             platemap=platemap_df,
             # need to add Metadata_ prefix because of pycytominer parsing
             join_on=[f"Metadata_{platemap_well_column}", "Metadata_Well"],
