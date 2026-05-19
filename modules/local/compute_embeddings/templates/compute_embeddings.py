@@ -17,22 +17,14 @@ already produced approximately unit-variance features.
 """
 
 import json
-import os
 import pathlib
 import sys
 from importlib.metadata import version
 
-# Set thread limits before numerical libraries import, so BLAS/OMP pick them up.
-task_cpus_str = "${task.cpus}"
-os.environ.setdefault("OMP_NUM_THREADS", task_cpus_str)
-os.environ.setdefault("MKL_NUM_THREADS", task_cpus_str)
-os.environ.setdefault("OPENBLAS_NUM_THREADS", task_cpus_str)
-os.environ.setdefault("POLARS_MAX_THREADS", task_cpus_str)
-
-import numpy as np  # noqa: E402
-import polars as pl  # noqa: E402
-from sklearn.decomposition import PCA  # noqa: E402
-from umap import UMAP  # noqa: E402
+import numpy as np
+import polars as pl
+from sklearn.decomposition import PCA
+from umap import UMAP
 
 
 def write_versions(task_process: str):
