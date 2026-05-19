@@ -124,6 +124,7 @@ workflow MORPHPORT {
     PYCYTOMINER_FEATURE_SELECT(
         ch_grouped,
         params.feature_select_operations,
+        params.feature_select_na_cutoff,
         params.feature_select_corr_threshold,
         params.feature_select_freq_cut,
         params.feature_select_unique_cut,

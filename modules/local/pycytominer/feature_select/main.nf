@@ -1,6 +1,7 @@
 process PYCYTOMINER_FEATURE_SELECT {
     tag "${prefix}"
     label 'process_low'
+    label 'publish_skip_parquet'
 
     conda "${moduleDir}/environment.yml"
     container {
@@ -12,16 +13,24 @@ process PYCYTOMINER_FEATURE_SELECT {
     input:
     tuple val(meta), val(plate_metas), path(parquets, stageAs: 'input_parquet/*.parquet')
     val(operations)
+    val(na_cutoff)
     val(corr_threshold)
     val(freq_cut)
     val(unique_cut)
 
     output:
-    tuple val(meta), val(plate_metas), path("${prefix}_feature_selected.parquet", arity: 1), emit: result
+    // Pass the original staged parquets through alongside a text file of selected feature
+    // names; downstream steps filter columns on read rather than consuming a rewritten parquet.
+    // includeInputs lets Nextflow re-emit the staged inputs as outputs of this process.
+    tuple val(meta), val(plate_metas), path("input_parquet/*.parquet", includeInputs: true), path("${prefix}_features.txt"), emit: result
     path "${prefix}_summary.json", emit: summary
     path "versions.yml", emit: versions, topic: versions
 
     script:
+    def allowed_ops = ['variance_threshold', 'correlation_threshold', 'drop_na_columns', 'blocklist', 'drop_outliers', 'noise_removal']
+    def ops_list = operations.tokenize(',').collect { it.trim() }
+    assert ops_list.every { it in allowed_ops }
+        : "PYCYTOMINER_FEATURE_SELECT: operations must be a comma-separated subset of ${allowed_ops}, got '${operations}'"
     prefix = groupTag(meta)
     grouping_info = groovy.json.JsonOutput.toJson([
         grouping_values: (meta.grouping_columns ?: []).collectEntries { col -> [(col): meta[col]] },
@@ -32,7 +41,7 @@ process PYCYTOMINER_FEATURE_SELECT {
     stub:
     prefix = groupTag(meta)
     """
-    touch ${prefix}_feature_selected.parquet
+    touch ${prefix}_features.txt
     cat <<-END_JSON > ${prefix}_summary.json
     {
         "aggregate_level": "${meta.aggregate_level}",

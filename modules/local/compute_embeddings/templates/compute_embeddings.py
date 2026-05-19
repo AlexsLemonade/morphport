@@ -2,9 +2,12 @@
 """
 Nextflow template script to compute PCA and UMAP embeddings for one analysis group.
 
-Reads the parquet files staged in the work directory, drops Metadata_ columns
-and non-numeric columns to build a measurement matrix, removes any rows with
-NaN values in the feature columns, fits PCA, and then runs UMAP on the top PCs.
+Reads the parquet files staged in the work directory, restricting to the
+Metadata_* columns plus the morphological features listed in features_file
+(written upstream by pycytominer_feature_select).
+Removes any rows with NaN values in the feature columns greater than a threshold,
+fits PCA, and then runs UMAP on the top PCs.
+
 Writes one combined embeddings parquet (Metadata_* columns + PC1..PCk +
 UMAP1 + UMAP2) and a JSON summary sidecar.
 
@@ -45,6 +48,7 @@ def write_versions(task_process: str):
 def main():
     # ---- Capture Nextflow variables ----------------------------------------
     parquet_dir = pathlib.Path("input_parquet")
+    features_file = pathlib.Path("${features_file}")
     prefix = "${prefix}"
     aggregate_level = "${meta.aggregate_level}"
     n_components_req = int("${pca_components}")
@@ -60,38 +64,34 @@ def main():
     grouping_values = grouping_info["grouping_values"]
     plate_ids = grouping_info["plate_ids"]
 
+    # ---- Load selected feature list ----------------------------------------
+    # The upstream feature_select step writes one column name per line; the file
+    # contains only morphological features (no Metadata_* columns).
+    with open(features_file) as fh:
+        feature_cols = [line.strip() for line in fh if line.strip()]
+    if not feature_cols:
+        raise RuntimeError(f"Feature list {features_file} is empty.")
+
     # ---- Load and concatenate input parquets -------------------------------
     # stageAs places all input parquets in input_parquet/ (numbered to avoid name collisions).
     parquet_paths = list(parquet_dir.glob("*.parquet"))
     if not parquet_paths:
         raise RuntimeError(f"No input parquet files found in {parquet_dir}/.")
 
-    df = pl.concat(
-        [pl.scan_parquet(p) for p in parquet_paths],
-        # how="vertical_relaxed", # tolerate small schema differences across parquets
-    ).collect()
-    n_rows_input = df.height
+    # Identify metadata columns by prefix from the first parquet's schema.
+    # The selected features file provides the morphological columns to keep.
+    first_schema = pl.read_parquet_schema(parquet_paths[0])
+    metadata_cols = [c for c in first_schema if c.startswith("Metadata_")]
 
-    # ---- Split metadata vs. numeric measurement columns --------------------
-    metadata_cols, feature_cols, dropped_cols = [], [], []
-    for col, dtype in df.schema.items():
-        if col.startswith("Metadata_"):
-            metadata_cols.append(col)
-        elif dtype.is_numeric():
-            feature_cols.append(col)
-        else:
-            dropped_cols.append(col)
-    if dropped_cols:
-        print(
-            f"compute_embeddings: dropping {len(dropped_cols)} non-numeric, "
-            f"non-Metadata columns: {dropped_cols[:10]}"
-            + ("..." if len(dropped_cols) > 10 else ""),
-            file=sys.stderr,
+    df = (
+        pl.concat(
+            [pl.scan_parquet(p) for p in parquet_paths],
+            # how="vertical_relaxed", # tolerate small schema differences across parquets
         )
-    if not feature_cols:
-        raise RuntimeError(
-            "No numeric measurement columns found after excluding Metadata_*."
-        )
+        .select(metadata_cols + feature_cols)
+        .collect()
+    )
+    n_rows_input = df.height
 
     # ---- Build feature matrix and handle NaN rows --------------------------
     # Extract features to numpy and keep metadata separately so we can free the
@@ -142,7 +142,6 @@ def main():
         "max_nan_fraction": max_nan_fraction,
         "n_rows_output": n_rows_clean,
         "n_features_input": n_features,
-        "n_dropped_non_numeric_columns": len(dropped_cols),
         "min_rows": min_rows,
     }
 

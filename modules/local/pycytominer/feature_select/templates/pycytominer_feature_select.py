@@ -2,8 +2,10 @@
 """
 Nextflow template script to select features using pycytominer.
 
-Reads the parquet files staged in input_parquet/, concatenates them, applies
-pycytominer.feature_select() using all samples, and writes the filtered parquet.
+Reads the parquet files staged in input_parquet/, applies
+pycytominer.feature_select() with samples="all", and writes a text file listing
+the kept morphological feature columns (one per line; Metadata_* columns are
+not included — they are identified downstream by prefix).
 
 TODO: add per-channel correlation filtering — split features by channel suffix
 (last underscore-delimited component for intensity/texture features), run
@@ -34,6 +36,7 @@ def main():
     parquet_dir = "input_parquet"
     prefix = "${prefix}"
     operations = [op.strip() for op in "${operations}".split(",")]
+    na_cutoff = float("${na_cutoff}")
     corr_threshold = float("${corr_threshold}")
     freq_cut = float("${freq_cut}")
     unique_cut = float("${unique_cut}")
@@ -53,18 +56,14 @@ def main():
         features="infer",
         samples="all",
         operation=operations,
+        na_cutoff=na_cutoff,
         corr_threshold=corr_threshold,
         corr_method="pearson",
         freq_cut=freq_cut,
         unique_cut=unique_cut,
     )
 
-    selected_feature_cols = [
-        c
-        for c in selected_df.columns
-        if not c.startswith("Metadata_") and pd.api.types.is_numeric_dtype(selected_df[c])
-    ]
-    features_removed = sorted(set(feature_cols) - set(selected_feature_cols))
+    selected_feature_cols = [c for c in feature_cols if c in set(selected_df.columns)]
 
     n_features_in = len(feature_cols)
     n_features_out = len(selected_feature_cols)
@@ -76,7 +75,9 @@ def main():
         file=sys.stderr,
     )
 
-    selected_df.to_parquet(f"{prefix}_feature_selected.parquet", index=False)
+    with open(f"{prefix}_features.txt", "w") as f:
+        for name in selected_feature_cols:
+            f.write(f"{name}\\n")
 
     grouping_info = json.loads("""${grouping_info}""")
     summary = {
@@ -84,12 +85,13 @@ def main():
         "aggregate_level": grouping_info["aggregate_level"],
         "grouping_values": grouping_info["grouping_values"],
         "operations": operations,
+        "na_cutoff": na_cutoff,
         "corr_threshold": corr_threshold,
         "freq_cut": freq_cut,
         "unique_cut": unique_cut,
         "n_features_input": n_features_in,
         "n_features_output": n_features_out,
-        "features_removed": features_removed,
+        "n_features_removed": n_features_in - n_features_out,
     }
     with open(f"{prefix}_summary.json", "w") as f:
         json.dump(summary, f, indent=2)

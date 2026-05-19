@@ -116,8 +116,15 @@
                 },
                 "feature_select_operations": {
                     "type": "string",
-                    "default": "variance_threshold,correlation_threshold",
+                    "default": "blocklist,drop_na_columns,variance_threshold,correlation_threshold",
                     "description": "Comma-separated list of pycytominer feature_select operations to apply per analysis group. Valid values: variance_threshold, correlation_threshold, drop_na_columns, blocklist, drop_outliers, noise_removal."
+                },
+                "feature_select_na_cutoff": {
+                    "type": "number",
+                    "default": 0.05,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Maximum fraction of rows that may be NaN before a feature column is dropped by the drop_na_columns operation."
                 },
                 "feature_select_corr_threshold": {
                     "type": "number",
