@@ -1,6 +1,6 @@
 process PYCYTOMINER_FEATURE_SELECT {
     tag "${prefix}"
-    label 'process_medium'
+    label 'process_low'
     label 'publish_skip_parquet'
 
     conda "${moduleDir}/environment.yml"
