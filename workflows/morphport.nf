@@ -44,7 +44,7 @@ workflow MORPHPORT {
     CYTOTABLE_CONVERT(ch_validated.convert)
     ch_parquet = ch_parquet.mix(CYTOTABLE_CONVERT.out.parquet)
 
-    // drop CellProfiler features on the pycytominer default blocklist and redundant metadata columns
+    // drop CellProfiler features on the pycytominer default blocklist
     PYCYTOMINER_DROP_BLOCKLIST(ch_parquet)
 
     // annotate cells with metadata from the platemap
