@@ -129,6 +129,7 @@ workflow MORPHPORT {
         params.feature_select_freq_cut,
         params.feature_select_unique_cut,
         params.feature_select_min_rows_stats,
+        params.feature_select_per_channel_correlation,
     )
 
     // Filter groups with an empty feature list before analysis steps

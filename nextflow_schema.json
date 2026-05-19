@@ -152,6 +152,11 @@
                     "default": 15,
                     "minimum": 1,
                     "description": "Minimum number of rows required to apply statistics-based feature selection operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal). Groups with fewer rows fall back to name-based operations only (blocklist, drop_na_columns), preventing degenerate empty feature lists from tiny groups."
+                },
+                "feature_select_per_channel_correlation": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "If true and correlation_threshold is in feature_select_operations, run correlation_threshold once per channel group (features sharing the same channel set) instead of once across all features. Reduces over-aggressive deduplication of features that are correlated only because they describe the same channel."
                 }
             }
         },

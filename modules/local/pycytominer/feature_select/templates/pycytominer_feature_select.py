@@ -7,18 +7,23 @@ pycytominer.feature_select() with samples="all", and writes a text file listing
 the kept morphological feature columns (one per line; Metadata_* columns are
 not included — they are identified downstream by prefix).
 
-TODO: add per-channel correlation filtering — split features by channel suffix
-(last underscore-delimited component for intensity/texture features), run
-correlation_threshold independently per channel group, union kept features.
+When per_channel_correlation is true and correlation_threshold is among the
+operations, correlation_threshold is removed from the first pass and re-run
+per channel group (features sharing the same channel set). This avoids
+over-aggressive deduplication of features that are correlated only because
+they describe the same channel.
 """
 
 import json
+import re
 import sys
 import warnings
+from collections import defaultdict
 from importlib.metadata import version
 
 import pandas as pd
 import pycytominer
+from pycytominer.operations import correlation_threshold as correlation_threshold_op
 
 warnings.filterwarnings("ignore", category=pd.errors.PerformanceWarning)
 
@@ -43,6 +48,111 @@ STATS_OPS = frozenset(
 )
 
 
+def discover_channels(feature_names) -> tuple[frozenset[str], frozenset[str]]:
+    """
+    Discover imaging channels from CellProfiler feature names.
+
+    Returns (primary, derived) frozensets.
+
+    - Primary channels come from Intensity features
+      (<Comp>_Intensity_<Subtype>_<Channel...>); these correspond to
+      directly-imaged channels.
+    - Derived channels come from RadialDistribution features
+      (<Comp>_RadialDistribution_<Subtype>_<Channel...>_<NofM>); any channel
+      seen there but not in Intensity is a derived measurement layered on top
+      of a primary channel (e.g. 'mito_tubeness' is a tubeness-filtered
+      version of the Mito channel).
+
+    CellProfiler subtypes are always single underscore-free camelCase tokens,
+    so anything after the subtype slot is the (possibly multi-token) channel
+    name. The bin token in RadialDistribution is recognized by the 'of'
+    substring (e.g. '1of16').
+    """
+    primary = set()
+    radial = set()
+    for name in feature_names:
+        parts = name.split("_")
+        if len(parts) >= 4 and parts[1] == "Intensity":
+            primary.add("_".join(parts[3:]))
+        elif len(parts) >= 5 and parts[1] == "RadialDistribution" and "of" in parts[-1]:
+            radial.add("_".join(parts[3:-1]))
+    derived = radial - primary
+    return frozenset(primary), frozenset(derived)
+
+
+def build_channel_pattern(channels) -> re.Pattern | None:
+    """
+    Compile a regex that matches any underscore-bounded channel name.
+
+    Channels are alternated in longest-first order so multi-token names
+    (e.g. 'Brightfield_H') aren't shadowed by their single-token prefixes.
+    Returns None when channels is empty (caller should treat all features
+    as channel-less).
+    """
+    if not channels:
+        return None
+    return re.compile(
+        r"(?<=_)("
+        + "|".join(re.escape(c) for c in sorted(channels, key=lambda c: (-len(c), c)))
+        + r")(?=_)"
+    )
+
+
+def parse_channels(feature_name: str, channel_pattern) -> tuple[str, ...]:
+    """
+    Return a sorted tuple of channels found in a feature name, or () when
+    no channel tokens are present or the pattern is None.
+    """
+    if channel_pattern is None:
+        return ()
+    padded = "_" + feature_name + "_"
+    return tuple(sorted({m.group(1) for m in channel_pattern.finditer(padded)}))
+
+
+def group_features_by_channel(
+    features, channel_pattern
+) -> dict[tuple[str, ...], list[str]]:
+    groups = defaultdict(list)
+    for f in features:
+        groups[parse_channels(f, channel_pattern)].append(f)
+    return dict(groups)
+
+
+def correlation_threshold_per_channel(
+    df: pd.DataFrame, features: list, channel_pattern, threshold: float
+) -> tuple[list[str], list[dict]]:
+    """Run pycytominer's correlation_threshold once per channel group.
+    Returns (kept_features, per_group_stats) where per_group_stats is a list
+    of dicts with one entry per channel group (for the summary JSON).
+    """
+    channel_groups = group_features_by_channel(features, channel_pattern)
+    kept_features = []
+    per_group_stats = []
+    for channels, group_features in sorted(channel_groups.items()):
+        if len(group_features) <= 1:
+            # nothing to correlate against — keep as-is
+            excluded = []
+        else:
+            excluded = correlation_threshold_op(
+                population_df=df,
+                features=group_features,
+                samples="all",
+                threshold=threshold,
+                method="pearson",
+            )
+        excluded_set = set(excluded)
+        group_kept = [f for f in group_features if f not in excluded_set]
+        kept_features.extend(group_kept)
+        per_group_stats.append(
+            {
+                "channels": list(channels),
+                "n_features_in": len(group_features),
+                "n_features_out": len(group_kept),
+            }
+        )
+    return kept_features, per_group_stats
+
+
 def main():
     parquet_dir = "input_parquet"
     prefix = "${prefix}"
@@ -52,6 +162,7 @@ def main():
     freq_cut = float("${freq_cut}")
     unique_cut = float("${unique_cut}")
     min_rows_stats = int("${min_rows_stats}")
+    per_channel_correlation = "${per_channel_correlation}".lower() == "true"
     task_process = "${task.process}"
 
     df = pd.read_parquet(parquet_dir, dtype_backend="pyarrow")
@@ -63,8 +174,17 @@ def main():
     ]
     df[feature_cols] = df[feature_cols].astype("float64")
 
+    # Discover imaging channels from feature names.
+    primary_channels, derived_channels = discover_channels(feature_cols)
+    channel_pattern = build_channel_pattern(primary_channels | derived_channels)
+    print(
+        f"pycytominer_feature_select: discovered {len(primary_channels)} primary "
+        f"channel(s) {sorted(primary_channels)} and {len(derived_channels)} "
+        f"derived channel(s) {sorted(derived_channels)}.",
+        file=sys.stderr,
+    )
+
     # Skip stats-based operations if there are too few rows to compute them reliably.
-    # TODO: Should we just set the features here to be empty instead of skipping the filters?
     n_rows = df.shape[0]
     if n_rows < min_rows_stats:
         effective_ops = [op for op in operations if op not in STATS_OPS]
@@ -79,25 +199,51 @@ def main():
     else:
         effective_ops = operations
 
-    if effective_ops:
+    # When per_channel_correlation is on, defer correlation_threshold until after
+    # the rest of the operations have filtered the feature set.
+    do_per_channel = (
+        per_channel_correlation and "correlation_threshold" in effective_ops
+    )
+    if do_per_channel:
+        first_pass_ops = [op for op in effective_ops if op != "correlation_threshold"]
+    else:
+        first_pass_ops = effective_ops
+
+    if first_pass_ops:
         selected_df = pycytominer.feature_select(
             profiles=df,
             features="infer",
             samples="all",
-            operation=effective_ops,
+            operation=first_pass_ops,
             na_cutoff=na_cutoff,
             corr_threshold=corr_threshold,
             corr_method="pearson",
             freq_cut=freq_cut,
             unique_cut=unique_cut,
         )
-        selected_feature_cols = [
-            c for c in feature_cols if c in set(selected_df.columns)
-        ]
+        surviving_features = [c for c in feature_cols if c in set(selected_df.columns)]
     else:
         # No operations to apply (e.g., all configured ops were stats ops and N is small).
         # Keep all features so downstream steps can still run.
-        selected_feature_cols = list(feature_cols)
+        selected_df = df
+        surviving_features = list(feature_cols)
+
+    per_channel_stats = None
+    if do_per_channel:
+        selected_feature_cols, per_channel_stats = correlation_threshold_per_channel(
+            df=selected_df,
+            features=surviving_features,
+            channel_pattern=channel_pattern,
+            threshold=corr_threshold,
+        )
+        print(
+            f"pycytominer_feature_select: per-channel correlation_threshold "
+            f"over {len(per_channel_stats)} channel groups; "
+            f"{len(surviving_features)} -> {len(selected_feature_cols)} features.",
+            file=sys.stderr,
+        )
+    else:
+        selected_feature_cols = surviving_features
 
     n_features_in = len(feature_cols)
     n_features_out = len(selected_feature_cols)
@@ -105,7 +251,8 @@ def main():
         f"pycytominer_feature_select: {n_features_in} features in, "
         f"{n_features_out} features out "
         f"({n_features_in - n_features_out} removed) "
-        f"using operations: {effective_ops}",
+        f"using operations: {effective_ops} "
+        f"(per_channel_correlation={do_per_channel}).",
         file=sys.stderr,
     )
 
@@ -120,6 +267,9 @@ def main():
         "grouping_values": grouping_info["grouping_values"],
         "operations_requested": operations,
         "operations_applied": effective_ops,
+        "per_channel_correlation": do_per_channel,
+        "primary_channels": sorted(primary_channels),
+        "derived_channels": sorted(derived_channels),
         "n_rows": n_rows,
         "min_rows_stats": min_rows_stats,
         "na_cutoff": na_cutoff,
@@ -130,6 +280,8 @@ def main():
         "n_features_output": n_features_out,
         "n_features_removed": n_features_in - n_features_out,
     }
+    if per_channel_stats is not None:
+        summary["per_channel_correlation_groups"] = per_channel_stats
     with open(f"{prefix}_summary.json", "w") as f:
         json.dump(summary, f, indent=2)
 
