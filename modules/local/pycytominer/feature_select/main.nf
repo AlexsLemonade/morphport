@@ -1,6 +1,6 @@
 process PYCYTOMINER_FEATURE_SELECT {
     tag "${prefix}"
-    label 'process_low'
+    label 'process_medium'
     label 'publish_skip_parquet'
 
     conda "${moduleDir}/environment.yml"
@@ -17,6 +17,7 @@ process PYCYTOMINER_FEATURE_SELECT {
     val(corr_threshold)
     val(freq_cut)
     val(unique_cut)
+    val(min_rows_stats)
 
     output:
     // Pass the original staged parquets through alongside a text file of selected feature

@@ -32,6 +32,17 @@ def write_versions(task_process: str):
         f.write(f"    pyarrow: {version('pyarrow')}\\n")
 
 
+# Operations whose results are unreliable or uncomputable when there are few rows.
+STATS_OPS = frozenset(
+    {
+        "variance_threshold",
+        "correlation_threshold",
+        "drop_outliers",
+        "noise_removal",
+    }
+)
+
+
 def main():
     parquet_dir = "input_parquet"
     prefix = "${prefix}"
@@ -40,6 +51,7 @@ def main():
     corr_threshold = float("${corr_threshold}")
     freq_cut = float("${freq_cut}")
     unique_cut = float("${unique_cut}")
+    min_rows_stats = int("${min_rows_stats}")
     task_process = "${task.process}"
 
     df = pd.read_parquet(parquet_dir, dtype_backend="pyarrow")
@@ -51,19 +63,41 @@ def main():
     ]
     df[feature_cols] = df[feature_cols].astype("float64")
 
-    selected_df = pycytominer.feature_select(
-        profiles=df,
-        features="infer",
-        samples="all",
-        operation=operations,
-        na_cutoff=na_cutoff,
-        corr_threshold=corr_threshold,
-        corr_method="pearson",
-        freq_cut=freq_cut,
-        unique_cut=unique_cut,
-    )
+    # Skip stats-based operations if there are too few rows to compute them reliably.
+    # TODO: Should we just set the features here to be empty instead of skipping the filters?
+    n_rows = df.shape[0]
+    if n_rows < min_rows_stats:
+        effective_ops = [op for op in operations if op not in STATS_OPS]
+        dropped_ops = [op for op in operations if op in STATS_OPS]
+        if dropped_ops:
+            print(
+                f"pycytominer_feature_select: only {n_rows} rows "
+                f"(< min_rows_stats={min_rows_stats}); "
+                f"skipping statistics-based operations {dropped_ops}.",
+                file=sys.stderr,
+            )
+    else:
+        effective_ops = operations
 
-    selected_feature_cols = [c for c in feature_cols if c in set(selected_df.columns)]
+    if effective_ops:
+        selected_df = pycytominer.feature_select(
+            profiles=df,
+            features="infer",
+            samples="all",
+            operation=effective_ops,
+            na_cutoff=na_cutoff,
+            corr_threshold=corr_threshold,
+            corr_method="pearson",
+            freq_cut=freq_cut,
+            unique_cut=unique_cut,
+        )
+        selected_feature_cols = [
+            c for c in feature_cols if c in set(selected_df.columns)
+        ]
+    else:
+        # No operations to apply (e.g., all configured ops were stats ops and N is small).
+        # Keep all features so downstream steps can still run.
+        selected_feature_cols = list(feature_cols)
 
     n_features_in = len(feature_cols)
     n_features_out = len(selected_feature_cols)
@@ -71,7 +105,7 @@ def main():
         f"pycytominer_feature_select: {n_features_in} features in, "
         f"{n_features_out} features out "
         f"({n_features_in - n_features_out} removed) "
-        f"using operations: {operations}",
+        f"using operations: {effective_ops}",
         file=sys.stderr,
     )
 
@@ -84,7 +118,10 @@ def main():
         "prefix": prefix,
         "aggregate_level": grouping_info["aggregate_level"],
         "grouping_values": grouping_info["grouping_values"],
-        "operations": operations,
+        "operations_requested": operations,
+        "operations_applied": effective_ops,
+        "n_rows": n_rows,
+        "min_rows_stats": min_rows_stats,
         "na_cutoff": na_cutoff,
         "corr_threshold": corr_threshold,
         "freq_cut": freq_cut,

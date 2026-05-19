@@ -44,6 +44,9 @@ input:
   - - unique_cut:
         type: float
         description: Unique-value cut for variance_threshold (fraction of unique values to sample count)
+  - - min_rows_stats:
+        type: integer
+        description: Minimum row count for applying statistics-based operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal); groups below this fall back to name-based operations only
 
 output:
   - result:

@@ -128,10 +128,22 @@ workflow MORPHPORT {
         params.feature_select_corr_threshold,
         params.feature_select_freq_cut,
         params.feature_select_unique_cut,
+        params.feature_select_min_rows_stats,
     )
 
+    // Filter groups with an empty feature list before analysis steps
+    ch_feature_selected = PYCYTOMINER_FEATURE_SELECT.out.result
+        .branch { _meta, _plate_metas, _parquets, features ->
+            has_features: features.size() > 0
+            empty: true
+        }
+
+    ch_feature_selected.empty.subscribe { meta, _plate_metas, _parquets, _features ->
+        log.warn "Skipping COMPUTE_EMBEDDINGS for ${meta.aggregate_level} group ${meta.grouping_columns?.collect { col -> "${col}=${meta[col]}" }?.join(', ') ?: 'all'}: no features selected upstream."
+    }
+
     COMPUTE_EMBEDDINGS(
-        PYCYTOMINER_FEATURE_SELECT.out.result,
+        ch_feature_selected.has_features,
         params.embedding_pca_components,
         params.embedding_umap_neighbors,
         params.embedding_umap_min_dist,

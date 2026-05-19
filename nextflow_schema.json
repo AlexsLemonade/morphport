@@ -146,6 +146,12 @@
                     "minimum": 0.0,
                     "maximum": 1.0,
                     "description": "Unique cut threshold for the variance_threshold operation. Features where fewer than this fraction of values are unique are removed."
+                },
+                "feature_select_min_rows_stats": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 1,
+                    "description": "Minimum number of rows required to apply statistics-based feature selection operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal). Groups with fewer rows fall back to name-based operations only (blocklist, drop_na_columns), preventing degenerate empty feature lists from tiny groups."
                 }
             }
         },
