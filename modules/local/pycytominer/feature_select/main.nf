@@ -11,7 +11,7 @@ process PYCYTOMINER_FEATURE_SELECT {
     }
 
     input:
-    tuple val(meta), val(plate_metas), path(parquets, stageAs: 'input_parquet/*.parquet')
+    tuple val(meta), val(plate_metas), path(parquets, stageAs: 'input_parquet/input*.parquet')
     val(operations)
     val(na_cutoff)
     val(corr_threshold)
