@@ -42,7 +42,9 @@ process PYCYTOMINER_FEATURE_SELECT {
     stub:
     prefix = groupTag(meta)
     """
-    touch ${prefix}_features.txt
+    # Write a placeholder feature so downstream filters that drop empty
+    # feature lists (e.g. COMPUTE_EMBEDDINGS) still see this group during stub runs.
+    echo "Cells_stub_feature" > ${prefix}_features.txt
     cat <<-END_JSON > ${prefix}_summary.json
     {
         "aggregate_level": "${meta.aggregate_level}",
