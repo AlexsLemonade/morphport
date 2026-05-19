@@ -113,6 +113,32 @@
                     "type": "string",
                     "default": "all",
                     "description": "Reference population for fitting the normalizer. Use 'all' to fit on all samples, or a pandas query string to fit on a subset (e.g. \"Metadata_treatment == 'DMSO'\")."
+                },
+                "feature_select_operations": {
+                    "type": "string",
+                    "default": "variance_threshold,correlation_threshold",
+                    "description": "Comma-separated list of pycytominer feature_select operations to apply per analysis group. Valid values: variance_threshold, correlation_threshold, drop_na_columns, blocklist, drop_outliers, noise_removal."
+                },
+                "feature_select_corr_threshold": {
+                    "type": "number",
+                    "default": 0.9,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Correlation threshold for the correlation_threshold feature selection operation. Feature pairs with absolute Pearson correlation above this value are deduplicated."
+                },
+                "feature_select_freq_cut": {
+                    "type": "number",
+                    "default": 0.05,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Frequency cut threshold for the variance_threshold operation. Features where the ratio of the most common to second most common value falls below this threshold are removed."
+                },
+                "feature_select_unique_cut": {
+                    "type": "number",
+                    "default": 0.01,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Unique cut threshold for the variance_threshold operation. Features where fewer than this fraction of values are unique are removed."
                 }
             }
         },

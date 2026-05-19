@@ -13,7 +13,8 @@ include { PYCYTOMINER_DROP_BLOCKLIST } from '../modules/local/pycytominer/drop_b
 include { PYCYTOMINER_ANNOTATE       } from '../modules/local/pycytominer/annotate'
 include { PYCYTOMINER_AGGREGATE      } from '../modules/local/pycytominer/aggregate'
 include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normalize'
-include { COMPUTE_EMBEDDINGS     } from '../modules/local/compute_embeddings'
+include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
+include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -124,8 +125,16 @@ workflow MORPHPORT {
 
     ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
 
-    COMPUTE_EMBEDDINGS(
+    PYCYTOMINER_FEATURE_SELECT(
         ch_grouped,
+        params.feature_select_operations,
+        params.feature_select_corr_threshold,
+        params.feature_select_freq_cut,
+        params.feature_select_unique_cut,
+    )
+
+    COMPUTE_EMBEDDINGS(
+        PYCYTOMINER_FEATURE_SELECT.out.result,
         params.embedding_pca_components,
         params.embedding_umap_neighbors,
         params.embedding_umap_min_dist,
