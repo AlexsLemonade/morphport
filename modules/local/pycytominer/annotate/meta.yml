@@ -25,7 +25,7 @@ input:
           e.g. [ plate_id:'plate_001', batch:'batch_1', plate_metadata_columns:['Metadata_compound','Metadata_dose'] ]
     - parquet_file:
         type: file
-        description: Per-cell parquet file (e.g. from PYCYTOMINER_DROP_BLOCKLIST)
+        description: Per-cell parquet file (e.g., from CYTOTABLE_CONVERT)
         pattern: "*.parquet"
     - platemap_file:
         type: file

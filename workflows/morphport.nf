@@ -9,7 +9,6 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morp
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
-include { PYCYTOMINER_DROP_BLOCKLIST } from '../modules/local/pycytominer/drop_blocklist'
 include { PYCYTOMINER_ANNOTATE       } from '../modules/local/pycytominer/annotate'
 include { PYCYTOMINER_AGGREGATE      } from '../modules/local/pycytominer/aggregate'
 include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normalize'
@@ -43,12 +42,9 @@ workflow MORPHPORT {
     CYTOTABLE_CONVERT(ch_validated.convert)
     ch_parquet = ch_parquet.mix(CYTOTABLE_CONVERT.out.parquet)
 
-    // drop CellProfiler features on the pycytominer default blocklist
-    PYCYTOMINER_DROP_BLOCKLIST(ch_parquet)
-
     // annotate cells with metadata from the platemap
     PYCYTOMINER_ANNOTATE(
-        PYCYTOMINER_DROP_BLOCKLIST.out.result.map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
+        ch_parquet.map { meta, parquet -> [meta, parquet, file(meta.platemap_file, checkIfExists: true)] },
         params.platemap_well_column,
     )
 
