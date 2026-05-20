@@ -52,6 +52,8 @@ def main():
     freq_cut = float("${freq_cut}")
     unique_cut = float("${unique_cut}")
     min_rows_stats = int("${min_rows_stats}")
+    noise_removal_perturb_groups = "${noise_removal_perturb_groups}"
+    noise_removal_stdev_cutoff = float("${noise_removal_stdev_cutoff}")
     task_process = "${task.process}"
 
     df = pd.read_parquet(parquet_dir, dtype_backend="pyarrow")
@@ -79,6 +81,16 @@ def main():
     else:
         effective_ops = operations
 
+    if (
+        "noise_removal" in effective_ops
+        and noise_removal_perturb_groups not in df.columns
+    ):
+        raise ValueError(
+            f"pycytominer_feature_select: noise_removal perturb-groups column "
+            f"'{noise_removal_perturb_groups}' is not present in the input "
+            f"parquet."
+        )
+
     if effective_ops:
         selected_df = pycytominer.feature_select(
             profiles=df,
@@ -90,6 +102,8 @@ def main():
             corr_method="pearson",
             freq_cut=freq_cut,
             unique_cut=unique_cut,
+            noise_removal_perturb_groups=noise_removal_perturb_groups,
+            noise_removal_stdev_cutoff=noise_removal_stdev_cutoff,
         )
         selected_feature_cols = [
             c for c in feature_cols if c in set(selected_df.columns)
@@ -126,6 +140,8 @@ def main():
         "corr_threshold": corr_threshold,
         "freq_cut": freq_cut,
         "unique_cut": unique_cut,
+        "noise_removal_perturb_groups": noise_removal_perturb_groups,
+        "noise_removal_stdev_cutoff": noise_removal_stdev_cutoff,
         "n_features_input": n_features_in,
         "n_features_output": n_features_out,
         "n_features_removed": n_features_in - n_features_out,

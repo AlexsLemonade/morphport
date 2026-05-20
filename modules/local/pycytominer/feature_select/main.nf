@@ -18,6 +18,8 @@ process PYCYTOMINER_FEATURE_SELECT {
     val(freq_cut)
     val(unique_cut)
     val(min_rows_stats)
+    val(noise_removal_perturb_groups)
+    val(noise_removal_stdev_cutoff)
 
     output:
     // Pass the original staged parquets through alongside a text file of selected feature

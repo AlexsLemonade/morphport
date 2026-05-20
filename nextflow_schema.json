@@ -152,6 +152,17 @@
                     "default": 15,
                     "minimum": 1,
                     "description": "Minimum number of rows required to apply statistics-based feature selection operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal). Groups with fewer rows fall back to name-based operations only (blocklist, drop_na_columns), preventing degenerate empty feature lists from tiny groups."
+                },
+                "feature_select_noise_removal_perturb_groups": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Metadata column identifying replicate groups for the noise_removal operation. The operation drops features whose mean within-group standard deviation exceeds feature_select_noise_removal_stdev_cutoff. Required when noise_removal is included in feature_select_operations; leave empty otherwise."
+                },
+                "feature_select_noise_removal_stdev_cutoff": {
+                    "type": "number",
+                    "default": 0.8,
+                    "minimum": 0.0,
+                    "description": "Mean within-replicate-group standard deviation above which a feature is dropped by the noise_removal operation. Only used when noise_removal is included in feature_select_operations."
                 }
             }
         },

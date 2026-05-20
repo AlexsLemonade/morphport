@@ -82,6 +82,15 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
+    // Cross-parameter validation: schema can't express "param X is required when
+    // param Y contains value Z", so handle those checks here.
+    //
+    def feature_select_ops = params.feature_select_operations.tokenize(',').collect { it.trim() }
+    if ('noise_removal' in feature_select_ops && !params.feature_select_noise_removal_perturb_groups) {
+        error("feature_select_operations includes 'noise_removal' but feature_select_noise_removal_perturb_groups is empty. Set it to the metadata column identifying replicate groups.")
+    }
+
+    //
     // Create channel from input file provided through params.input
     //
 
