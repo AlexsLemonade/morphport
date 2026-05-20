@@ -23,7 +23,6 @@ from importlib.metadata import version
 
 import pandas as pd
 import pycytominer
-from pycytominer.operations import correlation_threshold as correlation_threshold_op
 
 warnings.filterwarnings("ignore", category=pd.errors.PerformanceWarning)
 
@@ -131,17 +130,20 @@ def correlation_threshold_per_channel(
     for channels, group_features in sorted(channel_groups.items()):
         if len(group_features) <= 1:
             # nothing to correlate against — keep as-is
-            excluded = []
+            group_kept = list(group_features)
         else:
-            excluded = correlation_threshold_op(
-                population_df=df,
+            # Run pycytominer's correlation_threshold on this channel group only,
+            # via the public feature_select API with a single-operation list.
+            result_df = pycytominer.feature_select(
+                profiles=df,
                 features=group_features,
                 samples="all",
-                threshold=threshold,
-                method="pearson",
+                operation=["correlation_threshold"],
+                corr_threshold=threshold,
+                corr_method="pearson",
             )
-        excluded_set = set(excluded)
-        group_kept = [f for f in group_features if f not in excluded_set]
+            kept_set = set(result_df.columns)
+            group_kept = [f for f in group_features if f in kept_set]
         kept_features.extend(group_kept)
         per_group_stats.append(
             {
