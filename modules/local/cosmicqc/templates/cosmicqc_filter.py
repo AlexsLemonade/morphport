@@ -141,11 +141,11 @@ def main():
     }
 
     # save outputs
-    df_filtered.to_parquet(f"{plate_id}_filtered.parquet", index=False)
+    df_filtered.to_parquet(f"filtered_{plate_id}.parquet", index=False)
     # include the index for outlier summary since we should be able to use it to link back
     # to the original dataframe when building a QC report
-    outlier_summary.to_csv(f"{plate_id}_cosmicqc_outliers.csv.gz", index=True)
-    with open(f"{plate_id}_cosmicqc_summary.json", "w") as f:
+    outlier_summary.to_csv(f"cosmicqc_outliers_{plate_id}.csv.gz", index=True)
+    with open(f"cosmicqc_summary_{plate_id}.json", "w") as f:
         json.dump(qc_summary, f, indent=2)
 
     write_versions(task_process)

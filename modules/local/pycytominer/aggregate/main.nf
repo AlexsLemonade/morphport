@@ -14,7 +14,7 @@ process PYCYTOMINER_AGGREGATE {
     val(operation)
 
     output:
-    tuple val(meta), path("*_bulk.parquet", arity: 1), emit: result
+    tuple val(meta), path("well_*.parquet", arity: 1), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -28,7 +28,7 @@ process PYCYTOMINER_AGGREGATE {
     assert operation in ['median', 'mean'] : "PYCYTOMINER_AGGREGATE: operation must be 'median' or 'mean', got '${operation}'"
     meta = meta_in + [aggregate_level: 'well']
     """
-    touch ${meta.plate_id}_bulk.parquet
+    touch well_${meta.plate_id}.parquet
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         stub: stub

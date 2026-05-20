@@ -57,7 +57,7 @@ def main():
     )
 
     normalized_df.to_parquet(
-        f"{plate_id}_{aggregate_level}_normalized.parquet", index=False
+        f"normalized_{aggregate_level}_{plate_id}.parquet", index=False
     )
 
     write_versions(task_process)

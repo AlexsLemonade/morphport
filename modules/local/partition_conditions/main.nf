@@ -15,7 +15,7 @@ process PARTITION_CONDITIONS {
 
     output:
     tuple val(meta), path("${meta.plate_id}"),         emit: partitions
-    path "${meta.plate_id}_platemap_summary.json",     emit: summary
+    path "platemap_summary_${meta.plate_id}.json",     emit: summary
     path "versions.yml",                               emit: versions, topic: versions
 
     script:
@@ -33,7 +33,7 @@ process PARTITION_CONDITIONS {
     mkdir -p "${meta.plate_id}/${stub_path}"
     touch "${meta.plate_id}/${stub_path}/${meta.plate_id}_0.parquet"
 
-    cat <<-END_JSON > ${meta.plate_id}_platemap_summary.json
+    cat <<-END_JSON > platemap_summary_${meta.plate_id}.json
     {
         "plate_id": "${meta.plate_id}",
         "condition_columns": ${groovy.json.JsonOutput.toJson(condition_cols)},

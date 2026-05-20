@@ -56,7 +56,7 @@ def main():
         "partition_columns": partition_cols,
         "partitions": partition_sizes,
     }
-    with open(f"{plate_id}_platemap_summary.json", "w") as f:
+    with open(f"platemap_summary_{plate_id}.json", "w") as f:
         json.dump(summary, f, indent=2)
 
     write_versions(task_process)

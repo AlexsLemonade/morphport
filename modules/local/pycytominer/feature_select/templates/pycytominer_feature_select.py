@@ -274,7 +274,7 @@ def main():
         file=sys.stderr,
     )
 
-    with open(f"{prefix}_features.txt", "w") as f:
+    with open(f"features_{prefix}.txt", "w") as f:
         for name in selected_feature_cols:
             f.write(f"{name}\\n")
 
@@ -300,7 +300,7 @@ def main():
     }
     if per_channel_stats is not None:
         summary["per_channel_correlation_groups"] = per_channel_stats
-    with open(f"{prefix}_summary.json", "w") as f:
+    with open(f"feature_select_summary_{prefix}.json", "w") as f:
         json.dump(summary, f, indent=2)
 
     write_versions(task_process)

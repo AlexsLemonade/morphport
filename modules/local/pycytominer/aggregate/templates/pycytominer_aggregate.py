@@ -50,7 +50,7 @@ def main():
         operation=operation,
     )
 
-    aggregated_df.to_parquet(f"{plate_id}_bulk.parquet", index=False)
+    aggregated_df.to_parquet(f"well_{plate_id}.parquet", index=False)
 
     write_versions(task_process)
 
