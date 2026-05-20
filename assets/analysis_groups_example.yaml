@@ -5,7 +5,7 @@
 
 default:
   # Groupings applied at every aggregate level (de-duplicated).
-  - "gene_allele"
+  - treatment
 well:
   # well-level groupings (to add to the default list)
-  - "treatment"
+  - gene_allele

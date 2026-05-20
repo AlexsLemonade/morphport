@@ -63,6 +63,11 @@
                     "format": "file-path",
                     "description": "Path to a YAML (or JSON) file specifying how partitions should be grouped for downstream analysis.",
                     "help_text": "The file should contain a mapping with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a string naming a condition column (with or without the 'Metadata_' prefix); use a comma-separated string to group on multiple columns. An optional 'default' key supplies groupings that are added to every level's groupings (de-duplicated). If the file is not provided, both levels collapse to a single empty grouping, meaning the pipeline skips partitioning entirely and treats all plates as one group per level. The partition columns used by the partition step are the union of every grouping column.\n\nExample (YAML):\ndefault:\n  - treatment\ncell:\n  - gene_allele\n  - treatment,gene_allele"
+                },
+                "random_seed": {
+                    "type": "integer",
+                    "default": 1674,
+                    "description": "Seed for stochastic steps in the pipeline (e.g., PCA, UMAP)."
                 }
             }
         },
@@ -108,6 +113,44 @@
                     "type": "string",
                     "default": "all",
                     "description": "Reference population for fitting the normalizer. Use 'all' to fit on all samples, or a pandas query string to fit on a subset (e.g. \"Metadata_treatment == 'DMSO'\")."
+                }
+            }
+        },
+        "embedding": {
+            "title": "Embedding",
+            "type": "object",
+            "description": "Parameters controlling PCA + UMAP embeddings computed per analysis group.",
+            "properties": {
+                "embedding_pca_components": {
+                    "type": "integer",
+                    "default": 50,
+                    "minimum": 1,
+                    "description": "Number of PCA components to compute. Capped at runtime to min(n_rows, n_features)."
+                },
+                "embedding_umap_neighbors": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 2,
+                    "description": "UMAP n_neighbors parameter. Capped at runtime to n_rows - 1 for small groups."
+                },
+                "embedding_umap_min_dist": {
+                    "type": "number",
+                    "default": 0.1,
+                    "minimum": 0.0,
+                    "description": "UMAP min_dist parameter."
+                },
+                "embedding_max_nan_fraction": {
+                    "type": "number",
+                    "default": 0.0,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Per-row NaN tolerance as a fraction of feature columns. Rows above the threshold are dropped; surviving rows have NaNs filled with 0. Default 0.0 drops any row with a NaN."
+                },
+                "embedding_min_rows": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 1,
+                    "description": "Minimum number of rows (after NaN filtering) required to compute PCA + UMAP for a group. Groups below this threshold are skipped: a metadata-only parquet is emitted and the summary JSON records skipped=true."
                 }
             }
         },
@@ -248,6 +291,9 @@
         },
         {
             "$ref": "#/$defs/pycytominer"
+        },
+        {
+            "$ref": "#/$defs/embedding"
         },
         {
             "$ref": "#/$defs/institutional_config_options"

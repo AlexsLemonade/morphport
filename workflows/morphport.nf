@@ -10,6 +10,7 @@ include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
 include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE; PYCYTOMINER_NORMALIZE } from '../modules/local/pycytominer'
+include { COMPUTE_EMBEDDINGS     } from '../modules/local/compute_embeddings'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -117,9 +118,15 @@ workflow MORPHPORT {
 
     ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
 
-    ch_grouped.view { gm, metas, parquets ->
-        "${gm.grouping_columns} [${gm.aggregate_level}] → ${gm.subMap(gm.grouping_columns)} — ${metas.size()} plate(s), ${parquets.size()} file(s)"
-    }
+    COMPUTE_EMBEDDINGS(
+        ch_grouped,
+        params.embedding_pca_components,
+        params.embedding_umap_neighbors,
+        params.embedding_umap_min_dist,
+        params.random_seed,
+        params.embedding_max_nan_fraction,
+        params.embedding_min_rows,
+    )
 
     //
     // Collate and save software versions
@@ -225,8 +232,12 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
                 [groupKey(key_data, expected_size), meta, parquets]
             }
         }
-    // do the grouping, flatten the parquet lists, and return a channel of tuples of the form:
-    //   [group_key, list_of_meta, list_of_parquet_files]
+    // do the grouping, flatten the parquet lists, and add plate_ids to the group meta so
+    // downstream consumers can read it without walking metas. Returns tuples of the form:
+    //   [group_meta, list_of_meta, list_of_parquet_files]
     return ch_grouping.groupTuple(by: 0, remainder: true)
-        .map { group_key, metas, parquet_lists -> [group_key, metas, parquet_lists.flatten()] }
+        .map { group_key, metas, parquet_lists ->
+            def group_meta = group_key + [plate_ids: metas.collect { it -> it.plate_id }]
+            [group_meta, metas, parquet_lists.flatten()]
+        }
 }
