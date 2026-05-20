@@ -52,6 +52,7 @@ def main():
     freq_cut = float("${freq_cut}")
     unique_cut = float("${unique_cut}")
     min_rows_stats = int("${min_rows_stats}")
+    outlier_cutoff = float("${outlier_cutoff}")
     noise_removal_perturb_groups = "${noise_removal_perturb_groups}"
     noise_removal_stdev_cutoff = float("${noise_removal_stdev_cutoff}")
     task_process = "${task.process}"
@@ -102,6 +103,7 @@ def main():
             corr_method="pearson",
             freq_cut=freq_cut,
             unique_cut=unique_cut,
+            outlier_cutoff=outlier_cutoff,
             noise_removal_perturb_groups=noise_removal_perturb_groups,
             noise_removal_stdev_cutoff=noise_removal_stdev_cutoff,
         )
@@ -140,6 +142,7 @@ def main():
         "corr_threshold": corr_threshold,
         "freq_cut": freq_cut,
         "unique_cut": unique_cut,
+        "outlier_cutoff": outlier_cutoff,
         "noise_removal_perturb_groups": noise_removal_perturb_groups,
         "noise_removal_stdev_cutoff": noise_removal_stdev_cutoff,
         "n_features_input": n_features_in,

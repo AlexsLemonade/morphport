@@ -153,6 +153,12 @@
                     "minimum": 1,
                     "description": "Minimum number of rows required to apply statistics-based feature selection operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal). Groups with fewer rows fall back to name-based operations only (blocklist, drop_na_columns), preventing degenerate empty feature lists from tiny groups."
                 },
+                "feature_select_outlier_cutoff": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 0,
+                    "description": "Absolute-value cutoff for the drop_outliers operation. Features whose maximum absolute value across rows exceeds this threshold are removed. Only used when drop_outliers is included in feature_select_operations."
+                },
                 "feature_select_noise_removal_perturb_groups": {
                     "type": "string",
                     "default": "",

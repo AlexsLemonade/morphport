@@ -82,10 +82,16 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
-    // Cross-parameter validation: schema can't express "param X is required when
-    // param Y contains value Z", so handle those checks here.
+    // Cross-parameter validation: schema can't express constraints like
+    // "comma-separated list must be drawn from this set" or "param X is
+    // required when param Y contains value Z", so handle those checks here.
     //
     def feature_select_ops = params.feature_select_operations.tokenize(',').collect { it.trim() }
+    def allowed_feature_select_ops = ['variance_threshold', 'correlation_threshold', 'drop_na_columns', 'blocklist', 'drop_outliers', 'noise_removal']
+    def invalid_ops = feature_select_ops - allowed_feature_select_ops
+    if (invalid_ops) {
+        error("feature_select_operations contains unknown operations ${invalid_ops}. Allowed values: ${allowed_feature_select_ops}.")
+    }
     if ('noise_removal' in feature_select_ops && !params.feature_select_noise_removal_perturb_groups) {
         error("feature_select_operations includes 'noise_removal' but feature_select_noise_removal_perturb_groups is empty. Set it to the metadata column identifying replicate groups.")
     }
