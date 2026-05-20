@@ -160,9 +160,9 @@
                     "description": "Absolute-value cutoff for the drop_outliers operation. Features whose maximum absolute value across rows exceeds this threshold are removed. Only used when drop_outliers is included in feature_select_operations."
                 },
                 "feature_select_noise_removal_perturb_groups": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Metadata column identifying replicate groups for the noise_removal operation. The operation drops features whose mean within-group standard deviation exceeds feature_select_noise_removal_stdev_cutoff. Required when noise_removal is included in feature_select_operations; leave empty otherwise."
+                    "type": ["string", "null"],
+                    "default": null,
+                    "description": "Metadata column identifying replicate groups for the noise_removal operation. The operation drops features whose mean within-group standard deviation exceeds feature_select_noise_removal_stdev_cutoff. Required when noise_removal is included in feature_select_operations; leave unset otherwise."
                 },
                 "feature_select_noise_removal_stdev_cutoff": {
                     "type": "number",
