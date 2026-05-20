@@ -36,7 +36,7 @@ def write_versions(task_process: str):
         f.write(f"    pyarrow: {version('pyarrow')}\\n")
 
 
-# Operations whose results are unreliable or uncomputable when there are few rows.
+# pycytominer operations whose results are unreliable or uncomputable when there are few rows.
 STATS_OPS = frozenset(
     {
         "variance_threshold",
@@ -45,6 +45,9 @@ STATS_OPS = frozenset(
         "noise_removal",
     }
 )
+
+# Sentinel key for features with no defined dye channel.
+NO_CHANNEL = tuple()
 
 
 def discover_channels(feature_names) -> tuple[frozenset[str], frozenset[str]]:
@@ -57,15 +60,15 @@ def discover_channels(feature_names) -> tuple[frozenset[str], frozenset[str]]:
       (<Comp>_Intensity_<Subtype>_<Channel...>); these correspond to
       directly-imaged channels.
     - Derived channels come from RadialDistribution features
-      (<Comp>_RadialDistribution_<Subtype>_<Channel...>_<NofM>); any channel
+      (<Comp>_RadialDistribution_<Subtype>_<Channel...>_<...>); any channel
       seen there but not in Intensity is a derived measurement layered on top
       of a primary channel (e.g. 'mito_tubeness' is a tubeness-filtered
       version of the Mito channel).
 
-    CellProfiler subtypes are always single underscore-free camelCase tokens,
-    so anything after the subtype slot is the (possibly multi-token) channel
-    name. The bin token in RadialDistribution is recognized by the 'of'
-    substring (e.g. '1of16').
+    Note that some features can include underscores, so we can't always just select a
+    single token based on underscore splitting alone.
+    Zernike RadialDistribution features are skipped because they follow a different
+    naming pattern (and we should not need them to get all the features).
     """
     primary = set()
     radial = set()
@@ -73,7 +76,11 @@ def discover_channels(feature_names) -> tuple[frozenset[str], frozenset[str]]:
         parts = name.split("_")
         if len(parts) >= 4 and parts[1] == "Intensity":
             primary.add("_".join(parts[3:]))
-        elif len(parts) >= 5 and parts[1] == "RadialDistribution" and "of" in parts[-1]:
+        elif (
+            len(parts) >= 5
+            and parts[1] == "RadialDistribution"
+            and not parts[2].startswith("Zernike")
+        ):
             radial.add("_".join(parts[3:-1]))
     derived = radial - primary
     return frozenset(primary), frozenset(derived)
@@ -83,10 +90,9 @@ def build_channel_pattern(channels) -> re.Pattern | None:
     """
     Compile a regex that matches any underscore-bounded channel name.
 
-    Channels are alternated in longest-first order so multi-token names
+    Channels are given in longest-first order so multi-token names
     (e.g. 'Brightfield_H') aren't shadowed by their single-token prefixes.
-    Returns None when channels is empty (caller should treat all features
-    as channel-less).
+    Returns None when channels is empty.
     """
     if not channels:
         return None
@@ -99,18 +105,28 @@ def build_channel_pattern(channels) -> re.Pattern | None:
 
 def parse_channels(feature_name: str, channel_pattern) -> tuple[str, ...]:
     """
-    Return a sorted tuple of channels found in a feature name, or () when
-    no channel tokens are present or the pattern is None.
+    Return a sorted tuple of channels found in a feature name, or NO_CHANNEL
+    when no channel tokens are present or the pattern is None.
     """
     if channel_pattern is None:
-        return ()
+        return NO_CHANNEL
     padded = "_" + feature_name + "_"
-    return tuple(sorted({m.group(1) for m in channel_pattern.finditer(padded)}))
+    found = {m.group(1) for m in channel_pattern.finditer(padded)}
+    if not found:
+        return NO_CHANNEL
+    return tuple(sorted(found))
 
 
 def group_features_by_channel(
     features, channel_pattern
 ) -> dict[tuple[str, ...], list[str]]:
+    """
+    Group features by their channel sets, as identified by parse_channels.
+    Returns a dict mapping channel tuples to lists of features.
+
+    Features with no detected channels are grouped together under the
+    NO_CHANNEL key.
+    """
     groups = defaultdict(list)
     for f in features:
         groups[parse_channels(f, channel_pattern)].append(f)
