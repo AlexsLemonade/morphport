@@ -30,7 +30,7 @@ def main():
     # capture input variables from Nextflow
     plate_parquet_file = "${parquet_file}"
     plate_id = "${meta.plate_id}"
-    partition_columns_str = "${platemap_condition_columns}"
+    partition_columns_str = "${partition_columns_str}"
     n_threads = int("${task.cpus}")
     task_process = "${task.process}"
 

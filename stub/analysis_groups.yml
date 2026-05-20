@@ -1,0 +1,4 @@
+default:
+  - stub_condition
+cell:
+  - stub_target

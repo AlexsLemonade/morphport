@@ -28,7 +28,8 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_morp
 workflow ALEXSLEMONADE_MORPHPORT {
 
     take:
-    samplesheet // channel: samplesheet read in from --input
+    samplesheet     // channel: samplesheet read in from --input
+    analysis_groups // value: nested map of analysis groups → sub-combo → expected size
 
     main:
 
@@ -37,6 +38,7 @@ workflow ALEXSLEMONADE_MORPHPORT {
     //
     MORPHPORT (
         samplesheet,
+        analysis_groups,
         params.outdir,
     )
 }
@@ -73,7 +75,8 @@ workflow {
     // WORKFLOW: Run main workflow
     //
     ALEXSLEMONADE_MORPHPORT (
-        PIPELINE_INITIALISATION.out.samplesheet
+        PIPELINE_INITIALISATION.out.samplesheet,
+        PIPELINE_INITIALISATION.out.analysis_groups,
     )
     //
     // SUBWORKFLOW: Run completion tasks

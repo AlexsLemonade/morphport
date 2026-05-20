@@ -6,9 +6,9 @@
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
-include { CYTOTABLE_CONVERT                        } from '../modules/local/cytotable'
-include { COSMICQC_FILTER                          } from '../modules/local/cosmicqc'
-include { PARTITION_CONDITIONS                     } from '../modules/local/partition_conditions'
+include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
+include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
+include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
 include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE; PYCYTOMINER_NORMALIZE } from '../modules/local/pycytominer'
 
 /*
@@ -19,7 +19,8 @@ include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE; PYCYTOMINER_NORMALIZE } f
 
 workflow MORPHPORT {
     take:
-    ch_samplesheet // channel: samplesheet read in from --input
+    ch_samplesheet     // channel: samplesheet read in from --input
+    ch_analysis_groups // value:   nested map of analysis groups → sub-combo → expected size
     outdir
 
     main:
@@ -92,17 +93,32 @@ workflow MORPHPORT {
         ch_pre_normalize.skip.map { meta, parquet, _normalize_method -> [meta, parquet] }
     )
 
-    // partition analyses by condition
-    // this does both cell and well level partitioning;
-    // we can separate these out again later using the aggregate_level metadata
-    PARTITION_CONDITIONS(ch_normalized, params.platemap_condition_columns)
-    ch_partitioned = PARTITION_CONDITIONS.out.partitions
-        .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+    // Partition analyses by condition
+    // This does both cell and well level partitioning;
+    // we separate them out again later using the aggregate_level metadata.
+    // The analysis_groups value channel carries the partition column set;
+    // branch on it so PARTITION_CONDITIONS only runs when there is something to partition.
+    // Note that because ch_analysis_groups is a value channel,
+    // all values in ch_normalized will take the same branch path
+    ch_prepartition = ch_normalized
+        .combine(ch_analysis_groups)
+        .branch { _meta, _parquet, groups ->
+            partition: groups.partition_columns.size() > 0
+            skip:      true
+        }
 
-    // temporary view to see what happened with partitioning
-    ch_partitioned.view { meta, parquets ->
-        def conditions = meta.subMap(meta.keySet().findAll { it -> it.startsWith('Metadata_') })
-        "${meta.plate_id}, ${meta.aggregate_level}: ${conditions} — ${parquets.size()} parquet file(s)"
+    PARTITION_CONDITIONS(ch_prepartition.partition)
+    ch_partitioned = PARTITION_CONDITIONS.out.partitions
+        // expand each Hive directory into one tuple per partition with the conditions
+        // parsed from the directory name added to meta
+        .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+        // the skip branch wasn't partitioned, so just pass the files through with the original meta
+        .mix(ch_prepartition.skip.map { meta, parquet, _groups -> [meta, [parquet] as List] })
+
+    ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
+
+    ch_grouped.view { gm, metas, parquets ->
+        "${gm.grouping_columns} [${gm.aggregate_level}] → ${gm.subMap(gm.grouping_columns)} — ${metas.size()} plate(s), ${parquets.size()} file(s)"
     }
 
     //
@@ -144,6 +160,11 @@ workflow MORPHPORT {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
+//
+// Given a Hive partition directory, recursively find all parquet files and extract the partition
+// conditions from the directory structure, returning a list of tuples of the form:
+//   [meta + partition_conditions, list_of_parquet_files]
+
 def expandHivePartitions(meta, partition_dir) {
     def results = []
     partition_dir.eachDirRecurse { dir ->
@@ -163,4 +184,49 @@ def expandHivePartitions(meta, partition_dir) {
         }
     }
     return results
+}
+
+//
+// Build a channel of all condition groupings across aggregate levels.
+// Each tuple from ch_partitioned is fanned out into one tuple per matching grouping
+// (those whose aggregate_level matches the partition's level), keyed by groupKey(..., size)
+// so groupTuple can release each group as soon as size items have arrived.
+//
+def createGroupChannels(ch_partitioned, ch_analysis_groups) {
+    def ch_grouping = ch_partitioned
+        // add full map to each ch_partitioned tuple
+        .combine(ch_analysis_groups)
+        // for each partition tuple, find the matching grouping(s) based on aggregate level and add the group key info
+        .flatMap { meta, parquets, groups ->
+            def agg_level = meta.aggregate_level
+            // look up the groupings for this aggregate level
+            //if not present, an empty list (no grouping)
+            def level_data = groups[agg_level] ?: [:]
+            // for each set of grouping values, create a tuple keyed by groupKey(..., size)
+            // with the grouping columns and values in the meta
+            level_data.collect { grouping_cols, grouping_value_sizes ->
+                // get the values of the grouping columns for this partition by subsetting the
+                // partition conditions from the meta.
+                // Add project so analysis groups stay separated by project
+                def grouping_value = meta.subMap(grouping_cols + ['project'])
+                def key_data  = grouping_value + [
+                    aggregate_level  : agg_level,
+                    grouping_columns : grouping_cols,
+                ]
+                // Look up the expected size for this grouping
+                // A missing predicted size means the partition's grouping values weren't seen in any
+                // platemap during init
+                // Warn and set the expected value to max so emission happens at end with remainder: true.
+                def expected_size = grouping_value_sizes.get(grouping_value, Integer.MAX_VALUE)
+                if (expected_size == Integer.MAX_VALUE) {
+                    log.warn "morphport: no predicted size for ${agg_level} grouping ${grouping_cols} grouping_value ${grouping_value}"
+                }
+
+                [groupKey(key_data, expected_size), meta, parquets]
+            }
+        }
+    // do the grouping, flatten the parquet lists, and return a channel of tuples of the form:
+    //   [group_key, list_of_meta, list_of_parquet_files]
+    return ch_grouping.groupTuple(by: 0, remainder: true)
+        .map { group_key, metas, parquet_lists -> [group_key, metas, parquet_lists.flatten()] }
 }

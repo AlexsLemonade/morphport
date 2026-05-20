@@ -58,12 +58,11 @@
                     "description": "Column name in the input samplesheet that contains the well identifiers.",
                     "help_text": "The pipeline uses the values in this column to match the samplesheet to the plate parquet files. The values in this column should correspond to the 'Metadata_Well' column in the plate parquet files. This is typically a column that describes the well position on the plate, such as 'well_position' or 'well_id'."
                 },
-                "platemap_condition_columns": {
+                "analysis_groups_file": {
                     "type": "string",
-                    "default": "gene_allele,treatment",
-                    "pattern": "^\\w+(,\\w+)*$",
-                    "description": "Comma-separated list of column names in the input samplesheet to use for partitioning the data.",
-                    "help_text": "The pipeline partitions the data based on the values in the columns specified here. You can specify any columns in your input samplesheet, but typically these would be columns that describe experimental conditions, such as 'gene', 'treatment', or 'gene_allele'. The pipeline will create one partition for each unique combination of values in these columns. For example, if you specify 'gene' and 'treatment', and you have 3 unique genes and 2 unique treatments, then you will get 6 partitions (one for each gene-treatment combination)."
+                    "format": "file-path",
+                    "description": "Path to a YAML (or JSON) file specifying how partitions should be grouped for downstream analysis.",
+                    "help_text": "The file should contain a mapping with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a string naming a condition column (with or without the 'Metadata_' prefix); use a comma-separated string to group on multiple columns. An optional 'default' key supplies groupings that are added to every level's groupings (de-duplicated). If the file is not provided, both levels collapse to a single empty grouping, meaning the pipeline skips partitioning entirely and treats all plates as one group per level. The partition columns used by the partition step are the union of every grouping column.\n\nExample (YAML):\ndefault:\n  - treatment\ncell:\n  - gene_allele\n  - treatment,gene_allele"
                 }
             }
         },

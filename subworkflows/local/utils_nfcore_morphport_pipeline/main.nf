@@ -85,19 +85,61 @@ workflow PIPELINE_INITIALISATION {
     // Create channel from input file provided through params.input
     //
 
+    //
+    // Compute analysis groupings and the partition column set using the information in the analysis groups file
+    // Since these don't depend on any channel elements, they don't need to be a channel process.
+    //
+    def parsed_groups = parseGroupings(params.analysis_groups_file)
+    def partition_columns = (parsed_groups.cell + parsed_groups.well).flatten().unique() as List<String>
+
     channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
         .map { row -> row[0] }
         .toList()
         .map { samplesheet ->
-            validateInputSamplesheet(samplesheet)
+            validateInputSamplesheet(samplesheet, partition_columns)
         }
         .flatMap()
         .set { ch_samplesheet }
 
+    //
+    // Build a value channel bundling:
+    //   - partition_columns: list passed to PARTITION_CONDITIONS (if list is empty ⇒ no partitioning)
+    //   - cell / well:       grouping_cols → sub_combo → expected group size, used to wrap
+    //                        downstream items with groupKey(...) for eager groupTuple emit.
+    // Sizes are computed from each plate's platemap so downstream groupTuple can release
+    // each group as soon as it's full, rather than waiting for upstream channel close.
+    //
+    // Example output structure (two plates, groupings by treatment and cell_type):
+    //
+    //   [
+    //     partition_columns: ['Metadata_treatment', 'Metadata_cell_type'],
+    //     cell: [
+    //       ['Metadata_treatment']: [
+    //         [Metadata_treatment: 'DMSO', project: 'cpg0016']: 2,
+    //         [Metadata_treatment: 'Drug_A', Project: 'cpg0016']: 1,
+    //         [Metadata_treatment: '_NA_', project: 'cpg0016']: 1,
+    //       ],
+    //       ['Metadata_cell_type']: [...],
+    //     ],
+    //     well: [...]
+    //   ]
+    def ch_analysis_groups = ch_samplesheet
+        .map { meta ->
+            // add project onto every combo so analysis groups stay partitioned per-project.
+            enumeratePlatemapCombos(meta.platemap_file, partition_columns)
+                .collect { combo -> combo + [project: meta.project] }
+        }
+        .collect() // Nextflow collect into a single value channel: list of lists of combos
+        .map { all_combos ->
+            buildAnalysisGroups(parsed_groups, all_combos.flatten() as List) +
+                [partition_columns: partition_columns]
+        }
+
     emit:
-    samplesheet = ch_samplesheet
-    versions    = ch_versions
+    samplesheet     = ch_samplesheet
+    analysis_groups = ch_analysis_groups
+    versions        = ch_versions
 }
 
 /*
@@ -152,7 +194,7 @@ workflow PIPELINE_COMPLETION {
 //
 // Validate channels from input samplesheet
 //
-def validateInputSamplesheet(metas) {
+def validateInputSamplesheet(metas, partition_columns) {
     def errors = []
 
     def validated_metas = metas.collect { meta ->
@@ -214,8 +256,8 @@ def validateInputSamplesheet(metas) {
         }
 
         // read platemap columns so they travel with meta through the pipeline;
-        // condition columns are always included even if absent from this platemap
-        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column, params.platemap_condition_columns) : []
+        // partition columns are always included even if absent from this platemap
+        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column, partition_columns) : []
 
         // update and return
         meta + [plate_dir: plate_dir, platemap_file: platemap_path, plate_metadata_columns: platemap_cols]
@@ -280,20 +322,133 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
 }
 
 //
+// Ensure a column name has the "Metadata_" prefix.
+//
+def addMetadataPrefix(col) {
+    return col.startsWith('Metadata_') ? col : 'Metadata_' + col
+}
+
+//
+// Normalize a list of groupings from the JSON file. Each grouping is a comma-separated
+// string of column names; this returns a list of groupings, where each grouping is a list of column names with the Metadata_ prefix added if not already present.
+// An empty string parses to an empty grouping (no columns / "everything together").
+//
+def normalizeGroupings(groupings_list) {
+    def normalized_groupings = groupings_list.collect { grouping ->
+        // split the grouping string by commas, trim whitespace, and filter out empty column names
+        def raw_cols = (grouping as String).split(',')*.trim().findAll()
+        // add Metadata_ prefix to each column name if not already present
+        raw_cols.collect { col -> addMetadataPrefix(col) }
+    }
+    return normalized_groupings
+}
+
+//
+// Parse analysis_groups_file into a Map keyed by aggregate_level ('cell'/'well'), where each
+// value is a list of groupings and each grouping is a list of Metadata_-prefixed column names.
+// If no file is given, both levels resolve to a single empty-column grouping ([[]]), meaning
+// "one all-encompassing group per level" (no partitioning).
+// If a file is given, an optional top-level "default" key supplies groupings that are
+// added to each level's groupings (de-duplicated). If the file has no "default" entry,
+// any missing levels will resolve to [] (no groupings on that level).
+//
+def parseGroupings(groups_file) {
+    if (!groups_file) {
+        return [cell: [[]], well: [[]]]
+    }
+
+    def parsed = new org.yaml.snakeyaml.Yaml().load(file(groups_file, checkIfExists: true).text) as Map
+    def default_groupings = parsed.containsKey('default') ? normalizeGroupings(parsed['default'] as List) : []
+
+    // make a map of aggregate_level: groupings, where groupings is a list of lists of Metadata_-prefixed column names
+    def level_groupings = ['cell', 'well'].collectEntries{ level ->
+        [(level): default_groupings + normalizeGroupings(parsed.get(level, []) as List)]
+    }
+    return level_groupings
+}
+
+//
 // Parse the columns from a platemap file, excluding the well column.
 // Returns a list of column names with "Metadata_" prefix added if not already present.
+// `extra_columns` (already Metadata_-prefixed) are appended so that columns required
+// downstream, like the partition columns, travel with meta even if a given platemap
+// happens to omit them.
 //
-def parsePlatemapColumns(platemap_path, platemap_well_column, condition_columns_str = '') {
+def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []) {
     // read only the header line of the platemap file
     def text = file(platemap_path).newReader().readLine()
     // strip UTF-8 BOM if present
     if (text.startsWith('\uFEFF')) text = text.substring(1)
 
-    def cols = (text.split('\t') + condition_columns_str.split(','))
+    def header_cols = text.split('\t')
         .collect { it -> it.trim() }
-        .findAll { it -> it != platemap_well_column }
-        .collect { it -> it.startsWith('Metadata_') ? it : "Metadata_${it}" }
-    return cols.unique()
+        .findAll { it -> it && it != platemap_well_column }
+        .collect { it -> addMetadataPrefix(it) }
+    return (header_cols + extra_columns).unique()
+}
+
+//
+// Combine parsed analysis-group definitions with the union of platemap condition combos to
+// produce a nested map: aggregate_level → grouping_cols → grouping_values → expected plate count.
+//
+// The structure carries both the grouping definitions (its keys) and the predicted group
+// sizes (its leaves). Sizes count, for each (level, grouping_cols, grouping_values) triple, the
+// number of (plate × grouping_values) pairs that match.
+// They're used as the `size` argument to groupKey(...) so groupTuple can emit each group
+// eagerly rather than waiting for the upstream channel to close.
+//
+// Sizes are upper bounds: COSMICQC_FILTER may drop wells, in which case the corresponding
+// partition won't materialise and that group falls back to channel-close emission via
+// remainder: true.
+//
+def buildAnalysisGroups(groupings, plate_combos) {
+    groupings.collectEntries { agg_level, level_groupings ->
+        def level_map = level_groupings.collectEntries { grouping_cols ->
+            // inner map: (grouping_cols + project) values → expected plate count.
+            // project is included so analysis groups stay partitioned per-project, even though
+            // it is not exposed as an analysis grouping column.
+            [(grouping_cols): plate_combos.countBy { it -> it.subMap(grouping_cols + ['project']) }]
+        }
+        [(agg_level): level_map]
+    }
+}
+
+//
+// Read a platemap file and return the list of unique condition combinations present on the plate.
+// Each combination is a Map keyed by Metadata_-prefixed column names → row values, with the same
+// sentinel encoding that pycytominer_annotate.py applies before partitioning:
+//   - blank cell                                 → '_NA_'    (mirrors fillna("_NA_"))
+//   - condition column absent from this platemap → '_Absent_' (mirrors the plate_metadata_columns fill)
+// Keeping the encoding aligned is what lets buildAnalysisGroups predict sizes that actually match
+// the keys produced by expandHivePartitions.
+//
+def enumeratePlatemapCombos(platemap_path, partition_columns) {
+    def lines = file(platemap_path).text.readLines()
+    if (lines.size() < 2) return []
+
+    def header_line = lines[0]
+    if (header_line.startsWith('\uFEFF')) header_line = header_line.substring(1)
+
+    // Normalize headers to Metadata_-prefixed form so lookup against the already-prefixed
+    // partition_columns works whether or not the platemap shipped headers with the prefix.
+    def headers = header_line.split('\t')*.trim().collect { col -> addMetadataPrefix(col) }
+
+    def combos = lines.drop(1)
+        .findAll { it -> it.trim() }
+        .collect { line ->
+            def row = line.split('\t', -1)*.trim()
+            partition_columns.collectEntries { col ->
+                def idx = headers.indexOf(col) // returns -1 if not found
+                def value
+                if (idx < 0) {
+                    value = '_Absent_'
+                } else {
+                    value = idx < row.size() && row[idx] ? row[idx] : '_NA_'
+                }
+                [(col): value]
+            }
+        }
+    return combos.unique()
 }
 
 
