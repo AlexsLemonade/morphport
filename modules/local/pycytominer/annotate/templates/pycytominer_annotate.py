@@ -12,10 +12,14 @@ All NULL values from the platemap are filled with '_NA_' before merging.
 """
 
 import sys
+import warnings
 from importlib.metadata import version
 
 import pandas as pd
 import pycytominer
+
+# pyarrow-backed DataFrames trigger pandas' fragmentation warning; quiet it.
+warnings.filterwarnings("ignore", category=pd.errors.PerformanceWarning)
 
 
 def write_versions(task_process: str):
@@ -24,6 +28,7 @@ def write_versions(task_process: str):
         f.write(f"    python: {sys.version.split()[0]}\\n")
         f.write(f"    pycytominer: {version('pycytominer')}\\n")
         f.write(f"    pandas: {version('pandas')}\\n")
+        f.write(f"    pyarrow: {version('pyarrow')}\\n")
 
 
 def main():
@@ -36,7 +41,13 @@ def main():
     # merge the metadata column list during import from Nextflow to make them a string
     plate_metadata_columns = "${meta.plate_metadata_columns.join(',')}"
 
-    platemap_df = pd.read_csv(platemap_file, sep="\\t", encoding="utf-8-sig")
+    # Read with pyarrow so null values are preserved through pycytominer.
+    platemap_df = pd.read_csv(
+        platemap_file,
+        sep="\\t",
+        encoding="utf-8-sig",
+        dtype_backend="pyarrow",
+    )
 
     # ensure all partition columns exist in the platemap before annotation,
     # either with raw names or without the Metadata_ prefix;
@@ -48,19 +59,21 @@ def main():
             and col.removeprefix("Metadata_") not in existing_cols
         ):
             platemap_df[col] = "_Absent_"
-    # fill any null values with _NA_ so pycytominer doesn't drop them during annotation or aggregation
-    # cast to string after filling so numeric columns don't produce mixed types
-    platemap_df = platemap_df.fillna("_NA_").astype(str)
+    # cast to string first so NA is preserved, then fill nulls with _NA_ so
+    # pycytominer doesn't drop them during annotation or aggregation
+    platemap_df = platemap_df.astype("string[pyarrow]").fillna("_NA_")
+
+    # Read with pyarrow so null values are preserved through pycytominer.
+    profiles_df = pd.read_parquet(parquet_file, dtype_backend="pyarrow")
 
     try:
-        pycytominer.annotate(
-            profiles=parquet_file,
+        annotated_df = pycytominer.annotate(
+            profiles=profiles_df,
             platemap=platemap_df,
             # need to add Metadata_ prefix because of pycytominer parsing
             join_on=[f"Metadata_{platemap_well_column}", "Metadata_Well"],
-            output_file=f"{plate_id}_annotated.parquet",
-            output_type="parquet",
         )
+        annotated_df.to_parquet(f"{plate_id}_annotated.parquet", index=False)
     except KeyError as ke:
         print("Error during pycytominer annotation.", file=sys.stderr)
         if ke.args[0] == f"Metadata_{platemap_well_column}:":

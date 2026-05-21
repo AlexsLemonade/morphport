@@ -6,8 +6,8 @@ process PARTITION_CONDITIONS {
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_duckdb_pandas:171e24539f18e905'
-            : 'community.wave.seqera.io/library/python_duckdb_pandas:60551b8f9a81baa9'
+            ? 'oras://community.wave.seqera.io/library/python_duckdb_pandas:61bdada56f884ce7'
+            : 'community.wave.seqera.io/library/python_duckdb_pandas:c0ae3ad14184b515'
     }
 
     input:

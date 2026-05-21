@@ -2,7 +2,7 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
-  - python=3.14
+  - python=3.13
   - python-duckdb==1.5.2
   - pyarrow==23.0.1
   - pip

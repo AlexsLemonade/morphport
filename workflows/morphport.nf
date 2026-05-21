@@ -9,7 +9,9 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morp
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
-include { PYCYTOMINER_AGGREGATE; PYCYTOMINER_ANNOTATE; PYCYTOMINER_NORMALIZE } from '../modules/local/pycytominer'
+include { PYCYTOMINER_ANNOTATE       } from '../modules/local/pycytominer/annotate'
+include { PYCYTOMINER_AGGREGATE      } from '../modules/local/pycytominer/aggregate'
+include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normalize'
 include { COMPUTE_EMBEDDINGS     } from '../modules/local/compute_embeddings'
 
 /*

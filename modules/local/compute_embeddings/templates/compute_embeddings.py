@@ -66,11 +66,9 @@ def main():
     if not parquet_paths:
         raise RuntimeError(f"No input parquet files found in {parquet_dir}/.")
 
-    # vertical_relaxed lets polars widen compatible types across files
-    # (e.g. Int64 + Float64 -> Float64) instead of erroring on schema mismatch.
     df = pl.concat(
         [pl.scan_parquet(p) for p in parquet_paths],
-        how="vertical_relaxed",
+        # how="vertical_relaxed", # tolerate small schema differences across parquets
     ).collect()
     n_rows_input = df.height
 

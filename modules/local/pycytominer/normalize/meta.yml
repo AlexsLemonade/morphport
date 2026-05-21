@@ -1,45 +1,47 @@
-name: pycytominer
-description: Processes single-cell imaging data using pycytominer — aggregation by well, normalization, and feature selection
+name: pycytominer_normalize
+description: Normalize profile features using pycytominer.normalize
 keywords:
   - cell painting
   - pycytominer
-  - aggregation
+  - normalization
   - parquet
 
 tools:
   - pycytominer:
       description: >
         pycytominer is a suite of common functions used to process high-throughput
-        cell morphology data. Includes aggregate, normalize, and feature_select functions.
+        cell morphology data. This process calls pycytominer.normalize.
       homepage: https://github.com/cytomining/pycytominer
       documentation: https://pycytominer.readthedocs.io
       licence: ["BSD-3-Clause"]
       identifier: ""
 
-# PYCYTOMINER_AGGREGATE inputs/outputs
 input:
   - - meta:
         type: map
         description: |
           Groovy Map containing plate metadata,
-          e.g. [ plate_id:'plate_001', batch:'batch_1', aggregate_level:'cells' ]
+          e.g. [ plate_id:'plate_001', batch:'batch_1', aggregate_level:'well' ]
     - parquet_file:
         type: file
-        description: Per-cell parquet file produced by COSMICQC_FILTER
+        description: Profile parquet file (per-cell or per-well)
         pattern: "*.parquet"
-  - - operation:
+    - normalize_samples:
         type: string
-        description: Aggregation function to apply across cells within each well ('median' or 'mean')
+        description: pycytominer 'samples' query (e.g. "all" or a pandas query selecting reference wells)
+    - normalize_method:
+        type: string
+        description: Normalization method — one of 'mad_robustize', 'standardize', 'robustize', or 'spherize'
 
 output:
   - result:
       - meta:
           type: map
-          description: Groovy Map containing plate metadata
+          description: Groovy Map containing plate metadata with plate_normalized, plate_normalization_method, and plate_normalization_samples added
       - "*.parquet":
           type: file
-          description: Well-level (bulk) parquet with one row per well (aggregated per-cell features)
-          pattern: "*_bulk.parquet"
+          description: Normalized profile parquet
+          pattern: "*_normalized.parquet"
   - versions:
       - versions.yml:
           type: file
