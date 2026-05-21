@@ -126,6 +126,7 @@ workflow MORPHPORT {
         params.feature_select_operations,
         params.feature_select_na_cutoff,
         params.feature_select_corr_threshold,
+        params.feature_select_corr_method,
         params.feature_select_freq_cut,
         params.feature_select_unique_cut,
         params.feature_select_min_rows_stats,

@@ -131,7 +131,13 @@
                     "default": 0.9,
                     "minimum": 0.0,
                     "maximum": 1.0,
-                    "description": "Correlation threshold for the correlation_threshold feature selection operation. Feature pairs with absolute Pearson correlation above this value are deduplicated."
+                    "description": "Correlation threshold for the correlation_threshold feature selection operation. Feature pairs with absolute correlation above this value are deduplicated."
+                },
+                "feature_select_corr_method": {
+                    "type": "string",
+                    "default": "pearson",
+                    "enum": ["pearson", "spearman", "kendall"],
+                    "description": "Correlation method for the correlation_threshold feature selection operation. Valid values: pearson, spearman, kendall, with pearson the default."
                 },
                 "feature_select_freq_cut": {
                     "type": "number",

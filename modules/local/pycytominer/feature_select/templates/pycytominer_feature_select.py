@@ -49,6 +49,7 @@ def main():
     operations = [op.strip() for op in "${operations}".split(",")]
     na_cutoff = float("${na_cutoff}")
     corr_threshold = float("${corr_threshold}")
+    corr_method = "${corr_method}"
     freq_cut = float("${freq_cut}")
     unique_cut = float("${unique_cut}")
     min_rows_stats = int("${min_rows_stats}")
@@ -100,7 +101,7 @@ def main():
             operation=effective_ops,
             na_cutoff=na_cutoff,
             corr_threshold=corr_threshold,
-            corr_method="pearson",
+            corr_method=corr_method,
             freq_cut=freq_cut,
             unique_cut=unique_cut,
             outlier_cutoff=outlier_cutoff,
@@ -140,6 +141,7 @@ def main():
         "min_rows_stats": min_rows_stats,
         "na_cutoff": na_cutoff,
         "corr_threshold": corr_threshold,
+        "corr_method": corr_method,
         "freq_cut": freq_cut,
         "unique_cut": unique_cut,
         "outlier_cutoff": outlier_cutoff,

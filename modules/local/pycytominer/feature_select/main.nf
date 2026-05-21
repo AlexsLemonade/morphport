@@ -15,6 +15,7 @@ process PYCYTOMINER_FEATURE_SELECT {
     val(operations)
     val(na_cutoff)
     val(corr_threshold)
+    val(corr_method)
     val(freq_cut)
     val(unique_cut)
     val(min_rows_stats)
