@@ -113,6 +113,68 @@
                     "type": "string",
                     "default": "all",
                     "description": "Reference population for fitting the normalizer. Use 'all' to fit on all samples, or a pandas query string to fit on a subset (e.g. \"Metadata_treatment == 'DMSO'\")."
+                },
+                "feature_select_operations": {
+                    "type": "string",
+                    "default": "blocklist,drop_na_columns,variance_threshold,correlation_threshold",
+                    "description": "Comma-separated list of pycytominer feature_select operations to apply per analysis group. Valid values: variance_threshold, correlation_threshold, drop_na_columns, blocklist, drop_outliers, noise_removal."
+                },
+                "feature_select_na_cutoff": {
+                    "type": "number",
+                    "default": 0.05,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Maximum fraction of rows that may be NaN before a feature column is dropped by the drop_na_columns operation."
+                },
+                "feature_select_corr_threshold": {
+                    "type": "number",
+                    "default": 0.9,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Correlation threshold for the correlation_threshold feature selection operation. Feature pairs with absolute correlation above this value are deduplicated."
+                },
+                "feature_select_corr_method": {
+                    "type": "string",
+                    "default": "pearson",
+                    "enum": ["pearson", "spearman", "kendall"],
+                    "description": "Correlation method for the correlation_threshold feature selection operation. Valid values: pearson, spearman, kendall, with pearson the default."
+                },
+                "feature_select_freq_cut": {
+                    "type": "number",
+                    "default": 0.05,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Frequency cut threshold for the variance_threshold operation. Features where the ratio of the most common to second most common value falls below this threshold are removed."
+                },
+                "feature_select_unique_cut": {
+                    "type": "number",
+                    "default": 0.01,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Unique cut threshold for the variance_threshold operation. Features where fewer than this fraction of values are unique are removed."
+                },
+                "feature_select_min_rows_stats": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 1,
+                    "description": "Minimum number of rows required to apply statistics-based feature selection operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal). Groups with fewer rows fall back to name-based operations only (blocklist, drop_na_columns), preventing degenerate empty feature lists from tiny groups."
+                },
+                "feature_select_outlier_cutoff": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 0,
+                    "description": "Absolute-value cutoff for the drop_outliers operation. Features whose maximum absolute value across rows exceeds this threshold are removed. Only used when drop_outliers is included in feature_select_operations."
+                },
+                "feature_select_noise_removal_perturb_groups": {
+                    "type": ["string", "null"],
+                    "default": null,
+                    "description": "Metadata column identifying replicate groups for the noise_removal operation. The operation drops features whose mean within-group standard deviation exceeds feature_select_noise_removal_stdev_cutoff. Required when noise_removal is included in feature_select_operations; leave unset otherwise."
+                },
+                "feature_select_noise_removal_stdev_cutoff": {
+                    "type": "number",
+                    "default": 0.8,
+                    "minimum": 0.0,
+                    "description": "Mean within-replicate-group standard deviation above which a feature is dropped by the noise_removal operation. Only used when noise_removal is included in feature_select_operations."
                 }
             }
         },

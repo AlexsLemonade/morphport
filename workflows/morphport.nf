@@ -12,7 +12,8 @@ include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
 include { PYCYTOMINER_ANNOTATE       } from '../modules/local/pycytominer/annotate'
 include { PYCYTOMINER_AGGREGATE      } from '../modules/local/pycytominer/aggregate'
 include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normalize'
-include { COMPUTE_EMBEDDINGS     } from '../modules/local/compute_embeddings'
+include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
+include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -120,8 +121,33 @@ workflow MORPHPORT {
 
     ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
 
-    COMPUTE_EMBEDDINGS(
+    PYCYTOMINER_FEATURE_SELECT(
         ch_grouped,
+        params.feature_select_operations,
+        params.feature_select_na_cutoff,
+        params.feature_select_corr_threshold,
+        params.feature_select_corr_method,
+        params.feature_select_freq_cut,
+        params.feature_select_unique_cut,
+        params.feature_select_min_rows_stats,
+        params.feature_select_outlier_cutoff,
+        params.feature_select_noise_removal_perturb_groups ?: '',
+        params.feature_select_noise_removal_stdev_cutoff,
+    )
+
+    // Filter groups with an empty feature list before analysis steps
+    ch_feature_selected = PYCYTOMINER_FEATURE_SELECT.out.result
+        .branch { _meta, _plate_metas, _parquets, features ->
+            has_features: features.size() > 0
+            empty: true
+        }
+
+    ch_feature_selected.empty.subscribe { meta, _plate_metas, _parquets, _features ->
+        log.warn "Skipping COMPUTE_EMBEDDINGS for ${meta.aggregate_level} group ${meta.grouping_columns?.collect { col -> "${col}=${meta[col]}" }?.join(', ') ?: 'all'}: no features selected upstream."
+    }
+
+    COMPUTE_EMBEDDINGS(
+        ch_feature_selected.has_features,
         params.embedding_pca_components,
         params.embedding_umap_neighbors,
         params.embedding_umap_min_dist,
