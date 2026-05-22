@@ -231,7 +231,6 @@ def main():
             f"parquet."
         )
 
-    if effective_ops:
     # When per_channel_correlation is on, defer correlation_threshold until after
     # the rest of the operations have filtered the feature set.
     do_per_channel = (
