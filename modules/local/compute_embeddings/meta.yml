@@ -1,9 +1,8 @@
 name: compute_embeddings
 description: |
   Computes PCA and UMAP embeddings for an analysis group.
-  Reads parquet files belonging to one group, selects numeric non-Metadata columns,
-  drops rows with NaN feature values, standard-scales the features, fits PCA, and
-  runs UMAP on the top principal components.
+  Reads parquet files belonging to one group, selects feature columns,
+  fits PCA, and runs UMAP on the top principal components.
 keywords:
   - cell painting
   - pca
@@ -13,7 +12,7 @@ keywords:
 
 tools:
   - scikit-learn:
-      description: Machine learning library used here for PCA and StandardScaler.
+      description: Machine learning library used here for PCA.
       homepage: https://scikit-learn.org
       documentation: https://scikit-learn.org/stable/
       licence: ["BSD-3-Clause"]

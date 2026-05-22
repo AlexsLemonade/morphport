@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 # Builds a wave file for a given module using the environment.yml file
+# Usage: ./build-wave.sh <module_path>
+# Note that your TOWER_ACCESS_TOKEN environment variable must be set to a valid token for the build to succeed
+# If running with 1Password, run via `op run -- ./build-wave.sh <module_path>` so that the token is resolved from your vault
 
 build_template="conda/pixi:v1"
 

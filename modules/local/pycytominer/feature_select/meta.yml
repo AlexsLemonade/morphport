@@ -37,7 +37,14 @@ input:
         description: Maximum NaN fraction per column before drop_na_columns removes it
   - - corr_threshold:
         type: float
-        description: Pearson correlation threshold for correlation_threshold (feature pairs above this are deduplicated)
+        description: Correlation threshold for correlation_threshold (feature pairs above this are deduplicated)
+  - - corr_method:
+        type: string
+        enum:
+          - pearson
+          - spearman
+          - kendall
+        description: Correlation method to use for correlation_threshold."
   - - freq_cut:
         type: float
         description: Frequency cut for variance_threshold (ratio of 2nd-most-common to most-common value)

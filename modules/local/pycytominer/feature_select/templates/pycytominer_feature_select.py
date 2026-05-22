@@ -177,9 +177,13 @@ def main():
     operations = [op.strip() for op in "${operations}".split(",")]
     na_cutoff = float("${na_cutoff}")
     corr_threshold = float("${corr_threshold}")
+    corr_method = "${corr_method}"
     freq_cut = float("${freq_cut}")
     unique_cut = float("${unique_cut}")
     min_rows_stats = int("${min_rows_stats}")
+    outlier_cutoff = float("${outlier_cutoff}")
+    noise_removal_perturb_groups = "${noise_removal_perturb_groups}"
+    noise_removal_stdev_cutoff = float("${noise_removal_stdev_cutoff}")
     per_channel_correlation = "${per_channel_correlation}".lower() == "true"
     task_process = "${task.process}"
 
@@ -217,6 +221,17 @@ def main():
     else:
         effective_ops = operations
 
+    if (
+        "noise_removal" in effective_ops
+        and noise_removal_perturb_groups not in df.columns
+    ):
+        raise ValueError(
+            f"pycytominer_feature_select: noise_removal perturb-groups column "
+            f"'{noise_removal_perturb_groups}' is not present in the input "
+            f"parquet."
+        )
+
+    if effective_ops:
     # When per_channel_correlation is on, defer correlation_threshold until after
     # the rest of the operations have filtered the feature set.
     do_per_channel = (
@@ -235,9 +250,12 @@ def main():
             operation=first_pass_ops,
             na_cutoff=na_cutoff,
             corr_threshold=corr_threshold,
-            corr_method="pearson",
+            corr_method=corr_method,
             freq_cut=freq_cut,
             unique_cut=unique_cut,
+            outlier_cutoff=outlier_cutoff,
+            noise_removal_perturb_groups=noise_removal_perturb_groups,
+            noise_removal_stdev_cutoff=noise_removal_stdev_cutoff,
         )
         surviving_features = [c for c in feature_cols if c in set(selected_df.columns)]
     else:
@@ -292,8 +310,12 @@ def main():
         "min_rows_stats": min_rows_stats,
         "na_cutoff": na_cutoff,
         "corr_threshold": corr_threshold,
+        "corr_method": corr_method,
         "freq_cut": freq_cut,
         "unique_cut": unique_cut,
+        "outlier_cutoff": outlier_cutoff,
+        "noise_removal_perturb_groups": noise_removal_perturb_groups,
+        "noise_removal_stdev_cutoff": noise_removal_stdev_cutoff,
         "n_features_input": n_features_in,
         "n_features_output": n_features_out,
         "n_features_removed": n_features_in - n_features_out,

@@ -131,7 +131,13 @@
                     "default": 0.9,
                     "minimum": 0.0,
                     "maximum": 1.0,
-                    "description": "Correlation threshold for the correlation_threshold feature selection operation. Feature pairs with absolute Pearson correlation above this value are deduplicated."
+                    "description": "Correlation threshold for the correlation_threshold feature selection operation. Feature pairs with absolute correlation above this value are deduplicated."
+                },
+                "feature_select_corr_method": {
+                    "type": "string",
+                    "default": "pearson",
+                    "enum": ["pearson", "spearman", "kendall"],
+                    "description": "Correlation method for the correlation_threshold feature selection operation. Valid values: pearson, spearman, kendall, with pearson the default."
                 },
                 "feature_select_freq_cut": {
                     "type": "number",
@@ -152,6 +158,23 @@
                     "default": 15,
                     "minimum": 1,
                     "description": "Minimum number of rows required to apply statistics-based feature selection operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal). Groups with fewer rows fall back to name-based operations only (blocklist, drop_na_columns), preventing degenerate empty feature lists from tiny groups."
+                },
+                "feature_select_outlier_cutoff": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 0,
+                    "description": "Absolute-value cutoff for the drop_outliers operation. Features whose maximum absolute value across rows exceeds this threshold are removed. Only used when drop_outliers is included in feature_select_operations."
+                },
+                "feature_select_noise_removal_perturb_groups": {
+                    "type": ["string", "null"],
+                    "default": null,
+                    "description": "Metadata column identifying replicate groups for the noise_removal operation. The operation drops features whose mean within-group standard deviation exceeds feature_select_noise_removal_stdev_cutoff. Required when noise_removal is included in feature_select_operations; leave unset otherwise."
+                },
+                "feature_select_noise_removal_stdev_cutoff": {
+                    "type": "number",
+                    "default": 0.8,
+                    "minimum": 0.0,
+                    "description": "Mean within-replicate-group standard deviation above which a feature is dropped by the noise_removal operation. Only used when noise_removal is included in feature_select_operations."
                 },
                 "feature_select_per_channel_correlation": {
                     "type": "boolean",
