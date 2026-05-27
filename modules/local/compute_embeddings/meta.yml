@@ -74,18 +74,18 @@ output:
       - meta:
           type: map
           description: Group key map (unchanged from input).
-      - "*_embeddings.parquet":
+      - "embeddings_*.parquet":
           type: file
           description: |
             Embeddings parquet keyed on the surviving input rows.
             Columns: all Metadata_* columns + PC1..PCk + UMAP1 + UMAP2.
-          pattern: "*_embeddings.parquet"
-      - "*_summary.json":
+          pattern: "embeddings_*.parquet"
+      - "embeddings_summary_*.json":
           type: file
           description: |
             Summary JSON with row counts, dropped-NaN count, PCA explained variance ratio,
             and the UMAP parameters used.
-          pattern: "*_summary.json"
+          pattern: "embeddings_summary_*.json"
   - versions:
       - versions.yml:
           type: file

@@ -43,13 +43,13 @@ output:
           type: file
           description: Per-cell parquet file with outlier cells removed
           pattern: "*_filtered.parquet"
-      - "*_cosmicqc_summary.json":
+      - "cosmicqc_summary_*.json":
           type: file
           description: |
             JSON file recording the filter settings applied, per-plate results
             (cells input, cells output, fraction removed, per-condition counts),
             and any filters that were skipped due to missing features
-          pattern: "*_cosmicqc_summary.json"
+          pattern: "cosmicqc_summary_*.json"
   - outliers:
       - "*_cosmicqc_outliers.csv.gz":
           type: file

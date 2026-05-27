@@ -75,10 +75,10 @@ output:
           description: Newline-delimited list of selected morphological feature column names (no Metadata_* columns)
           pattern: "*_features.txt"
   - summary:
-      - "*_summary.json":
+      - "feature_select_summary_*.json":
           type: file
           description: JSON sidecar with grouping info, operations, parameters, and input/output feature counts
-          pattern: "*_summary.json"
+          pattern: "feature_select_summary_*.json"
   - versions:
       - versions.yml:
           type: file
