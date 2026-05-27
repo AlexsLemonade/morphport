@@ -56,7 +56,7 @@ input:
         description: Minimum row count for applying statistics-based operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal); groups below this fall back to name-based operations only
   - - per_channel_correlation:
         type: boolean
-        description: If true, run correlation_threshold once per channel group (features sharing the same channel set) instead of once across all features
+        description: If true and "correlation_threshold" is an included operation, run correlation_threshold once per channel group (features sharing the same channel set) instead of once across all features
 
 output:
   - result:
