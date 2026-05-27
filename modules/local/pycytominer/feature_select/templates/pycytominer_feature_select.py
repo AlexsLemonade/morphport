@@ -8,10 +8,11 @@ the kept morphological feature columns (one per line; Metadata_* columns are
 not included — they are identified downstream by prefix).
 
 When per_channel_correlation is true and correlation_threshold is among the
-operations, correlation_threshold is removed from the first pass and re-run
-per channel group (features sharing the same channel set). This avoids
-over-aggressive deduplication of features that are correlated only because
-they describe the same channel.
+operations, the feature selection is done in two steps:
+All non-correlation operations are run first, followed by the correlation_threshold
+operation which is run on each channel group separately.
+This avoids deduplication of features that are correlated across channels, which are
+more likely to be biologically meaningful.
 """
 
 import json
@@ -56,9 +57,9 @@ def discover_channels(feature_names) -> tuple[frozenset[str], frozenset[str]]:
 
     Returns (primary, derived) frozensets.
 
-    - Primary channels come from Intensity features
-      (<Comp>_Intensity_<Subtype>_<Channel...>); these correspond to
-      directly-imaged channels.
+    - Primary channels come from Intensity features, because these are present for
+      all channels, and directly computed from the images. They follow the pattern
+      (<Comp>_Intensity_<Subtype>_<Channel...>).
     - Derived channels come from RadialDistribution features
       (<Comp>_RadialDistribution_<Subtype>_<Channel...>_<...>); any channel
       seen there but not in Intensity is a derived measurement layered on top
@@ -133,7 +134,7 @@ def group_features_by_channel(
     return dict(groups)
 
 
-def correlation_threshold_per_channel(
+def apply_per_channel_correlation_threshold(
     df: pd.DataFrame, features: list, channel_pattern, threshold: float
 ) -> tuple[list[str], list[dict]]:
     """Run pycytominer's correlation_threshold once per channel group.
@@ -148,8 +149,7 @@ def correlation_threshold_per_channel(
             # nothing to correlate against — keep as-is
             group_kept = list(group_features)
         else:
-            # Run pycytominer's correlation_threshold on this channel group only,
-            # via the public feature_select API with a single-operation list.
+            # Run pycytominer's correlation_threshold on this channel group only
             result_df = pycytominer.feature_select(
                 profiles=df,
                 features=group_features,
@@ -184,7 +184,7 @@ def main():
     outlier_cutoff = float("${outlier_cutoff}")
     noise_removal_perturb_groups = "${noise_removal_perturb_groups}"
     noise_removal_stdev_cutoff = float("${noise_removal_stdev_cutoff}")
-    per_channel_correlation = "${per_channel_correlation}".lower() == "true"
+    use_per_channel_correlation = "${per_channel_correlation}".lower() == "true"
     task_process = "${task.process}"
 
     df = pd.read_parquet(parquet_dir, dtype_backend="pyarrow")
@@ -231,10 +231,10 @@ def main():
             f"parquet."
         )
 
-    # When per_channel_correlation is on, defer correlation_threshold until after
+    # When use_per_channel_correlation is on, defer correlation_threshold until after
     # the rest of the operations have filtered the feature set.
     do_per_channel = (
-        per_channel_correlation and "correlation_threshold" in effective_ops
+        use_per_channel_correlation and "correlation_threshold" in effective_ops
     )
     if do_per_channel:
         first_pass_ops = [op for op in effective_ops if op != "correlation_threshold"]
@@ -265,11 +265,13 @@ def main():
 
     per_channel_stats = None
     if do_per_channel:
-        selected_feature_cols, per_channel_stats = correlation_threshold_per_channel(
-            df=selected_df,
-            features=surviving_features,
-            channel_pattern=channel_pattern,
-            threshold=corr_threshold,
+        selected_feature_cols, per_channel_stats = (
+            apply_per_channel_correlation_threshold(
+                df=selected_df,
+                features=surviving_features,
+                channel_pattern=channel_pattern,
+                threshold=corr_threshold,
+            )
         )
         print(
             f"pycytominer_feature_select: per-channel correlation_threshold "

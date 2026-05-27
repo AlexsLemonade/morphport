@@ -34,7 +34,7 @@ input:
   - - meta:
         type: map
         description: |
-          Group key map from createGroupChannels, e.g.
+          Group key map from createGroupChannels, e.g.,
           [ aggregate_level:'cell', grouping_columns:['Metadata_treatment'], Metadata_treatment:'drugA' ]
     - plate_metas:
         type: list
