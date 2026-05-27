@@ -70,10 +70,10 @@ output:
           type: file
           description: Input parquets passed through unmodified for downstream column-filtered reads
           pattern: "*.parquet"
-      - "*_features.txt":
+      - "features_*.txt":
           type: file
           description: Newline-delimited list of selected morphological feature column names (no Metadata_* columns)
-          pattern: "*_features.txt"
+          pattern: "features_*.txt"
   - summary:
       - "feature_select_summary_*.json":
           type: file

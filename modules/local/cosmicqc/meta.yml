@@ -39,10 +39,10 @@ output:
       - meta:
           type: map
           description: Groovy Map containing plate metadata
-      - "*_filtered.parquet":
+      - "filtered_*.parquet":
           type: file
           description: Per-cell parquet file with outlier cells removed
-          pattern: "*_filtered.parquet"
+          pattern: "filtered_*.parquet"
       - "cosmicqc_summary_*.json":
           type: file
           description: |
@@ -51,13 +51,13 @@ output:
             and any filters that were skipped due to missing features
           pattern: "cosmicqc_summary_*.json"
   - outliers:
-      - "*_cosmicqc_outliers.csv.gz":
+      - "cosmicqc_outliers_*.csv.gz":
           type: file
           description: |
             Compressed CSV with one row per removed cell, including cell-identifier
             metadata columns and a cosmicqc_condition column naming the condition(s)
             that flagged each cell
-          pattern: "*_cosmicqc_outliers.csv.gz"
+          pattern: "cosmicqc_outliers_*.csv.gz"
   - versions:
       - versions.yml:
           type: file

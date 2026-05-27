@@ -38,10 +38,10 @@ output:
       - meta:
           type: map
           description: Groovy Map containing plate metadata with plate_normalized, plate_normalization_method, and plate_normalization_samples added
-      - "*.parquet":
+      - "normalized_*.parquet":
           type: file
           description: Normalized profile parquet
-          pattern: "*_normalized.parquet"
+          pattern: "normalized_*.parquet"
   - versions:
       - versions.yml:
           type: file
