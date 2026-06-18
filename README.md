@@ -17,15 +17,56 @@
 **AlexsLemonade/morphport** is a bioinformatics pipeline to support the Pediatric Cancer Cell Morphology Atlas (PCCMA) project.
 The pipeline is designed to process Cell Painting data for the PCCMA project and prepare the results for display on the PCCMA portal.
 
-<!-- TODO nf-core:
-   Complete this sentence with a 2-3 sentence summary of what types of data the pipeline ingests, a brief overview of the
-   major pipeline sections and the types of output it produces. You're giving an overview to someone new
-   to nf-core here, in 15-20 seconds. For an example, see https://github.com/nf-core/rnaseq/blob/master/README.md#introduction
--->
+The pipeline takes Cell Painting data from imaging experiments, converts and annotates measurements, performs quality control and aggregation, normalizes and selects features, and produces dimensionality-reduced embeddings for visualization on the PCCMA portal.
 
-<!-- TODO nf-core: Include a figure that guides the user through the major workflow steps. Many nf-core
-     workflows use the "tube map" design for that. See https://nf-co.re/docs/community/brand/workflow-schematics#examples for examples.   -->
-<!-- TODO nf-core: Fill in short bullet-pointed list of the default steps in the pipeline -->
+```mermaid
+flowchart TD
+    INPUT([Input:\nsamplesheet & data files])
+
+    subgraph per_plate ["Per plate"]
+        CYTOTABLE["CYTOTABLE_CONVERT\nSQLite → Parquet\n(optional)"]
+        ANNOTATE[PYCYTOMINER_ANNOTATE\nAdd platemap metadata]
+        FILTER[COSMICQC_FILTER\nRemove low-quality cells]
+        AGGREGATE[PYCYTOMINER_AGGREGATE\nCell → well level]
+        NORMALIZE["PYCYTOMINER_NORMALIZE\nNormalize features\n(optional)"]
+
+        CYTOTABLE --> ANNOTATE
+        ANNOTATE --> FILTER
+        FILTER -->|cell level| NORMALIZE
+        FILTER --> AGGREGATE
+        AGGREGATE -->|well level| NORMALIZE
+    end
+
+    subgraph per_group ["Per analysis group"]
+        FEATURE_SELECT[PYCYTOMINER_FEATURE_SELECT\nSelect informative features]
+        EMBEDDINGS[COMPUTE_EMBEDDINGS\nPCA + UMAP]
+        FEATURE_SELECT --> EMBEDDINGS
+    end
+
+    style per_plate fill:#dbeafe,stroke:#93c5fd,rx:10,ry:10
+    style per_group fill:#dcfce7,stroke:#86efac,rx:10,ry:10
+
+    INPUT --> per_plate
+
+    PARTITION["PARTITION_CONDITIONS\nSplit by conditions"]
+    GROUP["GROUP\nCombine by analysis groups\n(e.g., cell line)"]
+
+    per_plate -->|"Plate 1"| PARTITION
+    per_plate -->|"Plate 2"| PARTITION
+    per_plate -->|"..."| PARTITION
+    per_plate -->|"Plate N"| PARTITION
+    PARTITION --> GROUP
+    PARTITION --> GROUP
+    PARTITION --> GROUP
+    PARTITION --> GROUP
+    PARTITION --> GROUP
+    PARTITION --> GROUP
+    GROUP -->|"Group 1"| per_group
+    GROUP -->|"Group 2"| per_group
+    GROUP -->|"..."| per_group
+    GROUP -->|"Group M"| per_group
+    per_group --> OUTPUT([Parquet files\n& embeddings])
+```
 
 ## Usage
 
