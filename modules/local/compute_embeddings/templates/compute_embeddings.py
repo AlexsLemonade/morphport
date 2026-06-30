@@ -70,15 +70,25 @@ def main():
     if not parquet_paths:
         raise RuntimeError(f"No input parquet files found in {parquet_dir}/.")
 
-    # Identify metadata columns by prefix from the first parquet's schema.
-    # The selected features file provides the morphological columns to keep.
-    first_schema = pl.read_parquet_schema(parquet_paths[0])
-    metadata_cols = [c for c in first_schema if c.startswith("Metadata_")]
+    # Identify metadata columns by prefix. Different parquets may carry
+    # different Metadata_* columns (e.g. only some plates have
+    # Metadata_treatment), so keep the union of all metadata columns across
+    # all parquets.
+    # use dict.fromkeys to preserve order while removing duplicates
+    metadata_cols = list(
+        dict.fromkeys(
+            c
+            for p in parquet_paths
+            for c in pl.read_parquet_schema(p)
+            if c.startswith("Metadata_")
+        )
+    )
 
     df = (
         pl.concat(
             [pl.scan_parquet(p) for p in parquet_paths],
-            # how="vertical_relaxed", # tolerate small schema differences across parquets
+            # allow different parquets to have different columns; missing columns are filled with nulls
+            how="diagonal_relaxed",
         )
         .select(metadata_cols + feature_cols)
         .collect()
