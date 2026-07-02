@@ -54,6 +54,9 @@ input:
   - - min_rows_stats:
         type: integer
         description: Minimum row count for applying statistics-based operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal); groups below this fall back to name-based operations only
+  - - per_channel_correlation:
+        type: boolean
+        description: If true and "correlation_threshold" is an included operation, run correlation_threshold once per channel group (features sharing the same channel set) instead of once across all features
 
 output:
   - result:
@@ -67,15 +70,15 @@ output:
           type: file
           description: Input parquets passed through unmodified for downstream column-filtered reads
           pattern: "*.parquet"
-      - "*_features.txt":
+      - "features_*.txt":
           type: file
           description: Newline-delimited list of selected morphological feature column names (no Metadata_* columns)
-          pattern: "*_features.txt"
+          pattern: "features_*.txt"
   - summary:
-      - "*_summary.json":
+      - "feature_select_summary_*.json":
           type: file
           description: JSON sidecar with grouping info, operations, parameters, and input/output feature counts
-          pattern: "*_summary.json"
+          pattern: "feature_select_summary_*.json"
   - versions:
       - versions.yml:
           type: file

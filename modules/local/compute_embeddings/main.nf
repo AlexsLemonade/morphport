@@ -19,7 +19,7 @@ process COMPUTE_EMBEDDINGS {
     val(min_rows)
 
     output:
-    tuple val(meta), path("${prefix}_embeddings.parquet"), path("${prefix}_summary.json"), emit: result
+    tuple val(meta), path("embeddings_${prefix}.parquet"), path("embeddings_summary_${prefix}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -35,8 +35,8 @@ process COMPUTE_EMBEDDINGS {
     stub:
     prefix = groupTag(meta)
     """
-    touch ${prefix}_embeddings.parquet
-    cat <<-END_JSON > ${prefix}_summary.json
+    touch embeddings_${prefix}.parquet
+    cat <<-END_JSON > embeddings_summary_${prefix}.json
     {
         "aggregate_level": "${meta.aggregate_level}",
         "stub": true
@@ -54,6 +54,6 @@ process COMPUTE_EMBEDDINGS {
 // When there are no grouping columns, falls back to "<aggregate_level>__all".
 def groupTag(meta) {
     def cols = meta.grouping_columns ?: []
-    def parts = cols ? cols.collect { col -> "${col}=${meta[col]}" }.join('__') : 'all'
+    def parts = cols ? cols.collect { col -> "${col.replaceFirst('^Metadata_', '')}=${meta[col]}" }.join('__') : 'all'
     "${meta.aggregate_level}__${parts}".replaceAll('[^A-Za-z0-9._=-]', '_')
 }

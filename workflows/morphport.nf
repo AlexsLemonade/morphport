@@ -133,6 +133,7 @@ workflow MORPHPORT {
         params.feature_select_outlier_cutoff,
         params.feature_select_noise_removal_perturb_groups ?: '',
         params.feature_select_noise_removal_stdev_cutoff,
+        params.feature_select_per_channel_correlation,
     )
 
     // Filter groups with an empty feature list before analysis steps

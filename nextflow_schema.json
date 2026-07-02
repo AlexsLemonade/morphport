@@ -175,6 +175,11 @@
                     "default": 0.8,
                     "minimum": 0.0,
                     "description": "Mean within-replicate-group standard deviation above which a feature is dropped by the noise_removal operation. Only used when noise_removal is included in feature_select_operations."
+                },
+                "feature_select_per_channel_correlation": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "If true and correlation_threshold is in feature_select_operations, run correlation_threshold once per channel group (features sharing the same channel set) instead of once across all features. Reduces over-aggressive deduplication of features that are correlated only because they describe the same channel."
                 }
             }
         },

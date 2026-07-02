@@ -35,10 +35,10 @@ output:
       - meta:
           type: map
           description: Groovy Map containing plate metadata with aggregate_level set to 'well'
-      - "*.parquet":
+      - "well_*.parquet":
           type: file
           description: Well-level (bulk) parquet with one row per well (aggregated per-cell features)
-          pattern: "*_bulk.parquet"
+          pattern: "well_*.parquet"
   - versions:
       - versions.yml:
           type: file

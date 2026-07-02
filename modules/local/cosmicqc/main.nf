@@ -14,8 +14,8 @@ process COSMICQC_FILTER {
     path cosmicqc_filter_file
 
     output:
-    tuple val(meta), path("${meta.plate_id}_filtered.parquet"), path("${meta.plate_id}_cosmicqc_summary.json"), emit: result
-    path "${meta.plate_id}_cosmicqc_outliers.csv.gz", emit: outliers
+    tuple val(meta), path("filtered_${meta.plate_id}.parquet"), path("cosmicqc_summary_${meta.plate_id}.json"), emit: result
+    path "cosmicqc_outliers_${meta.plate_id}.csv.gz", emit: outliers
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -23,8 +23,8 @@ process COSMICQC_FILTER {
 
     stub:
     """
-    touch ${meta.plate_id}_filtered.parquet
-    cat <<-END_JSON > ${meta.plate_id}_cosmicqc_summary.json
+    touch filtered_${meta.plate_id}.parquet
+    cat <<-END_JSON > cosmicqc_summary_${meta.plate_id}.json
     {
         "plate_id": "${meta.plate_id}",
         "filter_settings": [],
@@ -38,7 +38,7 @@ process COSMICQC_FILTER {
     }
     END_JSON
     # gzip file with no content to create an empty outliers file
-    echo | gzip > ${meta.plate_id}_cosmicqc_outliers.csv.gz
+    echo | gzip > cosmicqc_outliers_${meta.plate_id}.csv.gz
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         stub: stub

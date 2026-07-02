@@ -48,12 +48,12 @@ output:
             Each parquet file contains all original cell features plus all platemap
             metadata columns.
   - summary:
-      - "*_platemap_summary.json":
+      - "platemap_summary_*.json":
           type: file
           description: |
             JSON file recording the platemap file used, partition columns, per-partition
             row counts and file paths, and the count of wells with no platemap entry.
-          pattern: "*_platemap_summary.json"
+          pattern: "platemap_summary_*.json"
   - versions:
       - versions.yml:
           type: file

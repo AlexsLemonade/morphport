@@ -22,13 +22,14 @@ process PYCYTOMINER_FEATURE_SELECT {
     val(outlier_cutoff)
     val(noise_removal_perturb_groups)
     val(noise_removal_stdev_cutoff)
+    val(per_channel_correlation)
 
     output:
     // Pass the original staged parquets through alongside a text file of selected feature
     // names; downstream steps filter columns on read rather than consuming a rewritten parquet.
     // includeInputs lets Nextflow re-emit the staged inputs as outputs of this process.
-    tuple val(meta), val(plate_metas), path("input_parquet/*.parquet", includeInputs: true), path("${prefix}_features.txt"), emit: result
-    path "${prefix}_summary.json", emit: summary
+    tuple val(meta), val(plate_metas), path("input_parquet/*.parquet", includeInputs: true), path("features_${prefix}.txt"), emit: result
+    path "feature_select_summary_${prefix}.json", emit: summary
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -48,8 +49,8 @@ process PYCYTOMINER_FEATURE_SELECT {
     """
     # Write a placeholder feature so downstream filters that drop empty
     # feature lists (e.g. COMPUTE_EMBEDDINGS) still see this group during stub runs.
-    echo "Cells_stub_feature" > ${prefix}_features.txt
-    cat <<-END_JSON > ${prefix}_summary.json
+    echo "Cells_stub_feature" > features_${prefix}.txt
+    cat <<-END_JSON > feature_select_summary_${prefix}.json
     {
         "aggregate_level": "${meta.aggregate_level}",
         "stub": true
@@ -64,6 +65,6 @@ process PYCYTOMINER_FEATURE_SELECT {
 
 def groupTag(meta) {
     def cols = meta.grouping_columns ?: []
-    def parts = cols ? cols.collect { col -> "${col}=${meta[col]}" }.join('__') : 'all'
+    def parts = cols ? cols.collect { col -> "${col.replaceFirst('^Metadata_', '')}=${meta[col]}" }.join('__') : 'all'
     "${meta.aggregate_level}__${parts}".replaceAll('[^A-Za-z0-9._=-]', '_')
 }

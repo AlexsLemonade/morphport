@@ -151,8 +151,8 @@ def main():
         )
         summary["skipped"] = True
         summary["skip_reason"] = skip_reason
-        df_metadata.write_parquet(f"{prefix}_embeddings.parquet")
-        with open(f"{prefix}_summary.json", "w") as f:
+        df_metadata.write_parquet(f"embeddings_{prefix}.parquet")
+        with open(f"embeddings_summary_{prefix}.json", "w") as f:
             json.dump(summary, f, indent=2)
         write_versions(task_process)
         return
@@ -197,7 +197,7 @@ def main():
     frames.append(pl.DataFrame(pcs, schema=pc_names))
     frames.append(pl.DataFrame(umap_emb, schema=umap_names))
     out_df = pl.concat(frames, how="horizontal")
-    out_df.write_parquet(f"{prefix}_embeddings.parquet")
+    out_df.write_parquet(f"embeddings_{prefix}.parquet")
 
     summary["pca"] = {
         "n_components_requested": n_components_req,
@@ -210,7 +210,7 @@ def main():
         "min_dist": min_dist,
         "random_seed": random_seed,
     }
-    with open(f"{prefix}_summary.json", "w") as f:
+    with open(f"embeddings_summary_{prefix}.json", "w") as f:
         json.dump(summary, f, indent=2)
 
     write_versions(task_process)
