@@ -1,3 +1,5 @@
+include { groupTag; groupingInfoJson } from '../../../../lib/morphport_utils.nf'
+
 process PYCYTOMINER_FEATURE_SELECT {
     tag "${group_tag}"
     label 'process_low'
@@ -38,10 +40,7 @@ process PYCYTOMINER_FEATURE_SELECT {
     assert ops_list.every { it in allowed_ops }
         : "PYCYTOMINER_FEATURE_SELECT: operations must be a comma-separated subset of ${allowed_ops}, got '${operations}'"
     group_tag = groupTag(meta)
-    grouping_info = groovy.json.JsonOutput.toJson([
-        grouping_values: (meta.grouping_columns ?: []).collectEntries { col -> [(col): meta[col]] },
-        aggregate_level: meta.aggregate_level,
-    ])
+    grouping_info = groupingInfoJson(meta, [aggregate_level: meta.aggregate_level])
     template 'pycytominer_feature_select.py'
 
     stub:
@@ -61,10 +60,4 @@ process PYCYTOMINER_FEATURE_SELECT {
         stub: stub
     END_VERSIONS
     """
-}
-
-def groupTag(meta) {
-    def cols = meta.grouping_columns ?: []
-    def parts = cols ? cols.collect { col -> "${col.replaceFirst('^Metadata_', '')}=${meta[col]}" }.join('__') : 'all'
-    "${meta.aggregate_level}__${parts}".replaceAll('[^A-Za-z0-9._=-]', '_')
 }

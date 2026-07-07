@@ -1,3 +1,5 @@
+include { groupTag; groupingInfoJson } from '../../../lib/morphport_utils.nf'
+
 // Computes hierarchical clustering of the samples within one analysis group.
 process HIERARCHICAL_CLUSTERING {
     tag "${group_tag}"
@@ -25,12 +27,7 @@ process HIERARCHICAL_CLUSTERING {
 
     script:
     group_tag = groupTag(meta)
-    // Bundle group identity for the template as one JSON blob, matching the
-    // convention used by compute_embeddings.
-    grouping_info = groovy.json.JsonOutput.toJson([
-        grouping_values: (meta.grouping_columns ?: []).collectEntries { col -> [(col): meta[col]] },
-        plate_ids      : meta.plate_ids,
-    ])
+    grouping_info = groupingInfoJson(meta, [plate_ids: meta.plate_ids])
     template 'hierarchical_clustering.py'
 
     stub:
@@ -48,13 +45,4 @@ process HIERARCHICAL_CLUSTERING {
         stub: stub
     END_VERSIONS
     """
-}
-
-// Build a filesystem-safe tag from meta:
-//   <aggregate_level>__<col1>=<val1>__<col2>=<val2>
-// When there are no grouping columns, falls back to "<aggregate_level>__all".
-def groupTag(meta) {
-    def cols = meta.grouping_columns ?: []
-    def parts = cols ? cols.collect { col -> "${col.replaceFirst('^Metadata_', '')}=${meta[col]}" }.join('__') : 'all'
-    "${meta.aggregate_level}__${parts}".replaceAll('[^A-Za-z0-9._=-]', '_')
 }
