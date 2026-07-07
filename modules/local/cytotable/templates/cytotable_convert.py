@@ -41,6 +41,11 @@ def main():
     pyarrow.set_io_thread_count(subprocess_threads)
     os.environ["CYTOTABLE_MAX_THREADS"] = str(subprocess_threads)
 
+    # containers can be run as a numeric uid with no /etc/passwd entry
+    # (e.g. via a docker run option mapping to the host uid/gid), which makes
+    # getpass.getuser() fail and crashes parsl's DataFlowKernel init
+    os.environ.setdefault("USER", "nextflow")
+
     # import after environment variable is set to ensure cytotable picks up the correct thread count
     import cytotable  # noqa: E402
 
