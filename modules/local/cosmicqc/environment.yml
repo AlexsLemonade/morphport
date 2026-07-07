@@ -4,7 +4,7 @@ channels:
 dependencies:
   - python=3.13
   - pandas>=2.3.3,<3
-  - pyarrow
+  - pyarrow>=22,<23
   - tabulate
   - libxcb
   - libgl
