@@ -6,7 +6,12 @@ dependencies:
   - pandas>=2.3.3,<3
   - pyarrow
   - tabulate
-  - opencv
+  - libxcb
+  - libgl
+  - glib
+  - xorg-libsm
+  - xorg-libxext
+  - xorg-libxrender
   - pip
   - pip:
-      - cosmicqc==1.0.1
+      - cosmicqc==1.0.2
