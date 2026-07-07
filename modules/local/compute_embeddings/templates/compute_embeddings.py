@@ -17,14 +17,21 @@ already produced approximately unit-variance features.
 """
 
 import json
+import os
 import pathlib
 import sys
+import tempfile
 from importlib.metadata import version
 
 import numpy as np
 import polars as pl
 from sklearn.decomposition import PCA
-from umap import UMAP
+
+# umap triggers numba-jitted compilation on import; numba's default caching
+# tries to write cache files next to the installed umap module, which fails
+# when running as an unmapped container uid with a read-only site-packages
+os.environ.setdefault("NUMBA_CACHE_DIR", tempfile.gettempdir())
+from umap import UMAP  # noqa: E402
 
 
 def write_versions(task_process: str):
