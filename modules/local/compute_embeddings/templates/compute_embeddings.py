@@ -41,7 +41,7 @@ def main():
     # ---- Capture Nextflow variables ----------------------------------------
     parquet_dir = pathlib.Path("input_parquet")
     features_file = pathlib.Path("${features_file}")
-    prefix = "${prefix}"
+    group_tag = "${group_tag}"
     aggregate_level = "${meta.aggregate_level}"
     n_components_req = int("${pca_components}")
     n_neighbors = int("${umap_neighbors}")
@@ -132,7 +132,7 @@ def main():
 
     n_rows_clean = feature_mat.shape[0]
     summary = {
-        "prefix": prefix,
+        "group_tag": group_tag,
         "aggregate_level": aggregate_level,
         "grouping_values": grouping_values,
         "source_plate_ids": plate_ids,
@@ -155,14 +155,14 @@ def main():
             else "no rows survived NaN filtering"
         )
         print(
-            f"compute_embeddings: skipping {prefix} - {skip_reason}; "
+            f"compute_embeddings: skipping {group_tag} - {skip_reason}; "
             "writing metadata-only parquet.",
             file=sys.stderr,
         )
         summary["skipped"] = True
         summary["skip_reason"] = skip_reason
-        df_metadata.write_parquet(f"embeddings_{prefix}.parquet")
-        with open(f"embeddings_summary_{prefix}.json", "w") as f:
+        df_metadata.write_parquet(f"embeddings_{group_tag}.parquet")
+        with open(f"embeddings_summary_{group_tag}.json", "w") as f:
             json.dump(summary, f, indent=2)
         write_versions(task_process)
         return
@@ -207,7 +207,7 @@ def main():
     frames.append(pl.DataFrame(pcs, schema=pc_names))
     frames.append(pl.DataFrame(umap_emb, schema=umap_names))
     out_df = pl.concat(frames, how="horizontal")
-    out_df.write_parquet(f"embeddings_{prefix}.parquet")
+    out_df.write_parquet(f"embeddings_{group_tag}.parquet")
 
     summary["pca"] = {
         "n_components_requested": n_components_req,
@@ -220,7 +220,7 @@ def main():
         "min_dist": min_dist,
         "random_seed": random_seed,
     }
-    with open(f"embeddings_summary_{prefix}.json", "w") as f:
+    with open(f"embeddings_summary_{group_tag}.json", "w") as f:
         json.dump(summary, f, indent=2)
 
     write_versions(task_process)

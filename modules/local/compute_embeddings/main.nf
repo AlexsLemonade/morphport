@@ -1,5 +1,5 @@
 process COMPUTE_EMBEDDINGS {
-    tag "${prefix}"
+    tag "${group_tag}"
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
@@ -19,11 +19,11 @@ process COMPUTE_EMBEDDINGS {
     val(min_rows)
 
     output:
-    tuple val(meta), path("embeddings_${prefix}.parquet"), path("embeddings_summary_${prefix}.json"), emit: result
+    tuple val(meta), path("embeddings_${group_tag}.parquet"), path("embeddings_summary_${group_tag}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    prefix = groupTag(meta)
+    group_tag = groupTag(meta)
     // Bundle group identity for the template as one JSON blob. Lets the Python side
     // parse a single value rather than several stringly-typed bindings.
     grouping_info = groovy.json.JsonOutput.toJson([
@@ -33,10 +33,10 @@ process COMPUTE_EMBEDDINGS {
     template 'compute_embeddings.py'
 
     stub:
-    prefix = groupTag(meta)
+    group_tag = groupTag(meta)
     """
-    touch embeddings_${prefix}.parquet
-    cat <<-END_JSON > embeddings_summary_${prefix}.json
+    touch embeddings_${group_tag}.parquet
+    cat <<-END_JSON > embeddings_summary_${group_tag}.json
     {
         "aggregate_level": "${meta.aggregate_level}",
         "stub": true

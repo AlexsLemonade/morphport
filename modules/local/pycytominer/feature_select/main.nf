@@ -1,5 +1,5 @@
 process PYCYTOMINER_FEATURE_SELECT {
-    tag "${prefix}"
+    tag "${group_tag}"
     label 'process_low'
     label 'publish_skip_parquet'
 
@@ -28,8 +28,8 @@ process PYCYTOMINER_FEATURE_SELECT {
     // Pass the original staged parquets through alongside a text file of selected feature
     // names; downstream steps filter columns on read rather than consuming a rewritten parquet.
     // includeInputs lets Nextflow re-emit the staged inputs as outputs of this process.
-    tuple val(meta), val(plate_metas), path("input_parquet/*.parquet", includeInputs: true), path("features_${prefix}.txt"), emit: result
-    path "feature_select_summary_${prefix}.json", emit: summary
+    tuple val(meta), val(plate_metas), path("input_parquet/*.parquet", includeInputs: true), path("features_${group_tag}.txt"), emit: result
+    path "feature_select_summary_${group_tag}.json", emit: summary
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -37,7 +37,7 @@ process PYCYTOMINER_FEATURE_SELECT {
     def ops_list = operations.tokenize(',').collect { it.trim() }
     assert ops_list.every { it in allowed_ops }
         : "PYCYTOMINER_FEATURE_SELECT: operations must be a comma-separated subset of ${allowed_ops}, got '${operations}'"
-    prefix = groupTag(meta)
+    group_tag = groupTag(meta)
     grouping_info = groovy.json.JsonOutput.toJson([
         grouping_values: (meta.grouping_columns ?: []).collectEntries { col -> [(col): meta[col]] },
         aggregate_level: meta.aggregate_level,
@@ -45,12 +45,12 @@ process PYCYTOMINER_FEATURE_SELECT {
     template 'pycytominer_feature_select.py'
 
     stub:
-    prefix = groupTag(meta)
+    group_tag = groupTag(meta)
     """
     # Write a placeholder feature so downstream filters that drop empty
     # feature lists (e.g. COMPUTE_EMBEDDINGS) still see this group during stub runs.
-    echo "Cells_stub_feature" > features_${prefix}.txt
-    cat <<-END_JSON > feature_select_summary_${prefix}.json
+    echo "Cells_stub_feature" > features_${group_tag}.txt
+    cat <<-END_JSON > feature_select_summary_${group_tag}.json
     {
         "aggregate_level": "${meta.aggregate_level}",
         "stub": true
