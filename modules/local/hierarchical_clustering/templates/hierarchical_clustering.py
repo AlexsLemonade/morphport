@@ -33,6 +33,28 @@ ID_COLUMNS = (
 )
 
 
+def validate_clustering_params(
+    linkage_method: str, distance_metric: str, max_samples: int
+):
+    """
+    Validate clustering parameters before loading any data, so bad params fail
+    fast with a clear message instead of deep inside the real `linkage()` call.
+
+    Delegates method/metric validation to scipy's own `linkage()` (via a tiny
+    dummy call) rather than duplicating its list of valid methods and metrics.
+    """
+    # 3 points in 3 non-degenerate dimensions: enough for every method/metric
+    # combination (e.g. 'correlation' is undefined on single-dimension points)
+    # to run without a numerical error unrelated to param validity.
+    dummy_points = [[1.0, 2.0, 3.0], [4.0, 1.0, 2.0], [0.0, 5.0, 1.0]]
+    try:
+        linkage(dummy_points, method=linkage_method, metric=distance_metric)
+    except ValueError as e:
+        raise ValueError(f"Invalid clustering parameters: {e}") from e
+    if max_samples < 2:
+        raise ValueError(f"max_samples must be >= 2, got {max_samples}")
+
+
 def write_versions(task_process: str):
     with open("versions.yml", "w") as f:
         f.write(f'"{task_process}":\\n')
@@ -105,6 +127,8 @@ def main():
     max_samples = int("${max_samples}")
     task_process = "${task.process}"
     output_file = f"clustering_{group_tag}.json"
+
+    validate_clustering_params(linkage_method, distance_metric, max_samples)
 
     grouping_info = json.loads("""${grouping_info}""")
     grouping_values = grouping_info["grouping_values"]
