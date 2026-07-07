@@ -45,6 +45,11 @@ def main():
     # (e.g. via a docker run option mapping to the host uid/gid), which makes
     # getpass.getuser() fail and crashes parsl's DataFlowKernel init
     os.environ.setdefault("USER", "nextflow")
+    # duckdb uses HOME for its config/extensions directory; the container
+    # image sets HOME to "/", which isn't writable by an unmapped uid, so
+    # fall back to a writable directory in that case
+    if not os.access(os.environ.get("HOME", "/"), os.W_OK):
+        os.environ["HOME"] = tempfile.gettempdir()
 
     # import after environment variable is set to ensure cytotable picks up the correct thread count
     import cytotable  # noqa: E402
