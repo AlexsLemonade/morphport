@@ -7,12 +7,9 @@ process HIERARCHICAL_CLUSTERING {
 
     conda "${moduleDir}/environment.yml"
     container {
-        // TODO: replace with a Wave container built from this module's environment.yml
-        // (needs network access to build; see modules/local/compute_embeddings/main.nf
-        // for the pattern used elsewhere in this repo).
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_polars_numpy_scipy:TODO'
-            : 'community.wave.seqera.io/library/python_polars_numpy_scipy:TODO'
+            ? 'oras://community.wave.seqera.io/library/python_polars_numpy_scipy:64a657f6279a8116'
+            : 'community.wave.seqera.io/library/python_polars_numpy_scipy:8ff74785ccdd6b8d'
     }
 
     input:
