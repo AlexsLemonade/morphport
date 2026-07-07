@@ -19,7 +19,7 @@ import polars as pl
 from scipy.cluster.hierarchy import linkage, to_tree
 
 # Identify the PC columns in the embeddings parquet by column name
-PC_COLUMN_PATTERN = re.compile(r"^PC\d+$")
+PC_COLUMN_PATTERN = re.compile(r"PC[0-9]+")
 
 # Columns that are used to identify a sample/well in the embeddings parquet.
 # Together, Plate + Well identify a well-level sample; ImageNumber + ObjectNumber are
@@ -149,7 +149,7 @@ def main():
 
     # ---- Load embeddings and select PC columns ------------------------------
     df = pl.read_parquet(embeddings_parquet)
-    pc_cols = [c for c in df.columns if PC_COLUMN_PATTERN.match(c)]
+    pc_cols = [c for c in df.columns if PC_COLUMN_PATTERN.fullmatch(c)]
     if not pc_cols:
         write_skipped(
             output_file,
