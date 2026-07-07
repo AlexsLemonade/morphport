@@ -95,6 +95,9 @@ workflow PIPELINE_INITIALISATION {
     if ('noise_removal' in feature_select_ops && !params.feature_select_noise_removal_perturb_groups) {
         error("feature_select_operations includes 'noise_removal' but feature_select_noise_removal_perturb_groups is empty. Set it to the metadata column identifying replicate groups.")
     }
+    if (params.clustering_linkage_method == 'ward' && params.clustering_distance_metric != 'euclidean') {
+        error("clustering_linkage_method 'ward' requires clustering_distance_metric 'euclidean', got '${params.clustering_distance_metric}'.")
+    }
 
     //
     // Create channel from input file provided through params.input
