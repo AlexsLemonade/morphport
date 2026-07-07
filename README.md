@@ -40,7 +40,9 @@ flowchart TD
     subgraph per_group ["Per analysis group"]
         FEATURE_SELECT[PYCYTOMINER_FEATURE_SELECT\nSelect informative features]
         EMBEDDINGS[COMPUTE_EMBEDDINGS\nPCA + UMAP]
+        CLUSTERING[HIERARCHICAL_CLUSTERING\nCluster samples by PCA]
         FEATURE_SELECT --> EMBEDDINGS
+        EMBEDDINGS --> CLUSTERING
     end
 
     style per_plate fill:#dbeafe,stroke:#93c5fd,rx:10,ry:10
@@ -65,7 +67,7 @@ flowchart TD
     GROUP -->|"Group 2"| per_group
     GROUP -->|"..."| per_group
     GROUP -->|"Group M"| per_group
-    per_group --> OUTPUT([Parquet files\n& embeddings])
+    per_group --> OUTPUT([Parquet files,\nembeddings & clustering])
 ```
 
 ## Usage
