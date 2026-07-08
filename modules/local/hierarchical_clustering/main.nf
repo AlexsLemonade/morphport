@@ -3,7 +3,7 @@ include { groupTag; groupingInfoJson } from '../../../lib/morphport_utils.nf'
 // Computes hierarchical clustering of the samples within one analysis group.
 process HIERARCHICAL_CLUSTERING {
     tag "${group_tag}"
-    label 'process_medium'
+    label 'process_single'
 
     conda "${moduleDir}/environment.yml"
     container {

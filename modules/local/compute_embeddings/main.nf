@@ -2,7 +2,7 @@ include { groupTag; groupingInfoJson } from '../../../lib/morphport_utils.nf'
 
 process COMPUTE_EMBEDDINGS {
     tag "${group_tag}"
-    label 'process_medium'
+    label 'process_low'
 
     conda "${moduleDir}/environment.yml"
     container {
