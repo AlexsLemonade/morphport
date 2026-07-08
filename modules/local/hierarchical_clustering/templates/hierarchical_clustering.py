@@ -221,7 +221,7 @@ def main():
         "tree": tree,
     }
     with open(output_file, "w") as f:
-        # no indent to prevent excessive indentation files for large trees
+        # no indent to prevent excessive indentation in files for large trees
         json.dump(cluster_result, f, indent=0)
 
     write_versions(task_process)
