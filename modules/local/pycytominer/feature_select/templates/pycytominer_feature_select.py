@@ -173,7 +173,7 @@ def apply_per_channel_correlation_threshold(
 
 def main():
     parquet_dir = "input_parquet"
-    prefix = "${prefix}"
+    group_tag = "${group_tag}"
     operations = [op.strip() for op in "${operations}".split(",")]
     na_cutoff = float("${na_cutoff}")
     corr_threshold = float("${corr_threshold}")
@@ -293,13 +293,13 @@ def main():
         file=sys.stderr,
     )
 
-    with open(f"features_{prefix}.txt", "w") as f:
+    with open(f"features_{group_tag}.txt", "w") as f:
         for name in selected_feature_cols:
             f.write(f"{name}\\n")
 
     grouping_info = json.loads("""${grouping_info}""")
     summary = {
-        "prefix": prefix,
+        "group_tag": group_tag,
         "aggregate_level": grouping_info["aggregate_level"],
         "grouping_values": grouping_info["grouping_values"],
         "operations_requested": operations,
@@ -323,7 +323,7 @@ def main():
     }
     if per_channel_stats is not None:
         summary["per_channel_correlation_groups"] = per_channel_stats
-    with open(f"feature_select_summary_{prefix}.json", "w") as f:
+    with open(f"feature_select_summary_{group_tag}.json", "w") as f:
         json.dump(summary, f, indent=2)
 
     write_versions(task_process)

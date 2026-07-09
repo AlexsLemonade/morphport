@@ -17,14 +17,21 @@ already produced approximately unit-variance features.
 """
 
 import json
+import os
 import pathlib
 import sys
+import tempfile
 from importlib.metadata import version
 
 import numpy as np
 import polars as pl
 from sklearn.decomposition import PCA
-from umap import UMAP
+
+# umap triggers numba-jitted compilation on import; numba's default caching
+# tries to write cache files next to the installed umap module, which fails
+# when running as an unmapped container uid with a read-only site-packages
+os.environ.setdefault("NUMBA_CACHE_DIR", tempfile.gettempdir())
+from umap import UMAP  # noqa: E402
 
 
 def write_versions(task_process: str):
@@ -41,7 +48,7 @@ def main():
     # ---- Capture Nextflow variables ----------------------------------------
     parquet_dir = pathlib.Path("input_parquet")
     features_file = pathlib.Path("${features_file}")
-    prefix = "${prefix}"
+    group_tag = "${group_tag}"
     aggregate_level = "${meta.aggregate_level}"
     n_components_req = int("${pca_components}")
     n_neighbors = int("${umap_neighbors}")
@@ -132,7 +139,7 @@ def main():
 
     n_rows_clean = feature_mat.shape[0]
     summary = {
-        "prefix": prefix,
+        "group_tag": group_tag,
         "aggregate_level": aggregate_level,
         "grouping_values": grouping_values,
         "source_plate_ids": plate_ids,
@@ -155,14 +162,14 @@ def main():
             else "no rows survived NaN filtering"
         )
         print(
-            f"compute_embeddings: skipping {prefix} - {skip_reason}; "
+            f"compute_embeddings: skipping {group_tag} - {skip_reason}; "
             "writing metadata-only parquet.",
             file=sys.stderr,
         )
         summary["skipped"] = True
         summary["skip_reason"] = skip_reason
-        df_metadata.write_parquet(f"embeddings_{prefix}.parquet")
-        with open(f"embeddings_summary_{prefix}.json", "w") as f:
+        df_metadata.write_parquet(f"embeddings_{group_tag}.parquet")
+        with open(f"embeddings_summary_{group_tag}.json", "w") as f:
             json.dump(summary, f, indent=2)
         write_versions(task_process)
         return
@@ -207,7 +214,7 @@ def main():
     frames.append(pl.DataFrame(pcs, schema=pc_names))
     frames.append(pl.DataFrame(umap_emb, schema=umap_names))
     out_df = pl.concat(frames, how="horizontal")
-    out_df.write_parquet(f"embeddings_{prefix}.parquet")
+    out_df.write_parquet(f"embeddings_{group_tag}.parquet")
 
     summary["pca"] = {
         "n_components_requested": n_components_req,
@@ -220,7 +227,7 @@ def main():
         "min_dist": min_dist,
         "random_seed": random_seed,
     }
-    with open(f"embeddings_summary_{prefix}.json", "w") as f:
+    with open(f"embeddings_summary_{group_tag}.json", "w") as f:
         json.dump(summary, f, indent=2)
 
     write_versions(task_process)

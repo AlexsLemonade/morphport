@@ -14,6 +14,7 @@ include { PYCYTOMINER_AGGREGATE      } from '../modules/local/pycytominer/aggreg
 include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normalize'
 include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
+include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clustering'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -155,6 +156,13 @@ workflow MORPHPORT {
         params.random_seed,
         params.embedding_max_nan_fraction,
         params.embedding_min_rows,
+    )
+
+    HIERARCHICAL_CLUSTERING(
+        COMPUTE_EMBEDDINGS.out.result,
+        params.clustering_linkage_method,
+        params.clustering_distance_metric,
+        params.clustering_max_samples,
     )
 
     //
