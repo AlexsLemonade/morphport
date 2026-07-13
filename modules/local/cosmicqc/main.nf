@@ -36,7 +36,7 @@ process COSMICQC_FILTER {
             "skipped_conditions": {}
         },
         "edge_filtering": {
-            "excluded": ${meta.edge_wells == 'excluded'},
+            "edge_wells_included": ${meta.edge_wells_included},
             "plate_size": null,
             "wells_removed": 0,
             "edge_wells": [],

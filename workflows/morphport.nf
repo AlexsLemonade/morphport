@@ -50,19 +50,19 @@ workflow MORPHPORT {
         params.platemap_well_column,
     )
 
-    // Add to metadata whether to drop edge wells (those on the border of the plate)
-    // edge_wells is read by COSMICQC_FILTER to determine whether to drop edge wells
-    // for the `both` case, we double everything up: one set with edge wells included
-    // and one with them excluded
+    // Add to metadata whether edge wells (those on the border of the plate) are included
+    // meta.edge_wells_included is read by COSMICQC_FILTER to determine whether to drop edge wells
+    // for the `both` case, we double everything up: one set with edge wells included (true)
+    // and one with them excluded (false)
     ch_annotated = PYCYTOMINER_ANNOTATE.out.result
     if (params.edge_well_filter == 'on') {
-        ch_pre_cosmicqc = ch_annotated.map { meta, parquet -> [meta + [edge_wells: 'excluded'], parquet] }
+        ch_pre_cosmicqc = ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: false], parquet] }
     } else if (params.edge_well_filter == 'off') {
-        ch_pre_cosmicqc = ch_annotated.map { meta, parquet -> [meta + [edge_wells: 'included'], parquet] }
+        ch_pre_cosmicqc = ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: true], parquet] }
     } else if (params.edge_well_filter == 'both') {
         ch_pre_cosmicqc = ch_annotated
-            .map { meta, parquet -> [meta + [edge_wells: 'included'], parquet] }
-            .mix(ch_annotated.map { meta, parquet -> [meta + [edge_wells: 'excluded'], parquet] })
+            .map { meta, parquet -> [meta + [edge_wells_included: true], parquet] }
+            .mix(ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: false], parquet] })
     } else {
         error "Invalid edge_well_filter value '${params.edge_well_filter}': expected 'off', 'on', or 'both'"
     }
@@ -279,7 +279,7 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
                 // groups; deliberately excluded from grouping_value so the expected-size lookup
                 // below stays keyed on the original grouping values for both variants.
                 if (params.edge_well_filter == 'both') {
-                    key_data = key_data + [edge_wells: meta.edge_wells]
+                    key_data = key_data + [edge_wells_included: meta.edge_wells_included]
                 }
                 // Look up the expected size for this grouping
                 // A missing predicted size means the partition's grouping values weren't seen in any

@@ -87,7 +87,7 @@
                     "type": "string",
                     "default": "both",
                     "description": "Whether to exclude wells on the border of the plate before coSMicQC filtering. Use 'off' to keep all wells, 'on' to drop edge wells, or 'both' to carry both edge-included and edge-excluded datasets through the rest of the pipeline.",
-                    "help_text": "In 'both' mode, results are published separately under 'included' and 'excluded' subdirectories and downstream analysis groups are kept separate for each variant.",
+                    "help_text": "In 'both' mode, results are published separately under 'edge_wells_included' and 'edge_wells_excluded' subdirectories and downstream analysis groups are kept separate for each variant.",
                     "enum": ["on", "off", "both"]
                 }
             }

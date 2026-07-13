@@ -119,7 +119,7 @@ def main():
     filter_settings_file = "${cosmicqc_filter_file}"
     plate_id = "${meta.plate_id}"
     task_process = "${task.process}"
-    exclude_edge_wells = "${meta.edge_wells}" == "excluded"
+    edge_wells_included = "${meta.edge_wells_included}" == "true"
 
     with open(filter_settings_file) as f:
         filter_conditions = json.load(f)
@@ -143,7 +143,7 @@ def main():
     cells_before_edge_filter = len(df)
     plate_size = None
     removed_edge_wells = []
-    if exclude_edge_wells:
+    if not edge_wells_included:
         plate_size, edge_wells = find_edge_wells(df["Metadata_Well"].unique())
         removed_edge_wells = sorted(edge_wells)
         df = df[~df["Metadata_Well"].isin(removed_edge_wells)]
@@ -210,7 +210,7 @@ def main():
             "skipped_conditions": skipped_conditions,
         },
         "edge_filtering": {
-            "excluded": exclude_edge_wells,
+            "edge_wells_included": edge_wells_included,
             "plate_size": plate_size,
             "wells_removed": len(removed_edge_wells),
             "edge_wells": removed_edge_wells,
