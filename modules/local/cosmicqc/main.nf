@@ -28,12 +28,20 @@ process COSMICQC_FILTER {
     {
         "plate_id": "${meta.plate_id}",
         "filter_settings": [],
-        "results": {
+        "cosmicqc_filtering": {
             "cells_input": 0,
             "cells_output": 0,
-            "fraction_removed": 0.0,
+            "fraction_removed": "NA",
             "condition_outlier_counts": {},
             "skipped_conditions": {}
+        },
+        "edge_filtering": {
+            "excluded": ${meta.edge_wells == 'excluded'},
+            "plate_size": null,
+            "wells_removed": 0,
+            "edge_wells": [],
+            "cells_input": 0,
+            "cells_output": 0
         }
     }
     END_JSON
