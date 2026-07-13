@@ -81,8 +81,14 @@
                     "format": "file-path",
                     "exists": true,
                     "description": "Path to JSON file specifying coSMicQC filter conditions and z-score thresholds.",
-                    "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json.",
-                    "fa_icon": "fas fa-filter"
+                    "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json."
+                },
+                "edge_well_filter": {
+                    "type": "string",
+                    "default": "both",
+                    "description": "Whether to exclude wells on the border of the plate before coSMicQC filtering. Use 'off' to keep all wells, 'on' to drop edge wells, or 'both' to carry both edge-included and edge-excluded datasets through the rest of the pipeline.",
+                    "help_text": "In 'both' mode, results are published separately under 'included' and 'excluded' subdirectories and downstream analysis groups are kept separate for each variant.",
+                    "enum": ["on", "off", "both"]
                 }
             }
         },
