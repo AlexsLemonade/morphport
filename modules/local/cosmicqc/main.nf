@@ -5,8 +5,8 @@ process COSMICQC_FILTER {
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_pandas_pyarrow_tabulate_pruned:b58e918e2e8f7107'
-            : 'community.wave.seqera.io/library/python_pandas_pyarrow_tabulate_pruned:8ad93d3a1a344c67'
+            ? 'oras://community.wave.seqera.io/library/python_pip_cosmicqc_tabulate:0af4dc538c482131'
+            : 'community.wave.seqera.io/library/python_pip_cosmicqc_tabulate:d49ffed9b18106da'
     }
 
     input:
@@ -28,12 +28,20 @@ process COSMICQC_FILTER {
     {
         "plate_id": "${meta.plate_id}",
         "filter_settings": [],
-        "results": {
+        "cosmicqc_filtering": {
             "cells_input": 0,
             "cells_output": 0,
-            "fraction_removed": 0.0,
+            "fraction_removed": "NA",
             "condition_outlier_counts": {},
             "skipped_conditions": {}
+        },
+        "edge_filtering": {
+            "edge_wells_included": ${meta.edge_wells_included},
+            "plate_size": null,
+            "wells_removed": 0,
+            "edge_wells": [],
+            "cells_input": 0,
+            "cells_output": 0
         }
     }
     END_JSON

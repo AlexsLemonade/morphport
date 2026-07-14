@@ -50,20 +50,38 @@ workflow MORPHPORT {
         params.platemap_well_column,
     )
 
-    COSMICQC_FILTER(PYCYTOMINER_ANNOTATE.out.result, file(params.cosmicqc_filter_file))
+    // Add to metadata whether edge wells (those on the border of the plate) are included.
+    // meta.edge_wells_included is read by COSMICQC_FILTER to determine whether to drop edge wells.
+    // for the `both` case, we double everything up: one set with edge wells included (true)
+    // and one with them excluded (false)
+    ch_annotated = PYCYTOMINER_ANNOTATE.out.result
+    if (params.edge_well_filter == 'on') {
+        ch_pre_cosmicqc = ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: false], parquet] }
+    } else if (params.edge_well_filter == 'off') {
+        ch_pre_cosmicqc = ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: true], parquet] }
+    } else if (params.edge_well_filter == 'both') {
+        ch_pre_cosmicqc = ch_annotated
+            .map { meta, parquet -> [meta + [edge_wells_included: true], parquet] }
+            .mix(ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: false], parquet] })
+    } else {
+        error "Invalid edge_well_filter value '${params.edge_well_filter}': expected 'off', 'on', or 'both'"
+    }
+
+    COSMICQC_FILTER(ch_pre_cosmicqc, file(params.cosmicqc_filter_file))
 
     ch_filtered = COSMICQC_FILTER.out.result.map { meta, parquet, summary ->
         def stats = new groovy.json.JsonSlurper().parse(summary)
-        if (stats.results.skipped_conditions) {
-            stats.results.skipped_conditions.each { condition, features ->
+        if (stats.cosmicqc_filtering.skipped_conditions) {
+            stats.cosmicqc_filtering.skipped_conditions.each { condition, features ->
                 log.debug("coSMicQC [${meta.plate_id}]: skipped condition '${condition}' — features not found in parquet: ${features.join(', ')}")
             }
         }
         [
             meta + [
-                cosmicqc_cells_input: stats.results.cells_input,
-                cosmicqc_cells_output: stats.results.cells_output,
-                cosmicqc_fraction_removed: stats.results.fraction_removed,
+                cosmicqc_cells_input: stats.cosmicqc_filtering.cells_input,
+                cosmicqc_cells_output: stats.cosmicqc_filtering.cells_output,
+                cosmicqc_fraction_removed: stats.cosmicqc_filtering.fraction_removed,
+                edge_wells_removed: stats.edge_filtering.wells_removed,
             ],
             parquet,
         ]
@@ -257,6 +275,12 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
                     aggregate_level  : agg_level,
                     grouping_columns : grouping_cols,
                 ]
+                // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate
+                // groups; deliberately excluded from grouping_value so the expected-size lookup
+                // below stays keyed on the original grouping values for both variants.
+                if (params.edge_well_filter == 'both') {
+                    key_data = key_data + [edge_wells_included: meta.edge_wells_included]
+                }
                 // Look up the expected size for this grouping
                 // A missing predicted size means the partition's grouping values weren't seen in any
                 // platemap during init

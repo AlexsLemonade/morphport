@@ -20,8 +20,10 @@ input:
   - - meta:
         type: map
         description: |
-          Groovy Map containing plate metadata,
-          e.g. [ plate_id:'UL000109', batch:'Batch1_20221004' ]
+          Groovy Map containing plate metadata, e.g. [ plate_id:'UL000109',
+          batch:'Batch1_20221004', edge_wells_included:true ]. The
+          edge_wells_included key (boolean) controls whether wells on the
+          border of plates are kept (true) or dropped (false).
     - parquet_file:
         type: file
         description: Per-cell parquet file produced by cytotable
@@ -46,9 +48,12 @@ output:
       - "cosmicqc_summary_*.json":
           type: file
           description: |
-            JSON file recording the filter settings applied, per-plate results
-            (cells input, cells output, fraction removed, per-condition counts),
-            and any filters that were skipped due to missing features
+            JSON file with the filter settings applied, a "cosmicqc_filtering" block
+            (cells input, cells output, fraction removed, per-condition counts, and
+            any filters skipped due to missing features), and an "edge_filtering"
+            block (whether edge-well removal was applied, the inferred plate size,
+            the wells removed, and cells input/output before and after edge-well
+            removal)
           pattern: "cosmicqc_summary_*.json"
   - outliers:
       - "cosmicqc_outliers_*.csv.gz":
