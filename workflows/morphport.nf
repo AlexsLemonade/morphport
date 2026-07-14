@@ -50,8 +50,8 @@ workflow MORPHPORT {
         params.platemap_well_column,
     )
 
-    // Add to metadata whether edge wells (those on the border of the plate) are included
-    // meta.edge_wells_included is read by COSMICQC_FILTER to determine whether to drop edge wells
+    // Add to metadata whether edge wells (those on the border of the plate) are included.
+    // meta.edge_wells_included is read by COSMICQC_FILTER to determine whether to drop edge wells.
     // for the `both` case, we double everything up: one set with edge wells included (true)
     // and one with them excluded (false)
     ch_annotated = PYCYTOMINER_ANNOTATE.out.result
