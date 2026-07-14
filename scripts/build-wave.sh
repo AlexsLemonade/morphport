@@ -42,10 +42,12 @@ fi
 wave_options="--build-template ${build_template} --freeze"
 docker_image=$(wave --conda-file "$module_path/environment.yml" ${wave_options})
 singularity_image=$(wave --conda-file "$module_path/environment.yml" ${wave_options} --singularity)
-echo "Docker image built: $docker_image"
-echo "Singularity image built: $singularity_image"
+echo "Docker image building: $docker_image"
+echo "Singularity image building: $singularity_image"
+echo "Check your email for build notifications from Seqera.\n"
 
-echo "For including in a process, use the following lines:"
+
+echo "Assuming successful builds, use the following lines in the Nextflow process:\n"
 cat <<EOF
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
