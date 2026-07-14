@@ -91,7 +91,7 @@ def find_edge_wells(wells: list[str]) -> tuple[int, set[str]]:
     1536, based on the highest row/column indices among the wells present) and return it along
     with the subset of wells that fall in that plate's outermost rows or columns.
     """
-    well_id_pattern = re.compile(r"([A-Za-z]+)(\d+)")
+    well_id_pattern = re.compile(r"([A-Za-z]+)([0-9]+)")
     parsed = {}
     for well in wells:
         match = well_id_pattern.fullmatch(well)
