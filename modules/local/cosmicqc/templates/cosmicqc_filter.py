@@ -90,6 +90,9 @@ def find_edge_wells(wells: list[str]) -> tuple[int, set[str]]:
     Given an iterable of well ids like 'A01', 'H12', 'AB28', infer the plate size (96, 384, or
     1536, based on the highest row/column indices among the wells present) and return it along
     with the subset of wells that fall in that plate's outermost rows or columns.
+
+    This function assumes that all wells in a plate are filled with media; if some
+    wells are empty, the inferred edge wells may be inaccurate.
     """
     well_id_pattern = re.compile(r"([A-Za-z]+)([0-9]+)")
     parsed = {}

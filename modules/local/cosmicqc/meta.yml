@@ -23,7 +23,7 @@ input:
           Groovy Map containing plate metadata, e.g. [ plate_id:'UL000109',
           batch:'Batch1_20221004', edge_wells_included:true ]. The
           edge_wells_included key (boolean) controls whether wells on the
-          border of kept (true) or dropped (false).
+          border of plates are kept (true) or dropped (false).
     - parquet_file:
         type: file
         description: Per-cell parquet file produced by cytotable
