@@ -1,0 +1,69 @@
+nextflow_function {
+
+    name "Test Function groupingInfoJson"
+    script "../morphport_utils.nf"
+    tag "lib"
+
+    test("groupingInfoJson: no grouping columns and no extra") {
+
+        function "groupingInfoJson"
+
+        when {
+            function {
+                """
+                input[0] = [aggregate_level: 'well']
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == '{"grouping_values":{}}'
+        }
+    }
+
+    test("groupingInfoJson: grouping columns are collected into grouping_values") {
+
+        function "groupingInfoJson"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    aggregate_level: 'cell',
+                    grouping_columns: ['Metadata_treatment'],
+                    Metadata_treatment: 'drugA',
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == '{"grouping_values":{"Metadata_treatment":"drugA"}}'
+        }
+    }
+
+    test("groupingInfoJson: extra keys are merged in after grouping_values") {
+
+        function "groupingInfoJson"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    aggregate_level: 'cell',
+                    grouping_columns: ['Metadata_treatment'],
+                    Metadata_treatment: 'drugA',
+                ]
+                input[1] = [plate_ids: ['p1', 'p2']]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == '{"grouping_values":{"Metadata_treatment":"drugA"},"plate_ids":["p1","p2"]}'
+        }
+    }
+}
