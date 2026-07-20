@@ -1,0 +1,95 @@
+name: pycytominer_feature_select
+description: Select morphological features for one analysis group using pycytominer.feature_select; emits a feature-list text file alongside the original parquets.
+keywords:
+  - cell painting
+  - pycytominer
+  - feature selection
+  - parquet
+
+tools:
+  - pycytominer:
+      description: >
+        pycytominer is a suite of common functions used to process high-throughput
+        cell morphology data. This process calls pycytominer.feature_select.
+      homepage: https://github.com/cytomining/pycytominer
+      documentation: https://pycytominer.readthedocs.io
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map describing the analysis group,
+          e.g. [ aggregate_level:'well', grouping_columns:['Metadata_cell_line'], Metadata_cell_line:'A549', plate_ids:['plate_001','plate_002'] ]
+    - plate_metas:
+        type: list
+        description: List of per-plate meta maps for the parquets being combined in this group
+    - parquets:
+        type: list
+        description: One or more parquet files for the analysis group; staged into input_parquet/ and read concatenated
+        pattern: "*.parquet"
+  - - operations:
+        type: string
+        description: Comma-separated pycytominer feature_select operations (e.g. 'blocklist,drop_na_columns,variance_threshold,correlation_threshold')
+  - - na_cutoff:
+        type: float
+        description: Maximum NaN fraction per column before drop_na_columns removes it
+  - - corr_threshold:
+        type: float
+        description: Correlation threshold for correlation_threshold (feature pairs above this are deduplicated)
+  - - corr_method:
+        type: string
+        enum:
+          - pearson
+          - spearman
+          - kendall
+        description: Correlation method to use for correlation_threshold."
+  - - freq_cut:
+        type: float
+        description: Frequency cut for variance_threshold (ratio of 2nd-most-common to most-common value)
+  - - unique_cut:
+        type: float
+        description: Unique-value cut for variance_threshold (fraction of unique values to sample count)
+  - - min_rows_stats:
+        type: integer
+        description: Minimum row count for applying statistics-based operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal); groups below this fall back to name-based operations only
+  - - per_channel_correlation:
+        type: boolean
+        description: If true and "correlation_threshold" is an included operation, run correlation_threshold once per channel group (features sharing the same channel set) instead of once across all features
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Group meta passed through unchanged
+      - plate_metas:
+          type: list
+          description: Per-plate meta list passed through unchanged
+      - "input_parquet/*.parquet":
+          type: file
+          description: Input parquets passed through unmodified for downstream column-filtered reads
+          pattern: "*.parquet"
+      - "features_*.txt":
+          type: file
+          description: Newline-delimited list of selected morphological feature column names (no Metadata_* columns)
+          pattern: "features_*.txt"
+  - summary:
+      - "feature_select_summary_*.json":
+          type: file
+          description: JSON sidecar with grouping info, operations, parameters, and input/output feature counts
+          pattern: "feature_select_summary_*.json"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"

@@ -1,0 +1,58 @@
+name: pycytominer_normalize
+description: Normalize profile features using pycytominer.normalize
+keywords:
+  - cell painting
+  - pycytominer
+  - normalization
+  - parquet
+
+tools:
+  - pycytominer:
+      description: >
+        pycytominer is a suite of common functions used to process high-throughput
+        cell morphology data. This process calls pycytominer.normalize.
+      homepage: https://github.com/cytomining/pycytominer
+      documentation: https://pycytominer.readthedocs.io
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing plate metadata,
+          e.g. [ plate_id:'plate_001', batch:'batch_1', aggregate_level:'well' ]
+    - parquet_file:
+        type: file
+        description: Profile parquet file (per-cell or per-well)
+        pattern: "*.parquet"
+    - normalize_samples:
+        type: string
+        description: pycytominer 'samples' query (e.g. "all" or a pandas query selecting reference wells)
+    - normalize_method:
+        type: string
+        description: Normalization method — one of 'mad_robustize', 'standardize', 'robustize', or 'spherize'
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Groovy Map containing plate metadata with plate_normalized, plate_normalization_method, and plate_normalization_samples added
+      - "normalized_*.parquet":
+          type: file
+          description: Normalized profile parquet
+          pattern: "normalized_*.parquet"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"

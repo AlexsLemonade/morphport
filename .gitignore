@@ -7,3 +7,10 @@ testing/
 testing*
 *.pyc
 null/
+.lineage/
+
+# keep updates to .gitignore below to prevent linting error
+.nf-test
+stub/results/
+
+.claude/settings.local.json

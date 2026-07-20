@@ -1,0 +1,11 @@
+# Stub analysis groups: minimal example exercising the partition + group flow.
+# Each entry names a condition column (with or without the Metadata_ prefix);
+# If a grouping is defined by multiple columns, they should be listed as a
+# comma-separated string, e.g. "gene_allele,treatment".
+
+default:
+  # Groupings applied at every aggregate level (de-duplicated).
+  - treatment
+well:
+  # well-level groupings (to add to the default list)
+  - gene_allele

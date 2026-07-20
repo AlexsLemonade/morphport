@@ -1,3 +1,5 @@
-sample,fastq_1,fastq_2
-SAMPLE_PAIRED_END,/path/to/fastq/files/AEG588A1_S1_L002_R1_001.fastq.gz,/path/to/fastq/files/AEG588A1_S1_L002_R2_001.fastq.gz
-SAMPLE_SINGLE_END,/path/to/fastq/files/AEG588A4_S4_L003_R1_001.fastq.gz,
+plate,project,source,batch,platemap_file,cytotable_preset
+2024_02_02_B8A1R2_P3T2,cpg0020-varchamp,broad,2024_02_06_Batch_8,,cellprofiler_sqlite_cpg0016_jump
+2024_05_17_RC4_Ben_P05,cpg0026-lacoste_haghighi-rare-diseases,broad,2024_05_06_ResponseToReviewers,,cellprofiler_sqlite_cpg0016_jump
+2024_04_16_RC4_Xexp_FS_P06_R2,cpg0026-lacoste_haghighi-rare-diseases,broad,2024_05_06_ResponseToReviewers,,cellprofiler_sqlite_cpg0016_jump
+2024_04_16_RC4_Xexp_FS_P04_R2,cpg0026-lacoste_haghighi-rare-diseases,broad,2024_05_06_ResponseToReviewers,,cellprofiler_sqlite_cpg0016_jump

@@ -1,0 +1,21 @@
+[
+    {
+        "name": "clustered_nuclei",
+        "thresholds": {
+            "Nuclei_Intensity_MassDisplacement_CorrDNA": 0.05,
+            "Nuclei_Intensity_IntegratedIntensity_CorrDNA": 1.5
+        }
+    },
+    {
+        "name": "irregular_nuclei",
+        "thresholds": {
+            "Nuclei_AreaShape_Solidity": -1.6
+        }
+    },
+    {
+        "name": "multi_nuclei_cells",
+        "thresholds": {
+            "Cells_Intensity_IntegratedIntensity_CorrDNA": 0.5
+        }
+    }
+]

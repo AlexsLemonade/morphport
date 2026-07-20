@@ -1,0 +1,9 @@
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.13
+  - polars
+  - numpy
+  - scikit-learn>=1.4
+  - umap-learn>=0.5

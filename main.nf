@@ -1,9 +1,9 @@
 #!/usr/bin/env nextflow
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    AlexsLemonade/pccma-nf
+    AlexsLemonade/morphport
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    Github : https://github.com/AlexsLemonade/pccma-nf
+    Github : https://github.com/AlexsLemonade/morphport
 ----------------------------------------------------------------------------------------
 */
 
@@ -13,9 +13,9 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-include { PCCMA-NF  } from './workflows/pccma-nf'
-include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_pccma-nf_pipeline'
-include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccma-nf_pipeline'
+include { MORPHPORT  } from './workflows/morphport'
+include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_morphport_pipeline'
+include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_morphport_pipeline'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     NAMED WORKFLOWS FOR PIPELINE
@@ -25,18 +25,21 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_pccm
 //
 // WORKFLOW: Run main analysis pipeline depending on type of input
 //
-workflow ALEXSLEMONADE_PCCMA-NF {
+workflow ALEXSLEMONADE_MORPHPORT {
 
     take:
-    samplesheet // channel: samplesheet read in from --input
+    samplesheet     // channel: samplesheet read in from --input
+    analysis_groups // value: nested map of analysis groups → sub-combo → expected size
 
     main:
 
     //
     // WORKFLOW: Run pipeline
     //
-    PCCMA-NF (
-        samplesheet
+    MORPHPORT (
+        samplesheet,
+        analysis_groups,
+        params.outdir,
     )
 }
 /*
@@ -51,11 +54,16 @@ workflow {
     //
     // SUBWORKFLOW: Run initialisation tasks
     //
+    // When running with -stub, Nextflow injects 'true' as a positional arg.
+    // Remove only the first occurrence so other unexpected args still trigger warnings.
+    def pipeline_args = args.clone()
+    if (workflow.stubRun) { pipeline_args.remove('true') }
+
     PIPELINE_INITIALISATION (
         params.version,
         params.validate_params,
         params.monochrome_logs,
-        args,
+        pipeline_args,
         params.outdir,
         params.input,
         params.help,
@@ -66,8 +74,9 @@ workflow {
     //
     // WORKFLOW: Run main workflow
     //
-    ALEXSLEMONADE_PCCMA-NF (
-        PIPELINE_INITIALISATION.out.samplesheet
+    ALEXSLEMONADE_MORPHPORT (
+        PIPELINE_INITIALISATION.out.samplesheet,
+        PIPELINE_INITIALISATION.out.analysis_groups,
     )
     //
     // SUBWORKFLOW: Run completion tasks
@@ -78,7 +87,6 @@ workflow {
         params.plaintext_email,
         params.outdir,
         params.monochrome_logs,
-        params.hook_url,
     )
 }
 

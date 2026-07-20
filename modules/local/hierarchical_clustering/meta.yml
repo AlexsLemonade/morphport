@@ -1,0 +1,85 @@
+name: hierarchical_clustering
+description: |
+  Computes hierarchical clustering of the samples within an analysis group.
+  Reads the PCA embeddings for the group, clusters the PC1..PCk columns, and
+  writes a single nested JSON tree (merge distances on internal nodes, labels
+  and identifying metadata on leaves).
+keywords:
+  - cell painting
+  - hierarchical clustering
+  - dendrogram
+  - pca
+
+tools:
+  - scipy:
+      description: Scientific computing library used here for hierarchical/agglomerative clustering.
+      homepage: https://scipy.org
+      documentation: https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+  - polars:
+      description: Fast multi-threaded DataFrame library used for parquet IO.
+      homepage: https://pola.rs
+      documentation: https://docs.pola.rs
+      licence: ["MIT"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Group key map from createGroupChannels, e.g.,
+          [ aggregate_level:'cell', grouping_columns:['Metadata_treatment'], Metadata_treatment:'drugA' ]
+    - embeddings_parquet:
+        type: file
+        description: PCA/UMAP embeddings parquet for this group, from compute_embeddings.
+        pattern: "embeddings_*.parquet"
+    - summary_json:
+        type: file
+        description: compute_embeddings summary JSON for this group; used to detect an upstream skip.
+        pattern: "embeddings_summary_*.json"
+  - - linkage_method:
+        type: string
+        description: |
+          Linkage method passed to scipy.cluster.hierarchy.linkage.
+          One of: single, complete, average, weighted, ward.
+          Note: ward requires distance_metric to be euclidean.
+  - - distance_metric:
+        type: string
+        description: |
+          Distance metric passed to scipy.cluster.hierarchy.linkage.
+          One of: euclidean, correlation, cosine, cityblock.
+  - - max_samples:
+        type: integer
+        description: |
+          Maximum number of samples to cluster. Groups with more rows than this
+          (e.g., large cell-level groups) are skipped rather than clustered, and
+          the output JSON records skipped=true with the reason.
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Group key map (unchanged from input).
+      - "clustering_*.json":
+          type: file
+          description: |
+            Nested clustering tree: {method, metric, n_samples, tree}, where tree
+            is a binary tree of {distance, children} internal nodes and
+            {id, label, metadata} leaf nodes. Skipped groups instead contain
+            skipped=true and skip_reason.
+          pattern: "clustering_*.json"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module.
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
