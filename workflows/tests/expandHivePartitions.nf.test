@@ -1,0 +1,102 @@
+nextflow_function {
+
+    name "Test Function expandHivePartitions"
+    script "../morphport.nf"
+    tag "workflows"
+    tag "workflows_morphport"
+
+    test("expandHivePartitions: nested Hive partitions with parquet files") {
+
+        function "expandHivePartitions"
+
+        when {
+            function {
+                """
+                def base = File.createTempDir('hive-')
+                new File(base, 'Metadata_gene_allele=_NA_/Metadata_treatment=drugA').mkdirs()
+                new File(base, 'Metadata_gene_allele=_NA_/Metadata_treatment=drugA/plate1.parquet').text = ''
+                new File(base, 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugB').mkdirs()
+                new File(base, 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugB/plate2.parquet').text = ''
+                new File(base, 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugB/plate3.parquet').text = ''
+                // empty directory with no parquet files: must not produce a result entry
+                new File(base, 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugC').mkdirs()
+
+                input[0] = [id: 'plate1', project: 'demo']
+                input[1] = file(base)
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def stable = function.result
+                .collect { meta, parquets -> [meta, parquets.collect { parquet -> new File(parquet.toString()).name }.sort()] }
+                .sort { entry -> entry[0].toString() }
+            assertAll(
+                { assert stable.size() == 2 },
+                { assert stable == [
+                    [
+                        [id: 'plate1', project: 'demo', Metadata_gene_allele: 'BRCA1', Metadata_treatment: 'drugB'],
+                        ['plate2.parquet', 'plate3.parquet'],
+                    ],
+                    [
+                        [id: 'plate1', project: 'demo', Metadata_gene_allele: '_NA_', Metadata_treatment: 'drugA'],
+                        ['plate1.parquet'],
+                    ],
+                ] },
+            )
+        }
+    }
+
+    test("expandHivePartitions: single-level partition") {
+
+        function "expandHivePartitions"
+
+        when {
+            function {
+                """
+                def base = File.createTempDir('hive-')
+                new File(base, 'Metadata_treatment=drugA').mkdirs()
+                new File(base, 'Metadata_treatment=drugA/plate1.parquet').text = ''
+
+                input[0] = [id: 'plate1', project: 'demo']
+                input[1] = file(base)
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def stable = function.result
+                .collect { meta, parquets -> [meta, parquets.collect { parquet -> new File(parquet.toString()).name }.sort()] }
+            assert stable == [
+                [
+                    [id: 'plate1', project: 'demo', Metadata_treatment: 'drugA'],
+                    ['plate1.parquet'],
+                ],
+            ]
+        }
+    }
+
+    test("expandHivePartitions: no partitions with parquet files") {
+
+        function "expandHivePartitions"
+
+        when {
+            function {
+                """
+                def base = File.createTempDir('hive-')
+                new File(base, 'Metadata_treatment=drugA').mkdirs()
+
+                input[0] = [id: 'plate1', project: 'demo']
+                input[1] = file(base)
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+}
