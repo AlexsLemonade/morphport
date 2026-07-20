@@ -12,6 +12,7 @@ lint:
     - conf/igenomes.config
     - conf/igenomes_ignored.config
   files_unchanged:
+    - LICENSE
     - CODE_OF_CONDUCT.md
     - assets/nf-core-morphport_logo_light.png
     - docs/images/nf-core-morphport_logo_light.png
