@@ -23,10 +23,8 @@ lint:
     - docs/README.md
     - .github/CONTRIBUTING.md
     - assets/sendmail_template.txt
+  included_configs: false
   multiqc_config: false
-  nextflow_config:
-    - manifest.name
-    - manifest.homePage
   main_nf_include_versions: false
   pipeline_name_conventions: false
   readme: false
