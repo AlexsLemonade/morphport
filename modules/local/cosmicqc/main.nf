@@ -49,7 +49,7 @@ process COSMICQC_FILTER {
     echo | gzip > cosmicqc_outliers_${meta.plate_id}.csv.gz
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        stub: stub
+        stub: x.y.z
     END_VERSIONS
     """
 }
