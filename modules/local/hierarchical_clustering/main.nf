@@ -39,7 +39,7 @@ process HIERARCHICAL_CLUSTERING {
     END_JSON
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        stub: stub
+        stub: x.y.z
     END_VERSIONS
     """
 }

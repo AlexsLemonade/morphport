@@ -26,7 +26,7 @@ process PYCYTOMINER_ANNOTATE {
     touch ${meta.plate_id}_annotated.parquet
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        stub: stub
+        stub: x.y.z
     END_VERSIONS
     """
 }
