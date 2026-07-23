@@ -6,19 +6,197 @@
                     "AlexsLemonade/morphport": "v0.1.0dev"
                 }
             },
-
             [
                 "pipeline_info",
                 "pipeline_info/morphport_software_versions.yml"
             ],
             [
-
+                
             ]
         ],
+        "timestamp": "2026-03-17T20:23:27.979488676",
         "meta": {
             "nf-test": "0.9.3",
             "nextflow": "25.10.4"
-        },
-        "timestamp": "2026-03-17T20:23:27.979488676"
+        }
+    },
+    "-profile test -stub": {
+        "content": [
+            {
+                "COMPUTE_EMBEDDINGS": {
+                    "stub": "x.y.z"
+                },
+                "COSMICQC_FILTER": {
+                    "stub": "x.y.z"
+                },
+                "CYTOTABLE_CONVERT": {
+                    "stub": "x.y.z"
+                },
+                "HIERARCHICAL_CLUSTERING": {
+                    "stub": "x.y.z"
+                },
+                "PARTITION_CONDITIONS": {
+                    "stub": "x.y.z"
+                },
+                "PYCYTOMINER_AGGREGATE": {
+                    "stub": "x.y.z"
+                },
+                "PYCYTOMINER_ANNOTATE": {
+                    "stub": "x.y.z"
+                },
+                "PYCYTOMINER_FEATURE_SELECT": {
+                    "stub": "x.y.z"
+                },
+                "PYCYTOMINER_NORMALIZE": {
+                    "stub": "x.y.z"
+                },
+                "Workflow": {
+                    "AlexsLemonade/morphport": "v0.1.0dev"
+                }
+            },
+            [
+                "pipeline_info",
+                "pipeline_info/morphport_software_versions.yml",
+                "test-project",
+                "test-project/cell",
+                "test-project/cell/edge_wells_excluded",
+                "test-project/cell/edge_wells_excluded/compute",
+                "test-project/cell/edge_wells_excluded/compute/embeddings_cell__stub_condition=_Absent_.parquet",
+                "test-project/cell/edge_wells_excluded/compute/embeddings_cell__stub_target=_Absent_.parquet",
+                "test-project/cell/edge_wells_excluded/compute/embeddings_summary_cell__stub_condition=_Absent_.json",
+                "test-project/cell/edge_wells_excluded/compute/embeddings_summary_cell__stub_target=_Absent_.json",
+                "test-project/cell/edge_wells_excluded/cosmicqc",
+                "test-project/cell/edge_wells_excluded/cosmicqc/cosmicqc_outliers_plate_001.csv.gz",
+                "test-project/cell/edge_wells_excluded/cosmicqc/cosmicqc_outliers_plate_002.csv.gz",
+                "test-project/cell/edge_wells_excluded/cosmicqc/cosmicqc_summary_plate_001.json",
+                "test-project/cell/edge_wells_excluded/cosmicqc/cosmicqc_summary_plate_002.json",
+                "test-project/cell/edge_wells_excluded/cosmicqc/filtered_plate_001.parquet",
+                "test-project/cell/edge_wells_excluded/cosmicqc/filtered_plate_002.parquet",
+                "test-project/cell/edge_wells_excluded/cytotable",
+                "test-project/cell/edge_wells_excluded/cytotable/plate_001.parquet",
+                "test-project/cell/edge_wells_excluded/hierarchical",
+                "test-project/cell/edge_wells_excluded/hierarchical/clustering_cell__stub_condition=_Absent_.json",
+                "test-project/cell/edge_wells_excluded/hierarchical/clustering_cell__stub_target=_Absent_.json",
+                "test-project/cell/edge_wells_excluded/pycytominer",
+                "test-project/cell/edge_wells_excluded/pycytominer/feature_select_summary_cell__stub_condition=_Absent_.json",
+                "test-project/cell/edge_wells_excluded/pycytominer/feature_select_summary_cell__stub_target=_Absent_.json",
+                "test-project/cell/edge_wells_excluded/pycytominer/features_cell__stub_condition=_Absent_.txt",
+                "test-project/cell/edge_wells_excluded/pycytominer/features_cell__stub_target=_Absent_.txt",
+                "test-project/cell/edge_wells_excluded/pycytominer/normalized_cell_plate_001.parquet",
+                "test-project/cell/edge_wells_excluded/pycytominer/normalized_cell_plate_002.parquet",
+                "test-project/cell/edge_wells_included",
+                "test-project/cell/edge_wells_included/compute",
+                "test-project/cell/edge_wells_included/compute/embeddings_cell__stub_condition=_Absent_.parquet",
+                "test-project/cell/edge_wells_included/compute/embeddings_cell__stub_target=_Absent_.parquet",
+                "test-project/cell/edge_wells_included/compute/embeddings_summary_cell__stub_condition=_Absent_.json",
+                "test-project/cell/edge_wells_included/compute/embeddings_summary_cell__stub_target=_Absent_.json",
+                "test-project/cell/edge_wells_included/cosmicqc",
+                "test-project/cell/edge_wells_included/cosmicqc/cosmicqc_outliers_plate_001.csv.gz",
+                "test-project/cell/edge_wells_included/cosmicqc/cosmicqc_outliers_plate_002.csv.gz",
+                "test-project/cell/edge_wells_included/cosmicqc/cosmicqc_summary_plate_001.json",
+                "test-project/cell/edge_wells_included/cosmicqc/cosmicqc_summary_plate_002.json",
+                "test-project/cell/edge_wells_included/cosmicqc/filtered_plate_001.parquet",
+                "test-project/cell/edge_wells_included/cosmicqc/filtered_plate_002.parquet",
+                "test-project/cell/edge_wells_included/hierarchical",
+                "test-project/cell/edge_wells_included/hierarchical/clustering_cell__stub_condition=_Absent_.json",
+                "test-project/cell/edge_wells_included/hierarchical/clustering_cell__stub_target=_Absent_.json",
+                "test-project/cell/edge_wells_included/pycytominer",
+                "test-project/cell/edge_wells_included/pycytominer/feature_select_summary_cell__stub_condition=_Absent_.json",
+                "test-project/cell/edge_wells_included/pycytominer/feature_select_summary_cell__stub_target=_Absent_.json",
+                "test-project/cell/edge_wells_included/pycytominer/features_cell__stub_condition=_Absent_.txt",
+                "test-project/cell/edge_wells_included/pycytominer/features_cell__stub_target=_Absent_.txt",
+                "test-project/cell/edge_wells_included/pycytominer/normalized_cell_plate_001.parquet",
+                "test-project/cell/edge_wells_included/pycytominer/normalized_cell_plate_002.parquet",
+                "test-project/well",
+                "test-project/well/edge_wells_excluded",
+                "test-project/well/edge_wells_excluded/compute",
+                "test-project/well/edge_wells_excluded/compute/embeddings_summary_well__stub_condition=_Absent_.json",
+                "test-project/well/edge_wells_excluded/compute/embeddings_well__stub_condition=_Absent_.parquet",
+                "test-project/well/edge_wells_excluded/hierarchical",
+                "test-project/well/edge_wells_excluded/hierarchical/clustering_well__stub_condition=_Absent_.json",
+                "test-project/well/edge_wells_excluded/pycytominer",
+                "test-project/well/edge_wells_excluded/pycytominer/feature_select_summary_well__stub_condition=_Absent_.json",
+                "test-project/well/edge_wells_excluded/pycytominer/features_well__stub_condition=_Absent_.txt",
+                "test-project/well/edge_wells_excluded/pycytominer/normalized_well_plate_001.parquet",
+                "test-project/well/edge_wells_excluded/pycytominer/normalized_well_plate_002.parquet",
+                "test-project/well/edge_wells_excluded/pycytominer/well_plate_001.parquet",
+                "test-project/well/edge_wells_excluded/pycytominer/well_plate_002.parquet",
+                "test-project/well/edge_wells_included",
+                "test-project/well/edge_wells_included/compute",
+                "test-project/well/edge_wells_included/compute/embeddings_summary_well__stub_condition=_Absent_.json",
+                "test-project/well/edge_wells_included/compute/embeddings_well__stub_condition=_Absent_.parquet",
+                "test-project/well/edge_wells_included/hierarchical",
+                "test-project/well/edge_wells_included/hierarchical/clustering_well__stub_condition=_Absent_.json",
+                "test-project/well/edge_wells_included/pycytominer",
+                "test-project/well/edge_wells_included/pycytominer/feature_select_summary_well__stub_condition=_Absent_.json",
+                "test-project/well/edge_wells_included/pycytominer/features_well__stub_condition=_Absent_.txt",
+                "test-project/well/edge_wells_included/pycytominer/normalized_well_plate_001.parquet",
+                "test-project/well/edge_wells_included/pycytominer/normalized_well_plate_002.parquet",
+                "test-project/well/edge_wells_included/pycytominer/well_plate_001.parquet",
+                "test-project/well/edge_wells_included/pycytominer/well_plate_002.parquet"
+            ],
+            [
+                "embeddings_cell__stub_condition=_Absent_.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "embeddings_cell__stub_target=_Absent_.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "embeddings_summary_cell__stub_condition=_Absent_.json:md5,b24cb6202a88c085c2c54801da5c3168",
+                "embeddings_summary_cell__stub_target=_Absent_.json:md5,b24cb6202a88c085c2c54801da5c3168",
+                "cosmicqc_outliers_plate_001.csv.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
+                "cosmicqc_outliers_plate_002.csv.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
+                "cosmicqc_summary_plate_001.json:md5,f5b133ae0d3110bd645d64ae6619cf94",
+                "cosmicqc_summary_plate_002.json:md5,7a30f4d6536a1d770ce185398eb39817",
+                "filtered_plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "filtered_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "clustering_cell__stub_condition=_Absent_.json:md5,a7bfd72607b8a46c608a5a6c8f3bb87d",
+                "clustering_cell__stub_target=_Absent_.json:md5,d128e65532b5bcec81b5183d9c912e90",
+                "feature_select_summary_cell__stub_condition=_Absent_.json:md5,b24cb6202a88c085c2c54801da5c3168",
+                "feature_select_summary_cell__stub_target=_Absent_.json:md5,b24cb6202a88c085c2c54801da5c3168",
+                "features_cell__stub_condition=_Absent_.txt:md5,53d8ec25a66f004b4f22aead355dc744",
+                "features_cell__stub_target=_Absent_.txt:md5,53d8ec25a66f004b4f22aead355dc744",
+                "normalized_cell_plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "normalized_cell_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "embeddings_cell__stub_condition=_Absent_.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "embeddings_cell__stub_target=_Absent_.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "embeddings_summary_cell__stub_condition=_Absent_.json:md5,b24cb6202a88c085c2c54801da5c3168",
+                "embeddings_summary_cell__stub_target=_Absent_.json:md5,b24cb6202a88c085c2c54801da5c3168",
+                "cosmicqc_outliers_plate_001.csv.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
+                "cosmicqc_outliers_plate_002.csv.gz:md5,68b329da9893e34099c7d8ad5cb9c940",
+                "cosmicqc_summary_plate_001.json:md5,6e1084f3cb131fd197b181f29fdff9d6",
+                "cosmicqc_summary_plate_002.json:md5,2c79e8e8fcf59d90bc06a0fd40dae7d7",
+                "filtered_plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "filtered_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "clustering_cell__stub_condition=_Absent_.json:md5,a7bfd72607b8a46c608a5a6c8f3bb87d",
+                "clustering_cell__stub_target=_Absent_.json:md5,d128e65532b5bcec81b5183d9c912e90",
+                "feature_select_summary_cell__stub_condition=_Absent_.json:md5,b24cb6202a88c085c2c54801da5c3168",
+                "feature_select_summary_cell__stub_target=_Absent_.json:md5,b24cb6202a88c085c2c54801da5c3168",
+                "features_cell__stub_condition=_Absent_.txt:md5,53d8ec25a66f004b4f22aead355dc744",
+                "features_cell__stub_target=_Absent_.txt:md5,53d8ec25a66f004b4f22aead355dc744",
+                "normalized_cell_plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "normalized_cell_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "embeddings_summary_well__stub_condition=_Absent_.json:md5,a363397214704583bdded7512a6ea189",
+                "embeddings_well__stub_condition=_Absent_.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "clustering_well__stub_condition=_Absent_.json:md5,ee251f0ca1c20dc1fd97f7565ed7180b",
+                "feature_select_summary_well__stub_condition=_Absent_.json:md5,a363397214704583bdded7512a6ea189",
+                "features_well__stub_condition=_Absent_.txt:md5,53d8ec25a66f004b4f22aead355dc744",
+                "normalized_well_plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "normalized_well_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "well_plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "well_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "embeddings_summary_well__stub_condition=_Absent_.json:md5,a363397214704583bdded7512a6ea189",
+                "embeddings_well__stub_condition=_Absent_.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "clustering_well__stub_condition=_Absent_.json:md5,ee251f0ca1c20dc1fd97f7565ed7180b",
+                "feature_select_summary_well__stub_condition=_Absent_.json:md5,a363397214704583bdded7512a6ea189",
+                "features_well__stub_condition=_Absent_.txt:md5,53d8ec25a66f004b4f22aead355dc744",
+                "normalized_well_plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "normalized_well_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "well_plate_001.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                "well_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e"
+            ]
+        ],
+        "timestamp": "2026-07-20T16:25:20.381516474",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.4"
+        }
     }
 }

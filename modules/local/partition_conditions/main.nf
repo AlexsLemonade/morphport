@@ -43,7 +43,7 @@ process PARTITION_CONDITIONS {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        stub: stub
+        stub: x.y.z
     END_VERSIONS
     """
 }
