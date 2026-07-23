@@ -12,6 +12,7 @@ lint:
     - conf/igenomes.config
     - conf/igenomes_ignored.config
   files_unchanged:
+    - LICENSE
     - CODE_OF_CONDUCT.md
     - assets/nf-core-morphport_logo_light.png
     - docs/images/nf-core-morphport_logo_light.png
@@ -23,10 +24,8 @@ lint:
     - docs/README.md
     - .github/CONTRIBUTING.md
     - assets/sendmail_template.txt
+  included_configs: false
   multiqc_config: false
-  nextflow_config:
-    - manifest.name
-    - manifest.homePage
   main_nf_include_versions: false
   pipeline_name_conventions: false
   readme: false

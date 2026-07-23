@@ -9,6 +9,19 @@ Initial release of AlexsLemonade/morphport, created with the [nf-core](https://n
 
 ### `Added`
 
+Implemented the core morphport workflow for downstream analysis of Cell Painting data, preparing single-cell imaging profiles for the PCCMA portal.
+The pipeline takes per-plate CellProfiler outputs through conversion, quality control, aggregation, and analysis steps, including the following modules:
+
+- `CYTOTABLE_CONVERT`: converts raw per-plate CellProfiler output to parquet.
+- `PYCYTOMINER_ANNOTATE`: annotates cells with platemap metadata.
+- `COSMICQC_FILTER`: applies coSMicQC quality filtering, with optional edge-well removal.
+- `PYCYTOMINER_AGGREGATE`: aggregates cell-level profiles to well-level profiles.
+- `PYCYTOMINER_NORMALIZE`: normalizes aggregated profiles.
+- `PARTITION_CONDITIONS`: partitions profiles by experimental condition into Hive-style directories.
+- `PYCYTOMINER_FEATURE_SELECT`: performs feature selection across configurable criteria.
+- `COMPUTE_EMBEDDINGS`: computes PCA and UMAP embeddings.
+- `HIERARCHICAL_CLUSTERING`: performs hierarchical clustering on the resulting embeddings.
+
 ### `Fixed`
 
 ### `Dependencies`
