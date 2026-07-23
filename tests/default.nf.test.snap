@@ -51,7 +51,7 @@
                     "stub": "x.y.z"
                 },
                 "Workflow": {
-                    "AlexsLemonade/morphport": "v0.1.0dev"
+                    "AlexsLemonade/morphport": "v0.1.0"
                 }
             },
             [
