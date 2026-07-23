@@ -1,0 +1,5 @@
+plate_map_name	well_position	gene_allele
+platemap_002	A01	wt
+platemap_002	B01	wt
+platemap_002	C01	mut
+platemap_002	D01	mut

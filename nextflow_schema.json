@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/AlexsLemonade/pccma-nf/main/nextflow_schema.json",
-    "title": "AlexsLemonade/pccma-nf pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/AlexsLemonade/morphport/main/nextflow_schema.json",
+    "title": "AlexsLemonade/morphport pipeline parameters",
     "description": "Downstream analysis of Cell Painting data to prepare for the PCCMA portal",
     "type": "object",
     "$defs": {
@@ -12,6 +12,14 @@
             "description": "Define where the pipeline should find input data and save output data.",
             "required": ["input", "outdir"],
             "properties": {
+                "publish_optional": {
+                    "type": "boolean",
+                    "description": "Publish intermediate pipeline outputs, such as partitioned parquet files.",
+                    "help_text": "By default, intermediate outputs (e.g. from PARTITION_CONDITIONS) are not published to the output directory. Set this flag to publish them, which is useful for debugging. Automatically enabled by the 'debug' profile.",
+                    "fa_icon": "fas fa-save",
+                    "default": false,
+                    "hidden": true
+                },
                 "input": {
                     "type": "string",
                     "format": "file-path",
@@ -35,6 +43,212 @@
                     "fa_icon": "fas fa-envelope",
                     "help_text": "Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits. If set in your user config file (`~/.nextflow/config`) then you don't need to specify this on the command line for every run.",
                     "pattern": "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"
+                }
+            }
+        },
+        "processing_options": {
+            "title": "Processing options",
+            "type": "object",
+            "fa_icon": "fas fa-cogs",
+            "description": "Parameters related to the general processing of the data.",
+            "properties": {
+                "platemap_well_column": {
+                    "type": "string",
+                    "default": "well_position",
+                    "description": "Column name in the input samplesheet that contains the well identifiers.",
+                    "help_text": "The pipeline uses the values in this column to match the samplesheet to the plate parquet files. The values in this column should correspond to the 'Metadata_Well' column in the plate parquet files. This is typically a column that describes the well position on the plate, such as 'well_position' or 'well_id'."
+                },
+                "analysis_groups_file": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "Path to a YAML (or JSON) file specifying how partitions should be grouped for downstream analysis.",
+                    "help_text": "The file should contain a mapping with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a string naming a condition column (with or without the 'Metadata_' prefix); use a comma-separated string to group on multiple columns. An optional 'default' key supplies groupings that are added to every level's groupings (de-duplicated). If the file is not provided, both levels collapse to a single empty grouping, meaning the pipeline skips partitioning entirely and treats all plates as one group per level. The partition columns used by the partition step are the union of every grouping column.\n\nExample (YAML):\ndefault:\n  - treatment\ncell:\n  - gene_allele\n  - treatment,gene_allele"
+                },
+                "random_seed": {
+                    "type": "integer",
+                    "default": 1674,
+                    "description": "Seed for stochastic steps in the pipeline (e.g., PCA, UMAP)."
+                }
+            }
+        },
+        "cosmicqc": {
+            "title": "coSMicQC",
+            "type": "object",
+            "description": "Parameters related to coSMicQC filtering",
+            "properties": {
+                "cosmicqc_filter_file": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Path to JSON file specifying coSMicQC filter conditions and z-score thresholds.",
+                    "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json."
+                },
+                "edge_well_filter": {
+                    "type": "string",
+                    "default": "both",
+                    "description": "Whether to exclude wells on the border of the plate before coSMicQC filtering. Use 'off' to keep all wells, 'on' to drop edge wells, or 'both' to carry both edge-included and edge-excluded datasets through the rest of the pipeline.",
+                    "help_text": "This filter assumes that all wells in a plate are filled with media, and will exclude only the plate edges. If there are empty wells on the plate, this filtering may not be sufficient.\nIn 'both' mode, results are published separately under 'edge_wells_included' and 'edge_wells_excluded' subdirectories and downstream analysis groups are kept separate for each variant.",
+                    "enum": ["on", "off", "both"]
+                }
+            }
+        },
+        "pycytominer": {
+            "title": "Pycytominer",
+            "type": "object",
+            "description": "Parameters related to Pycytominer processing",
+            "properties": {
+                "pycytominer_aggregate_operation": {
+                    "type": "string",
+                    "default": "median",
+                    "description": "Aggregation function to use when summarising per-cell data to well-level profiles.",
+                    "enum": ["median", "mean"]
+                },
+                "pycytominer_normalize_method_cell": {
+                    "type": "string",
+                    "default": "mad_robustize",
+                    "description": "Normalization method applied to cell-level profiles. Use 'none' to skip normalization.",
+                    "enum": ["mad_robustize", "standardize", "robustize", "spherize", "none"]
+                },
+                "pycytominer_normalize_method_well": {
+                    "type": "string",
+                    "default": "mad_robustize",
+                    "description": "Normalization method applied to well-level profiles. Use 'none' to skip normalization.",
+                    "enum": ["mad_robustize", "standardize", "robustize", "spherize", "none"]
+                },
+                "pycytominer_normalize_samples": {
+                    "type": "string",
+                    "default": "all",
+                    "description": "Reference population for fitting the normalizer. Use 'all' to fit on all samples, or a pandas query string to fit on a subset (e.g. \"Metadata_treatment == 'DMSO'\")."
+                },
+                "feature_select_operations": {
+                    "type": "string",
+                    "default": "blocklist,drop_na_columns,variance_threshold,correlation_threshold",
+                    "description": "Comma-separated list of pycytominer feature_select operations to apply per analysis group. Valid values: variance_threshold, correlation_threshold, drop_na_columns, blocklist, drop_outliers, noise_removal."
+                },
+                "feature_select_na_cutoff": {
+                    "type": "number",
+                    "default": 0.05,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Maximum fraction of rows that may be NaN before a feature column is dropped by the drop_na_columns operation."
+                },
+                "feature_select_corr_threshold": {
+                    "type": "number",
+                    "default": 0.9,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Correlation threshold for the correlation_threshold feature selection operation. Feature pairs with absolute correlation above this value are deduplicated."
+                },
+                "feature_select_corr_method": {
+                    "type": "string",
+                    "default": "pearson",
+                    "enum": ["pearson", "spearman", "kendall"],
+                    "description": "Correlation method for the correlation_threshold feature selection operation. Valid values: pearson, spearman, kendall, with pearson the default."
+                },
+                "feature_select_freq_cut": {
+                    "type": "number",
+                    "default": 0.05,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Frequency cut threshold for the variance_threshold operation. Features where the ratio of the most common to second most common value falls below this threshold are removed."
+                },
+                "feature_select_unique_cut": {
+                    "type": "number",
+                    "default": 0.01,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Unique cut threshold for the variance_threshold operation. Features where fewer than this fraction of values are unique are removed."
+                },
+                "feature_select_min_rows_stats": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 1,
+                    "description": "Minimum number of rows required to apply statistics-based feature selection operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal). Groups with fewer rows fall back to name-based operations only (blocklist, drop_na_columns), preventing degenerate empty feature lists from tiny groups."
+                },
+                "feature_select_outlier_cutoff": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 0,
+                    "description": "Absolute-value cutoff for the drop_outliers operation. Features whose maximum absolute value across rows exceeds this threshold are removed. Only used when drop_outliers is included in feature_select_operations."
+                },
+                "feature_select_noise_removal_perturb_groups": {
+                    "type": ["string", "null"],
+                    "default": null,
+                    "description": "Metadata column identifying replicate groups for the noise_removal operation. The operation drops features whose mean within-group standard deviation exceeds feature_select_noise_removal_stdev_cutoff. Required when noise_removal is included in feature_select_operations; leave unset otherwise."
+                },
+                "feature_select_noise_removal_stdev_cutoff": {
+                    "type": "number",
+                    "default": 0.8,
+                    "minimum": 0.0,
+                    "description": "Mean within-replicate-group standard deviation above which a feature is dropped by the noise_removal operation. Only used when noise_removal is included in feature_select_operations."
+                },
+                "feature_select_per_channel_correlation": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "If true and correlation_threshold is in feature_select_operations, run correlation_threshold once per channel group (features sharing the same channel set) instead of once across all features. Reduces over-aggressive deduplication of features that are correlated only because they describe the same channel."
+                }
+            }
+        },
+        "embedding": {
+            "title": "Embedding",
+            "type": "object",
+            "description": "Parameters controlling PCA + UMAP embeddings computed per analysis group.",
+            "properties": {
+                "embedding_pca_components": {
+                    "type": "integer",
+                    "default": 50,
+                    "minimum": 1,
+                    "description": "Number of PCA components to compute. Capped at runtime to min(n_rows, n_features)."
+                },
+                "embedding_umap_neighbors": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 2,
+                    "description": "UMAP n_neighbors parameter. Capped at runtime to n_rows - 1 for small groups."
+                },
+                "embedding_umap_min_dist": {
+                    "type": "number",
+                    "default": 0.1,
+                    "minimum": 0.0,
+                    "description": "UMAP min_dist parameter."
+                },
+                "embedding_max_nan_fraction": {
+                    "type": "number",
+                    "default": 0.0,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "Per-row NaN tolerance as a fraction of feature columns. Rows above the threshold are dropped; surviving rows have NaNs filled with 0. Default 0.0 drops any row with a NaN."
+                },
+                "embedding_min_rows": {
+                    "type": "integer",
+                    "default": 15,
+                    "minimum": 1,
+                    "description": "Minimum number of rows (after NaN filtering) required to compute PCA + UMAP for a group. Groups below this threshold are skipped: a metadata-only parquet is emitted and the summary JSON records skipped=true."
+                }
+            }
+        },
+        "clustering": {
+            "title": "Clustering",
+            "type": "object",
+            "description": "Parameters controlling hierarchical clustering computed per analysis group from PCA embeddings.",
+            "properties": {
+                "clustering_linkage_method": {
+                    "type": "string",
+                    "default": "average",
+                    "description": "Linkage method passed to scipy.cluster.hierarchy.linkage. Note: 'ward' requires clustering_distance_metric to be 'euclidean'.",
+                    "enum": ["single", "complete", "average", "weighted", "ward"]
+                },
+                "clustering_distance_metric": {
+                    "type": "string",
+                    "default": "correlation",
+                    "description": "Distance metric passed to scipy.cluster.hierarchy.linkage. Note: clustering_linkage_method 'ward' requires 'euclidean'.",
+                    "enum": ["euclidean", "correlation", "cosine", "cityblock"]
+                },
+                "clustering_max_samples": {
+                    "type": "integer",
+                    "default": 5000,
+                    "minimum": 2,
+                    "description": "Maximum number of samples to cluster. Groups with more rows than this (common for cell-level groups) are skipped rather than clustered, and the output JSON records skipped=true."
                 }
             }
         },
@@ -128,13 +342,6 @@
                     "fa_icon": "fas fa-palette",
                     "hidden": true
                 },
-                "hook_url": {
-                    "type": "string",
-                    "description": "Incoming hook URL for messaging service",
-                    "fa_icon": "fas fa-people-group",
-                    "help_text": "Incoming hook URL for messaging service. Currently, MS Teams and Slack are supported.",
-                    "hidden": true
-                },
                 "validate_params": {
                     "type": "boolean",
                     "description": "Boolean whether to validate parameters against the schema at runtime",
@@ -173,6 +380,21 @@
     "allOf": [
         {
             "$ref": "#/$defs/input_output_options"
+        },
+        {
+            "$ref": "#/$defs/processing_options"
+        },
+        {
+            "$ref": "#/$defs/cosmicqc"
+        },
+        {
+            "$ref": "#/$defs/pycytominer"
+        },
+        {
+            "$ref": "#/$defs/embedding"
+        },
+        {
+            "$ref": "#/$defs/clustering"
         },
         {
             "$ref": "#/$defs/institutional_config_options"

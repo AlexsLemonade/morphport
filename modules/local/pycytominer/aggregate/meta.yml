@@ -1,0 +1,55 @@
+name: pycytominer_aggregate
+description: Aggregate per-cell profiles into per-well bulk profiles using pycytominer.aggregate
+keywords:
+  - cell painting
+  - pycytominer
+  - aggregation
+  - parquet
+
+tools:
+  - pycytominer:
+      description: >
+        pycytominer is a suite of common functions used to process high-throughput
+        cell morphology data. This process calls pycytominer.aggregate.
+      homepage: https://github.com/cytomining/pycytominer
+      documentation: https://pycytominer.readthedocs.io
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Groovy Map containing plate metadata,
+          e.g. [ plate_id:'plate_001', batch:'batch_1', aggregate_level:'cell' ]
+    - parquet_file:
+        type: file
+        description: Per-cell parquet file produced by COSMICQC_FILTER
+        pattern: "*.parquet"
+  - - operation:
+        type: string
+        description: Aggregation function to apply across cells within each well ('median' or 'mean')
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Groovy Map containing plate metadata with aggregate_level set to 'well'
+      - "well_*.parquet":
+          type: file
+          description: Well-level (bulk) parquet with one row per well (aggregated per-cell features)
+          pattern: "well_*.parquet"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
