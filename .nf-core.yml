@@ -12,6 +12,7 @@ lint:
     - conf/igenomes.config
     - conf/igenomes_ignored.config
   files_unchanged:
+    - LICENSE
     - CODE_OF_CONDUCT.md
     - assets/nf-core-morphport_logo_light.png
     - docs/images/nf-core-morphport_logo_light.png
@@ -23,16 +24,14 @@ lint:
     - docs/README.md
     - .github/CONTRIBUTING.md
     - assets/sendmail_template.txt
+  included_configs: false
   multiqc_config: false
-  nextflow_config:
-    - manifest.name
-    - manifest.homePage
   pipeline_name_conventions: false
   readme: false
 nf_core_version: 4.0.2
 repository_type: pipeline
 template:
-  author: Joshua Shapiro
+  author: Joshua A. Shapiro
   description: Downstream analysis of Cell Painting data to prepare for the PCCMA
     portal
   force: false

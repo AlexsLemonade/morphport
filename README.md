@@ -63,7 +63,7 @@ nextflow run AlexsLemonade/morphport \
 
 ## Credits
 
-AlexsLemonade/morphport was originally written by Joshua Shapiro.
+AlexsLemonade/morphport was originally written by Joshua A. Shapiro.
 
 We thank the following people for their extensive assistance in the development of this pipeline:
 
