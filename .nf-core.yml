@@ -32,6 +32,7 @@ lint:
 nf_core_version: 4.0.2
 repository_type: pipeline
 template:
+  author: Joshua A. Shapiro
   org: AlexsLemonade
   name: morphport
   description: Downstream analysis of Cell Painting data to prepare for the PCCMA
