@@ -1,0 +1,29 @@
+# Example analysis groups file in the draft format described in docs/analysis_groups_format.md.
+#
+# NOT wired into any pipeline config, and NOT yet understood by the parser
+# (parseGroupings/normalizeGroupings still only understand the format used by
+# assets/analysis_groups_example.yaml). This file exists purely to illustrate
+# the new format ahead of the implementation work tracked in issue #51.
+
+default:
+  # Every treatment value gets its own analysis group, as today.
+  - grouping_column: treatment
+    groups: one_per_value
+
+cell:
+  # A named grouping by mechanism of action. DMSO is folded into every named
+  # group so each MoA can be compared against the shared control. drugE is
+  # a real, observed treatment value that has no known MoA yet -- it's
+  # explicitly excluded so it doesn't trigger the "unaccounted value" error.
+  - name: moa_grouping
+    grouping_column: treatment
+    groups:
+      kinase_inhibitor: [drugA, drugB, drugC]
+      hdac_inhibitor: [drugD, drugA] # drugA has two known mechanisms
+    always_include: [DMSO]
+    excluded: [drugE]
+
+well:
+  # well-level grouping by cell type, added to the default treatment grouping
+  - grouping_column: cell_type
+    groups: one_per_value
