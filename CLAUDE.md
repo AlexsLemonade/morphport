@@ -38,3 +38,20 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - Always include `stub` blocks for creating placeholder outputs during testing or debugging.
 - Do not use implicit `it` variables in closures; always define explicit input variables.
   - if an input variable is not used, prefix it with `_` to indicate it is unused (e.g., `ch_input.map { _unused, value -> ... }`).
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as local markdown files under `.scratch/<feature>/`.
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five canonical labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) used as-is.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root.
+See `docs/agents/domain.md`.
