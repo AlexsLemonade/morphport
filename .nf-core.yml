@@ -29,7 +29,7 @@ lint:
   main_nf_include_versions: false
   pipeline_name_conventions: false
   readme: false
-nf_core_version: 4.0.3
+nf_core_version: 4.1.0
 repository_type: pipeline
 template:
   author: Joshua A. Shapiro
