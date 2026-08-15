@@ -14,17 +14,7 @@ process PYCYTOMINER_FEATURE_SELECT {
 
     input:
     tuple val(meta), val(plate_metas), path(parquets, stageAs: 'input_parquet/input*.parquet')
-    val(operations)
-    val(na_cutoff)
-    val(corr_threshold)
-    val(corr_method)
-    val(freq_cut)
-    val(unique_cut)
-    val(min_rows_stats)
-    val(outlier_cutoff)
-    val(noise_removal_perturb_groups)
-    val(noise_removal_stdev_cutoff)
-    val(per_channel_correlation)
+    val(options)
 
     output:
     // Pass the original staged parquets through alongside a text file of selected feature
@@ -35,6 +25,17 @@ process PYCYTOMINER_FEATURE_SELECT {
     path "versions.yml", emit: versions, topic: versions
 
     script:
+    operations = options.operations
+    na_cutoff = options.na_cutoff
+    corr_threshold = options.corr_threshold
+    corr_method = options.corr_method
+    freq_cut = options.freq_cut
+    unique_cut = options.unique_cut
+    min_rows_stats = options.min_rows_stats
+    outlier_cutoff = options.outlier_cutoff
+    noise_removal_perturb_groups = options.noise_removal_perturb_groups
+    noise_removal_stdev_cutoff = options.noise_removal_stdev_cutoff
+    per_channel_correlation = options.per_channel_correlation
     def allowed_ops = ['variance_threshold', 'correlation_threshold', 'drop_na_columns', 'blocklist', 'drop_outliers', 'noise_removal']
     def ops_list = operations.tokenize(',').collect { it.trim() }
     assert ops_list.every { it in allowed_ops }

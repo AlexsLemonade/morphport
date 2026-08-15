@@ -142,17 +142,19 @@ workflow MORPHPORT {
 
     PYCYTOMINER_FEATURE_SELECT(
         ch_grouped,
-        params.feature_select_operations,
-        params.feature_select_na_cutoff,
-        params.feature_select_corr_threshold,
-        params.feature_select_corr_method,
-        params.feature_select_freq_cut,
-        params.feature_select_unique_cut,
-        params.feature_select_min_rows_stats,
-        params.feature_select_outlier_cutoff,
-        params.feature_select_noise_removal_perturb_groups ?: '',
-        params.feature_select_noise_removal_stdev_cutoff,
-        params.feature_select_per_channel_correlation,
+        [
+            operations: params.feature_select_operations,
+            na_cutoff: params.feature_select_na_cutoff,
+            corr_threshold: params.feature_select_corr_threshold,
+            corr_method: params.feature_select_corr_method,
+            freq_cut: params.feature_select_freq_cut,
+            unique_cut: params.feature_select_unique_cut,
+            min_rows_stats: params.feature_select_min_rows_stats,
+            outlier_cutoff: params.feature_select_outlier_cutoff,
+            noise_removal_perturb_groups: params.feature_select_noise_removal_perturb_groups ?: '',
+            noise_removal_stdev_cutoff: params.feature_select_noise_removal_stdev_cutoff,
+            per_channel_correlation: params.feature_select_per_channel_correlation,
+        ],
     )
 
     // Filter groups with an empty feature list before analysis steps
