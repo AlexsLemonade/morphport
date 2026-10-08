@@ -26,7 +26,7 @@ process COMPUTE_EMBEDDINGS {
 
     script:
     group_tag = groupTag(meta)
-    grouping_info = groupingInfoJson(meta, [plate_ids: meta.plate_ids])
+    grouping_info = groupingInfoJson(meta, [plate_ids: meta.plate_ids]) // noqa
     template 'compute_embeddings.py'
 
     stub:

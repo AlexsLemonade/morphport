@@ -87,7 +87,7 @@ workflow PIPELINE_INITIALISATION {
     // "comma-separated list must be drawn from this set" or "param X is
     // required when param Y contains value Z", so handle those checks here.
     //
-    def feature_select_ops = params.feature_select_operations.tokenize(',').collect { it.trim() }
+    def feature_select_ops = params.feature_select_operations.tokenize(',').collect { it -> it.trim() }
     def allowed_feature_select_ops = ['variance_threshold', 'correlation_threshold', 'drop_na_columns', 'blocklist', 'drop_outliers', 'noise_removal']
     def invalid_ops = feature_select_ops - allowed_feature_select_ops
     if (invalid_ops) {
