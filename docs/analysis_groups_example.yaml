@@ -23,6 +23,15 @@ cell:
     always_include: [DMSO]
     excluded: [drugE]
 
+  # One group per cell line, restricted to wells that saw no drug treatment.
+  # The filter column (treatment) is not the grouping column (cell_type), so
+  # partitions must be split by both for this entry to be constructible.
+  - name: untreated_cell_lines
+    grouping_column: cell_type
+    filter:
+      treatment: [DMSO, untreated]
+    groups: one_per_value
+
 well:
   # well-level grouping by cell type, added to the default treatment grouping
   - grouping_column: cell_type
