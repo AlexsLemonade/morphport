@@ -11,10 +11,18 @@ default:
     groups: one_per_value
 
 cell:
-  # A named grouping by mechanism of action. DMSO is folded into every named
-  # group so each MoA can be compared against the shared control. drugE is
-  # a real, observed treatment value that has no known MoA yet -- it's
-  # explicitly excluded so it doesn't trigger the "unaccounted value" error.
+  # One group per cell line, restricted to wells with no drug treatment.
+  # Note that the initial partitions will have to be split by both cell type and treatment
+  - name: untreated_cell_lines
+    grouping_column: cell_type
+    filter:
+      treatment: [DMSO, untreated]
+    groups: one_per_value
+
+  # Grouping by mechanism of action.
+  # DMSO is folded into every named group so each MoA can be compared against the shared control.
+  # drugE representes treatment value that has no known MoA yet.
+  # It is explicitly excluded so it doesn't trigger an "unaccounted for value" error.
   - name: moa_grouping
     grouping_column: treatment
     groups:
@@ -23,14 +31,17 @@ cell:
     always_include: [DMSO]
     excluded: [drugE]
 
-  # One group per cell line, restricted to wells that saw no drug treatment.
-  # The filter column (treatment) is not the grouping column (cell_type), so
-  # partitions must be split by both for this entry to be constructible.
-  - name: untreated_cell_lines
-    grouping_column: cell_type
-    filter:
-      treatment: [DMSO, untreated]
-    groups: one_per_value
+  # MoA groups further split by cell line.
+  # For subgroups we always split by all values, which keeps things a bit simpler
+  # We could in theory split by more than one subgroup, but practically we only expect one for now
+  - name: moa_by_cell_line
+    grouping_column: treatment
+    groups:
+      kinase_inhibitor: [drugA, drugB, drugC]
+      hdac_inhibitor: [drugD, drugA]
+    always_include: [DMSO]
+    excluded: [drugE]
+    subgroup_columns: [cell_type]
 
 well:
   # well-level grouping by cell type, added to the default treatment grouping
