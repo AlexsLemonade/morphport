@@ -16,12 +16,12 @@ cell:
   - name: untreated_cell_lines
     grouping_column: cell_type
     filter:
-      treatment: [DMSO, untreated]
+      treatment: [DMSO]
     groups: one_per_value
 
   # Grouping by mechanism of action.
   # DMSO is folded into every named group so each MoA can be compared against the shared control.
-  # drugE representes treatment value that has no known MoA yet.
+  # drugE represents a treatment value that has no known MoA yet.
   # It is explicitly excluded so it doesn't trigger an "unaccounted for value" error.
   - name: moa_grouping
     grouping_column: treatment
