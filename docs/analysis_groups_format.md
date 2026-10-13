@@ -74,7 +74,7 @@ Listing a single value still requires list form (`treatment: [DMSO]`), so the sh
 ### `groups` (required)
 
 No implicit default: every entry must state how its grouping column's values become groups.
-Two forms:
+Three forms:
 
 **1. `groups: one_per_value`**
 
@@ -92,13 +92,35 @@ Each key is a group name; each value is the list of raw column values that belon
 A value may appear in more than one named group — the resulting samples belong to both groups (fan-out), not one or the other.
 This is how a drug with two mechanisms of action ends up correctly analyzed under each one.
 
+**3. `groups: all_values`**
+
+A single group, named `all_values`, containing every value observed in the data for this column.
+This is how to pool data across a column rather than split by it, without having to list every value.
+Combined with `filter`, it gives a single group of a subset of the data:
+
+```yaml
+- name: dmso_all_cell_lines
+  grouping_column: cell_type
+  filter:
+    treatment: [DMSO]
+  groups: all_values
+```
+
+This produces one group containing the DMSO wells from every cell line, including any cell lines added to the data later.
+
 ### `always_include` (optional)
 
 A list of values whose data joins **every** group this entry produces, in addition to that value's own normal membership.
-Works with both `groups: one_per_value` and named `groups`. Two examples:
+Works with `groups: one_per_value` and named `groups`. Two examples:
 
 - Named groups: `always_include: [DMSO]` alongside MoA groups means DMSO's samples appear in the `kinase_inhibitor` group, the `hdac_inhibitor` group, and any other named group in this entry.
 - `one_per_value`: `always_include: [DMSO]` means every per-treatment group (one per distinct treatment value) also includes DMSO's samples, i.e., "every drug vs. DMSO."
+
+With `groups: one_per_value`, values listed in `always_include` do **not** form a group of their own.
+A DMSO-only group would duplicate what every other group already contains, so `always_include: [DMSO]` produces only the per-drug groups.
+If a standalone group of the `always_include` values is also wanted, add a separate entry for it (e.g., using `filter`).
+
+With `groups: all_values`, every value is already in the single group, so `always_include` has no effect; it is a **warning** rather than an error.
 
 ### `excluded` (optional)
 
@@ -113,8 +135,8 @@ A value that appears in none of these is an **error**, not a warning — the pip
 Because it rests on observed values, this check cannot run until the platemaps have been read (see "How errors are raised").
 This is exactly what `excluded` is for: a deliberately-unmapped value (e.g. a rarely-used compound with no known MoA yet) is listed there to satisfy the accounting rule without being part of any group.
 
-This rule does not apply to `groups: one_per_value` — every observed value automatically forms its own group, so there is no "unaccounted for" case.
-`excluded` still works there, but purely as an opt-out (a value that shouldn't form its own group), never as error-avoidance.
+This rule does not apply to `groups: one_per_value` or `groups: all_values` — every observed value automatically forms or joins a group, so there is no "unaccounted for" case.
+`excluded` still works there, but purely as an opt-out (a value that shouldn't form or join a group), never as error-avoidance.
 
 ### `name` (optional)
 
@@ -152,6 +174,8 @@ There is no way to map subgroup column values into named groups, and `always_inc
 To restrict which subgroups exist, use `filter` (see above).
 
 With `groups: one_per_value`, `grouping_column: treatment` with `subgroup_columns: [cell_type]` yields one group per observed (treatment, cell_type) pair, the same as the old format's `treatment,cell_type` shorthand.
+Adding `always_include: [DMSO]` drops the DMSO pairs and adds each cell line's DMSO wells to that cell line's other groups.
+With `groups: all_values`, it yields one group per subgroup value, each pooling every value of `grouping_column` within that subgroup.
 
 #### How `subgroup_columns` interacts with everything else
 
@@ -181,11 +205,13 @@ Functions and variables named here are in `subworkflows/local/utils_nfcore_morph
 Raised from `parseGroupings`, which runs in the workflow body rather than inside a channel operator, so `error()` there aborts before any process is submitted.
 This is the same idiom as the existing cross-parameter checks (e.g. `feature_select_operations`, `clustering_linkage_method`) just above it.
 
-- malformed shapes (`filter` not a map, values not lists, `subgroup_columns` not a list, `groups` neither `one_per_value` nor a mapping)
+- malformed shapes (`filter` not a map, values not lists, `subgroup_columns` not a list, `groups` not `one_per_value`, `all_values`, or a mapping)
 - missing required keys
 - duplicate auto-generated entry names
 - `filter` naming the entry's own `grouping_column`
 - `subgroup_columns` naming the entry's own `grouping_column`
+
+`always_include` used with `groups: all_values` is also detected here, but as a warning (`log.warn`) rather than an error, since it does no harm.
 
 ### Tier 2: data-dependent — needs observed values
 
@@ -224,6 +250,13 @@ cell:
       treatment: [DMSO]
     groups: one_per_value
 
+  # A single group of DMSO wells pooled across all cell lines.
+  - name: dmso_all_cell_lines
+    grouping_column: cell_type
+    filter:
+      treatment: [DMSO]
+    groups: all_values
+
   # Grouping by mechanism of action.
   # DMSO is folded into every named group so each MoA can be compared against the shared control.
   # drugE represents a treatment value that has no known MoA yet.
@@ -236,16 +269,14 @@ cell:
     always_include: [DMSO]
     excluded: [drugE]
 
-  # MoA groups further split by cell line.
+  # Treatments (drugs) further split by cell line
+  # DMSO joins each drug's group within its cell line, and does not form a group of its own
   # For subgroups we always split by all values, which keeps things a bit simpler
   # We could in theory split by more than one subgroup, but practically we only expect one for now
-  - name: moa_by_cell_line
+  - name: treatment_by_cell_line
     grouping_column: treatment
-    groups:
-      kinase_inhibitor: [drugA, drugB, drugC]
-      hdac_inhibitor: [drugD, drugA]
+    groups: one_per_value
     always_include: [DMSO]
-    excluded: [drugE]
     subgroup_columns: [cell_type]
 
 well:
@@ -259,3 +290,5 @@ well:
 - **Negative filters.** `filter` is keep-only; there is no "every value except these" form.
   For the grouping column itself `excluded` covers it, and the motivating filters (control wells, a timepoint) are short enumerable lists.
   A column with many values where the exclusion list is shorter than the inclusion list would make the case for adding one.
+- **`always_include` across subgroups.** `always_include` values are matched within each subgroup, so subgrouping by a column the controls don't share (e.g., `subgroup_columns: [cell_type, dose]`, where DMSO wells have no matching dose) leaves those subgroups without controls, which is an error.
+  Workarounds are a combined grouping column in the platemap (e.g., `treatment_dose`), or a future key letting `always_include` ignore some subgroup columns (e.g., `always_include_across: [dose]`).

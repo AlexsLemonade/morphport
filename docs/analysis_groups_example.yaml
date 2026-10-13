@@ -19,6 +19,13 @@ cell:
       treatment: [DMSO]
     groups: one_per_value
 
+  # A single group of DMSO wells pooled across all cell lines.
+  - name: dmso_all_cell_lines
+    grouping_column: cell_type
+    filter:
+      treatment: [DMSO]
+    groups: all_values
+
   # Grouping by mechanism of action.
   # DMSO is folded into every named group so each MoA can be compared against the shared control.
   # drugE represents a treatment value that has no known MoA yet.
@@ -31,16 +38,14 @@ cell:
     always_include: [DMSO]
     excluded: [drugE]
 
-  # MoA groups further split by cell line.
+  # Treatments (drugs) further split by cell line
+  # DMSO joins each drug's group within its cell line, and does not form a group of its own
   # For subgroups we always split by all values, which keeps things a bit simpler
   # We could in theory split by more than one subgroup, but practically we only expect one for now
-  - name: moa_by_cell_line
+  - name: treatment_by_cell_line
     grouping_column: treatment
-    groups:
-      kinase_inhibitor: [drugA, drugB, drugC]
-      hdac_inhibitor: [drugD, drugA]
+    groups: one_per_value
     always_include: [DMSO]
-    excluded: [drugE]
     subgroup_columns: [cell_type]
 
 well:
