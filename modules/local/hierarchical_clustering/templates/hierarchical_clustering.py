@@ -241,7 +241,7 @@ def main():
             "label": labels,
         },
         schema=LEAVES_SCHEMA,
-    ).hstack(df.select(metadata_cols).get_columns())
+    ).hstack(df.select(metadata_cols))
     leaves_df.write_parquet(leaves_parquet)
 
     with open(clustering_summary_json, "w") as f:
