@@ -32,12 +32,12 @@ This is the same behavior as currently implemented.
 Every entry is an object:
 
 ```yaml
-- name: moa_grouping # optional; see "`name`" below
+- name: moa_grouping # optional but recommended; see "`name`" below
   grouping_column: treatment # required; exactly one column
-  filter: { timepoint: [24h] } # optional; see "Filter" below
-  groups: one_per_value # required; see "Groups" below
+  groups: one_per_value # required; see "groups" below
   always_include: [DMSO] # optional
   excluded: [vehicle_control_2] # optional
+  filter: { timepoint: [24h] } # optional; see "filter" below
   subgroup_columns: [cell_type] # optional; see "subgroup_columns" below
 ```
 
@@ -46,30 +46,6 @@ Every entry is an object:
 Exactly one metadata column, with or without the `Metadata_` prefix (the prefix is added automatically if missing, same as today).
 Unlike the current format, a single entry can no longer name multiple columns — there is no comma-separated or list form.
 To repeat a grouping within each value of other columns, use `subgroup_columns`.
-
-### `filter` (optional)
-
-Allows selecting rows to include in the grouping sets, applied **before** any grouping happens.
-Where `always_include` and `excluded` act on the values of `grouping_column`, `filter` acts on _other_ metadata columns — it is what lets an entry say "group by cell line, but only in untreated wells."
-
-```yaml
-filter:
-  treatment: [DMSO, untreated]
-```
-
-Each key is a metadata column (with or without the `Metadata_` prefix, same normalization as `grouping_column`); each value is the list of column values to **keep**.
-Rows must match the expected values for all listed columns to be included.
-Listing a single value still requires list form (`treatment: [DMSO]`), so the shape is uniform.
-
-`filter` must not name the entry's own `grouping_column`; use `excluded` to drop values of that column.
-
-#### How `filter` interacts with everything else
-
-- **It applies first, and to all rows.** `always_include` values are subject to the filter too — an entry with `filter: {timepoint: [24h]}` and `always_include: [DMSO]` contributes no DMSO rows if DMSO never appears at 24h. That is a mistake and should be an **error** rather than a silent empty contribution. Detecting it takes observed values; see "How errors are raised" below.
-- **"Observed values" means observed after filtering.** Both the per-value group enumeration of `one_per_value` and the accounting rule for named `groups` consider only values present in the filtered rows. A treatment value that exists in the data but is filtered out of this entry does not need to be mentioned in `excluded` to satisfy the accounting rule.
-- **An entry whose filter matches no rows is an error.** A filter naming a value that never appears in the data is far more likely to be a typo than an intentional empty group.
-- **A filter column missing from any platemap is an error.** This is specific to `filter` and has no analogue in the current format. `enumeratePlatemapCombos` encodes a column absent from a given platemap as the sentinel `_Absent_`, which matches no ordinary filter value — so a plate whose platemap happens to omit `treatment` would contribute **zero rows** to a `filter: {treatment: [...]}` entry, silently, while other plates matched normally. Grouping columns degrade gracefully here (the rows form an `_Absent_` group and are still visible); filters just drop the data. Every filter column must therefore be present in _every_ plate's platemap.
-- **Auto-generated names collide more easily.** Two entries that differ _only_ by `filter` (or `subgroup_columns`) share a `grouping_column` and therefore auto-generate the same name, which is already an error (see "`name`"). Filtered entries will usually want an explicit `name:`.
 
 ### `groups` (required)
 
@@ -138,12 +114,36 @@ This is exactly what `excluded` is for: a deliberately-unmapped value (e.g. a ra
 This rule does not apply to `groups: one_per_value` or `groups: all_values` — every observed value automatically forms or joins a group, so there is no "unaccounted for" case.
 `excluded` still works there, but purely as an opt-out (a value that shouldn't form or join a group), never as error-avoidance.
 
-### `name` (optional)
+### `name` (optional, recommended)
 
 A label for the entry itself, used only for diagnostics (error messages, logs) — distinct from the group names inside `groups`, which name individual value-set groups.
 If omitted, it's auto-generated from `grouping_column` (`Metadata_` prefix stripped) — e.g. an entry with `grouping_column: treatment` and no `name` auto-generates to `treatment`.
 
 If two entries at the same level would both auto-generate the same name (e.g., two different `treatment`-based entries, neither with an explicit `name:`), that's an **error** detectable from the file alone: at least one needs an explicit `name:` to disambiguate.
+
+### `filter` (optional)
+
+Allows selecting rows to include in the grouping sets, applied **before** any grouping happens.
+Where `always_include` and `excluded` act on the values of `grouping_column`, `filter` acts on _other_ metadata columns — it is what lets an entry say "group by cell line, but only in untreated wells."
+
+```yaml
+filter:
+  treatment: [DMSO, untreated]
+```
+
+Each key is a metadata column (with or without the `Metadata_` prefix, same normalization as `grouping_column`); each value is the list of column values to **keep**.
+Rows must match the expected values for all listed columns to be included.
+Listing a single value still requires list form (`treatment: [DMSO]`), so the shape is uniform.
+
+`filter` must not name the entry's own `grouping_column`; use `excluded` to drop values of that column.
+
+#### How `filter` interacts with everything else
+
+- **It applies first, and to all rows.** `always_include` values are subject to the filter too — an entry with `filter: {timepoint: [24h]}` and `always_include: [DMSO]` contributes no DMSO rows if DMSO never appears at 24h. That is a mistake and should be an **error** rather than a silent empty contribution. Detecting it takes observed values; see "How errors are raised" below.
+- **"Observed values" means observed after filtering.** Both the per-value group enumeration of `one_per_value` and the accounting rule for named `groups` consider only values present in the filtered rows. A treatment value that exists in the data but is filtered out of this entry does not need to be mentioned in `excluded` to satisfy the accounting rule.
+- **An entry whose filter matches no rows is an error.** A filter naming a value that never appears in the data is far more likely to be a typo than an intentional empty group.
+- **A filter column missing from any platemap is an error.** This is specific to `filter` and has no analogue in the current format. `enumeratePlatemapCombos` encodes a column absent from a given platemap as the sentinel `_Absent_`, which matches no ordinary filter value — so a plate whose platemap happens to omit `treatment` would contribute **zero rows** to a `filter: {treatment: [...]}` entry, silently, while other plates matched normally. Grouping columns degrade gracefully here (the rows form an `_Absent_` group and are still visible); filters just drop the data. Every filter column must therefore be present in _every_ plate's platemap.
+- **Auto-generated names collide more easily.** Two entries that differ _only_ by `filter` (or `subgroup_columns`) share a `grouping_column` and therefore auto-generate the same name, which is already an error (see "`name`"). Filtered entries will usually want an explicit `name:`.
 
 ### `subgroup_columns` (optional)
 
@@ -191,9 +191,6 @@ With `groups: all_values`, it yields one group per subgroup value, each pooling 
 This is the one place `filter` changes existing behavior: today's `partition_columns` computation in `PIPELINE_INITIALISATION` is a union of grouping columns only, and it has to grow to include filter columns.
 
 Restricting each entry to a single grouping column does not restrict partitioning to a single column: the same fine-grained partitions are still shared and recombined across every entry, however many distinct columns are in use across the file.
-
-Note the cost: each distinct filter column multiplies the partition count, and partitions are the unit of work for everything downstream of `PARTITION_CONDITIONS`.
-A filter column with many distinct values is more expensive than one with two or three.
 
 ## How errors are raised
 
@@ -246,16 +243,16 @@ cell:
   # Note that the initial partitions will have to be split by both cell type and treatment
   - name: untreated_cell_lines
     grouping_column: cell_type
+    groups: one_per_value
     filter:
       treatment: [DMSO]
-    groups: one_per_value
 
   # A single group of DMSO wells pooled across all cell lines.
   - name: dmso_all_cell_lines
     grouping_column: cell_type
+    groups: all_values
     filter:
       treatment: [DMSO]
-    groups: all_values
 
   # Grouping by mechanism of action.
   # DMSO is folded into every named group so each MoA can be compared against the shared control.
