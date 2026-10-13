@@ -4,7 +4,7 @@ nextflow_function {
     script "../main.nf"
     tag "subworkflows"
     tag "subworkflows_local"
-    tag "utils_nfcore_morphport_pipeline"
+    tag "utils_analysis_groups"
 
     //
     // normalizeGroupings
