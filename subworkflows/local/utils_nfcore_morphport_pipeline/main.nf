@@ -109,7 +109,7 @@ workflow PIPELINE_INITIALISATION {
     // Since these don't depend on any channel elements, they don't need to be a channel process.
     //
     def parsed_groups = parseGroupings(params.analysis_groups_file)
-    def partition_columns = (parsed_groups.cell + parsed_groups.well).flatten().unique() as List<String>
+    def partition_columns = groupingPartitionColumns(parsed_groups)
 
     channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
@@ -348,42 +348,221 @@ def addMetadataPrefix(col) {
 }
 
 //
-// Normalize a list of groupings from the JSON file. Each grouping is a comma-separated
-// string of column names; this returns a list of groupings, where each grouping is a list of column names with the Metadata_ prefix added if not already present.
-// An empty string parses to an empty grouping (no columns / "everything together").
+// Check the structure of a parsed analysis groups file (Tier 1 validation: anything knowable
+// from the file alone, without reading platemaps). See docs/analysis_groups_format.md.
+// Returns [errors: [...], warnings: [...]] so that every problem can be reported at once.
 //
-def normalizeGroupings(groupings_list) {
-    def normalized_groupings = groupings_list.collect { grouping ->
-        // split the grouping string by commas, trim whitespace, and filter out empty column names
-        def raw_cols = (grouping as String).split(',')*.trim().findAll()
-        // add Metadata_ prefix to each column name if not already present
-        raw_cols.collect { col -> addMetadataPrefix(col) }
+def validateGroupingStructure(parsed) {
+    def errors = []
+    def warnings = []
+    def entry_keys = ['name', 'grouping_column', 'groups', 'always_include', 'excluded', 'filter', 'subgroup_columns']
+
+    if (!(parsed instanceof Map)) {
+        errors << "The analysis groups file must be a mapping with 'default', 'cell', and/or 'well' keys."
+        return [errors: errors, warnings: warnings]
     }
-    return normalized_groupings
+    def unknown_levels = parsed.keySet().collect { key -> key as String } - ['default', 'cell', 'well']
+    unknown_levels.each { key ->
+        errors << "Unknown top-level key '${key}': expected 'default', 'cell', and/or 'well'."
+    }
+
+    def level_entries = ['default', 'cell', 'well'].collectEntries { level ->
+        def entries = parsed.get(level)
+        if (entries != null && !(entries instanceof List)) {
+            errors << "Top-level key '${level}' must be a list of entries."
+            entries = []
+        }
+        [(level): entries ?: []]
+    }
+
+    level_entries.each { level, entries ->
+        entries.eachWithIndex { entry, idx ->
+            def label = "Entry ${idx + 1} in '${level}'"
+            if (!(entry instanceof Map)) {
+                errors << "${label} ('${entry}') must be a mapping with 'name', 'grouping_column', and 'groups' keys."
+                return
+            }
+            if (entry.name != null) {
+                label = "Entry '${entry.name}' in '${level}'"
+            }
+
+            // keys
+            (entry.keySet().collect { key -> key as String } - entry_keys).each { key ->
+                errors << "${label}: unknown key '${key}'."
+            }
+            ['name', 'grouping_column', 'groups'].findAll { key -> entry.get(key) == null }.each { key ->
+                errors << "${label}: missing required key '${key}'."
+            }
+
+            // name
+            if (entry.name != null && !((entry.name as String) ==~ /[A-Za-z0-9_-]+/)) {
+                errors << "${label}: name may contain only letters, digits, '_', and '-'."
+            }
+
+            // grouping_column
+            def grouping_column = null
+            if (entry.grouping_column != null) {
+                if (!(entry.grouping_column instanceof String) || (entry.grouping_column as String).contains(',')) {
+                    errors << "${label}: grouping_column must be a single column name; use subgroup_columns to subdivide by other columns."
+                }
+                else {
+                    grouping_column = addMetadataPrefix(entry.grouping_column as String)
+                }
+            }
+
+            // groups
+            def groups = entry.groups
+            if (groups instanceof Map) {
+                if (groups.isEmpty()) {
+                    errors << "${label}: groups mapping must define at least one group."
+                }
+                groups.each { group_name, values ->
+                    if (!(values instanceof List)) {
+                        errors << "${label}: group '${group_name}' must be a list of values."
+                    }
+                }
+            }
+            else if (groups != null && !(groups in ['one_per_value', 'all_values'])) {
+                errors << "${label}: groups must be 'one_per_value', 'all_values', or a mapping of group names to lists of values."
+            }
+
+            // optional list-valued keys
+            ['always_include', 'excluded', 'subgroup_columns'].each { key ->
+                if (entry.get(key) != null && !(entry.get(key) instanceof List)) {
+                    errors << "${label}: ${key} must be a list."
+                }
+            }
+            if (entry.filter != null) {
+                if (!(entry.filter instanceof Map)) {
+                    errors << "${label}: filter must be a mapping of column names to lists of values."
+                }
+                else {
+                    entry.filter.each { col, values ->
+                        if (!(values instanceof List)) {
+                            errors << "${label}: filter column '${col}' must be a list of values."
+                        }
+                    }
+                }
+            }
+
+            // cross-key checks
+            if (grouping_column) {
+                if (entry.filter instanceof Map && entry.filter.keySet().any { col -> addMetadataPrefix(col as String) == grouping_column }) {
+                    errors << "${label}: filter must not name the grouping_column; use excluded to drop its values."
+                }
+                if (entry.subgroup_columns instanceof List && entry.subgroup_columns.any { col -> addMetadataPrefix(col as String) == grouping_column }) {
+                    errors << "${label}: subgroup_columns must not name the grouping_column."
+                }
+            }
+            if (entry.always_include instanceof List && entry.excluded instanceof List) {
+                def overlap = entry.always_include.collect { value -> value as String }
+                    .intersect(entry.excluded.collect { value -> value as String })
+                if (overlap) {
+                    errors << "${label}: values ${overlap} are in both always_include and excluded."
+                }
+            }
+            if (groups == 'all_values' && entry.always_include) {
+                warnings << "${label}: always_include has no effect with 'groups: all_values'."
+            }
+        }
+    }
+
+    // names must be unique within each level, counting the default entries added to it
+    def default_names = level_entries['default'].findAll { entry -> entry instanceof Map && entry.name != null }
+        .collect { entry -> entry.name as String }
+    ['cell', 'well'].each { level ->
+        def names = default_names + level_entries[level]
+            .findAll { entry -> entry instanceof Map && entry.name != null }
+            .collect { entry -> entry.name as String }
+        names.countBy { name -> name }.findAll { _name, count -> count > 1 }.each { name, _count ->
+            errors << "Entry name '${name}' is used more than once in '${level}' (including 'default' entries)."
+        }
+    }
+
+    return [errors: errors, warnings: warnings]
 }
 
 //
-// Parse analysis_groups_file into a Map keyed by aggregate_level ('cell'/'well'), where each
-// value is a list of groupings and each grouping is a list of Metadata_-prefixed column names.
-// If no file is given, both levels resolve to a single empty-column grouping ([[]]), meaning
+// Normalize a structurally valid parsed analysis groups file into a map of
+// aggregate_level ('cell'/'well') → list of entries. Each entry has every key filled in:
+//   [name, grouping_column, groups, always_include, excluded, filter, subgroup_columns]
+// Column names get the Metadata_ prefix, and all values are coerced to strings to match
+// the values read from platemaps. 'default' entries are placed first in each level.
+//
+def normalizeGroupings(parsed) {
+    def default_entries = (parsed.get('default') ?: []).collect { entry -> normalizeGroupingEntry(entry) }
+    return ['cell', 'well'].collectEntries { level ->
+        [(level): default_entries + (parsed.get(level) ?: []).collect { entry -> normalizeGroupingEntry(entry) }]
+    }
+}
+
+//
+// Normalize a single analysis groups entry; see normalizeGroupings.
+//
+def normalizeGroupingEntry(entry) {
+    def groups = entry.groups instanceof Map
+        ? entry.groups.collectEntries { group_name, values -> [(group_name as String): toStringList(values)] }
+        : entry.groups as String
+    return [
+        name: entry.name as String,
+        grouping_column: addMetadataPrefix(entry.grouping_column as String),
+        groups: groups,
+        always_include: toStringList(entry.always_include),
+        excluded: toStringList(entry.excluded),
+        filter: (entry.filter ?: [:]).collectEntries { col, values -> [(addMetadataPrefix(col as String)): toStringList(values)] },
+        subgroup_columns: (entry.subgroup_columns ?: []).collect { col -> addMetadataPrefix(col as String) },
+    ]
+}
+
+//
+// Coerce a (possibly null) list of YAML scalars to a list of strings.
+//
+def toStringList(values) {
+    return (values ?: []).collect { value -> value as String }
+}
+
+//
+// Parse analysis_groups_file into a map of aggregate_level ('cell'/'well') → list of
+// normalized entries (see normalizeGroupings and docs/analysis_groups_format.md).
+// Structural errors abort the run here, before any process is submitted.
+// If no file is given, each level gets a single entry with no grouping column, meaning
 // "one all-encompassing group per level" (no partitioning).
-// If a file is given, an optional top-level "default" key supplies groupings that are
-// added to each level's groupings (de-duplicated). If the file has no "default" entry,
-// any missing levels will resolve to [] (no groupings on that level).
 //
 def parseGroupings(groups_file) {
     if (!groups_file) {
-        return [cell: [[]], well: [[]]]
+        def all_entry = [
+            name: null,
+            grouping_column: null,
+            groups: 'all_values',
+            always_include: [],
+            excluded: [],
+            filter: [:],
+            subgroup_columns: [],
+        ]
+        return [cell: [all_entry], well: [all_entry]]
     }
 
-    def parsed = new org.yaml.snakeyaml.Yaml().load(file(groups_file, checkIfExists: true).text) as Map
-    def default_groupings = parsed.containsKey('default') ? normalizeGroupings(parsed['default'] as List) : []
-
-    // make a map of aggregate_level: groupings, where groupings is a list of lists of Metadata_-prefixed column names
-    def level_groupings = ['cell', 'well'].collectEntries{ level ->
-        [(level): default_groupings + normalizeGroupings(parsed.get(level, []) as List)]
+    def parsed = new org.yaml.snakeyaml.Yaml().load(file(groups_file, checkIfExists: true).text)
+    def validation = validateGroupingStructure(parsed)
+    validation.warnings.each { warning -> log.warn("Analysis groups file: ${warning}") }
+    if (validation.errors) {
+        error(
+            "Analysis groups file validation failed:\n" + validation.errors.collect { err -> "  - ${err}" }.join("\n")
+        )
     }
-    return level_groupings
+    return normalizeGroupings(parsed)
+}
+
+//
+// Columns PARTITION_CONDITIONS must split by: the union of every entry's grouping_column,
+// subgroup_columns, and filter columns across both levels.
+//
+def groupingPartitionColumns(parsed_groups) {
+    def entries = parsed_groups.cell + parsed_groups.well
+    def columns = entries.collectMany { entry ->
+        [entry.grouping_column] + entry.subgroup_columns + entry.filter.keySet()
+    }
+    return columns.findAll().unique() as List<String>
 }
 
 //
