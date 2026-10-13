@@ -3,7 +3,7 @@ channels:
   - bioconda
 dependencies:
   - python=3.13
-  - polars
+  - polars<2
   - numpy
   - scikit-learn>=1.4
   - umap-learn>=0.5

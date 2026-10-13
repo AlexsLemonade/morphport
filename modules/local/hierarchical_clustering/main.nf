@@ -19,7 +19,7 @@ process HIERARCHICAL_CLUSTERING {
     val(max_samples)
 
     output:
-    tuple val(meta), path("clustering_${group_tag}.json"), emit: result
+    tuple val(meta), path("clustering_linkage_${group_tag}.parquet"), path("clustering_leaves_${group_tag}.parquet"), path("clustering_summary_${group_tag}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -30,7 +30,9 @@ process HIERARCHICAL_CLUSTERING {
     stub:
     group_tag = groupTag(meta)
     """
-    cat <<-END_JSON > clustering_${group_tag}.json
+    touch clustering_linkage_${group_tag}.parquet
+    touch clustering_leaves_${group_tag}.parquet
+    cat <<-END_JSON > clustering_summary_${group_tag}.json
     {
         "group_tag": "${group_tag}",
         "aggregate_level": "${meta.aggregate_level}",
