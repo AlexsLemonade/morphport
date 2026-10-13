@@ -65,8 +65,8 @@ output:
           type: file
           description: |
             scipy linkage matrix with one row per merge and columns
-            node_id, left, right, distance, n_members.
-            Leaf ids are 0..n-1 and merged nodes are numbered n..2n-2.
+            left, right, distance, n_members.
+            Leaf ids are 0..n-1 and the node created by row i is n + i.
             The tree can be rebuilt with scipy.cluster.hierarchy.to_tree().
             Empty (zero rows) for skipped groups.
           pattern: "clustering_linkage_*.parquet"

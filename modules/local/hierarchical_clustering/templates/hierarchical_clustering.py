@@ -8,8 +8,8 @@ selects the PC1..PCk columns, and runs scipy's hierarchical/agglomerative
 clustering on them. Writes three files:
 
 - clustering_linkage_{group_tag}.parquet: the scipy linkage matrix, one row per
-  merge, with columns node_id, left, right, distance, n_members.
-  Leaf ids are 0..n-1 and merged nodes are numbered n..2n-2, following scipy.
+  merge, with columns left, right, distance, n_members.
+  Following scipy, leaf ids are 0..n-1 and the node created by row i is n + i.
   The full tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.
 - clustering_leaves_{group_tag}.parquet: one row per leaf, with columns leaf_id,
   leaf_order (position in the dendrogram), label, and identifying metadata.
@@ -41,7 +41,6 @@ ID_COLUMNS = (
 
 # Schemas for the output parquet files, used to write empty files for skipped groups
 LINKAGE_SCHEMA = {
-    "node_id": pl.Int64,
     "left": pl.Int64,
     "right": pl.Int64,
     "distance": pl.Float64,
@@ -117,14 +116,11 @@ def build_leaf_label(row: dict) -> str:
 
 def linkage_to_df(linkage_matrix: np.ndarray) -> pl.DataFrame:
     """
-    Convert a scipy linkage matrix to a dataframe, adding a node_id column for
-    the merged node created by each row and casting the child ids and counts to
-    integers.
+    Convert a scipy linkage matrix to a dataframe, casting the child ids and
+    counts to integers.
     """
-    n_samples = linkage_matrix.shape[0] + 1
     return pl.DataFrame(
         {
-            "node_id": np.arange(n_samples, 2 * n_samples - 1),
             "left": linkage_matrix[:, 0],
             "right": linkage_matrix[:, 1],
             "distance": linkage_matrix[:, 2],
