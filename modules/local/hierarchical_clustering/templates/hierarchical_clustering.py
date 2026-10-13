@@ -232,6 +232,8 @@ def main():
     # leaf ids are the row indices of the embeddings parquet, matching scipy's
     # numbering; leaf_order is each leaf's position in the dendrogram
     leaf_order = np.argsort(leaves_list(linkage_matrix))
+    # build the leaf columns, then append the metadata columns from the
+    # embeddings parquet (same row order) to the right with hstack
     leaves_df = pl.DataFrame(
         {
             "leaf_id": np.arange(n_samples),
