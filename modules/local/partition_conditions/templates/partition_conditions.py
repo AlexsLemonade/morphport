@@ -7,6 +7,7 @@ ensures all partition columns are present and non-null.
 """
 
 import json
+import os
 import sys
 from importlib.metadata import version
 
@@ -45,6 +46,28 @@ def main():
         partition_by=partition_cols,
         filename_pattern=plate_id + "_{i}",
     )
+
+    # DuckDB percent-encodes partition values in directory names (e.g. 'drug A' -> 'drug%20A'),
+    # so record each partition directory with its exact values for Nextflow to read.
+    # Reading back with hive_types_autocast disabled keeps values as the original strings.
+    quoted_cols = ", ".join(f'"{col}"' for col in partition_cols)
+    partition_rows = duckdb.sql(
+        f"SELECT DISTINCT parse_dirpath(filename) AS partition_dir, {quoted_cols}"
+        f" FROM read_parquet('{plate_id}/**/*.parquet', hive_partitioning = true,"
+        " hive_types_autocast = false, filename = true)"
+    ).fetchall()
+    manifest = sorted(
+        [
+            {
+                "path": os.path.relpath(row[0], plate_id),
+                "values": dict(zip(partition_cols, row[1:])),
+            }
+            for row in partition_rows
+        ],
+        key=lambda partition: partition["path"],
+    )
+    with open(f"partitions_{plate_id}.json", "w") as f:
+        json.dump(manifest, f, indent=2)
 
     partition_sizes = {}
     for col in partition_cols:

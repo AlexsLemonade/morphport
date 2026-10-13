@@ -47,6 +47,15 @@ output:
             segments (e.g. Metadata_node_type=disease_wt/Metadata_treatment=NA/).
             Each parquet file contains all original cell features plus all platemap
             metadata columns.
+            Partition values are percent-encoded in directory names (e.g. 'drug A' → 'drug%20A');
+            use the partition manifest for the exact values.
+      - "partitions_${meta.plate_id}.json":
+          type: file
+          description: |
+            JSON manifest listing each partition directory (relative to "${meta.plate_id}")
+            and its exact partition column values, e.g.
+            [ { "path": "Metadata_treatment=drug%20A", "values": { "Metadata_treatment": "drug A" } } ]
+          pattern: "partitions_*.json"
   - summary:
       - "platemap_summary_*.json":
           type: file

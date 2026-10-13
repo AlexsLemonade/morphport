@@ -133,8 +133,8 @@ workflow MORPHPORT {
     PARTITION_CONDITIONS(ch_prepartition.partition)
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
         // expand each Hive directory into one tuple per partition with the conditions
-        // parsed from the directory name added to meta
-        .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+        // from the partition manifest added to meta
+        .flatMap { meta, partition_dir, manifest -> expandHivePartitions(meta, partition_dir, manifest) }
         // the skip branch wasn't partitioned, so just pass the files through with the original meta
         .mix(ch_prepartition.skip.map { meta, parquet, _groups -> [meta, [parquet] as List] })
 
@@ -223,29 +223,23 @@ workflow MORPHPORT {
 */
 
 //
-// Given a Hive partition directory, recursively find all parquet files and extract the partition
-// conditions from the directory structure, returning a list of tuples of the form:
+// Given a Hive partition directory and the manifest written alongside it by PARTITION_CONDITIONS,
+// find the parquet files in each partition, returning a list of tuples of the form:
 //   [meta + partition_conditions, list_of_parquet_files]
-
-def expandHivePartitions(meta, partition_dir) {
-    def results = []
-    partition_dir.eachDirRecurse { dir ->
-        def parquets = dir.listFiles()?.findAll { f -> f.name.endsWith('.parquet') } ?: []
-        if (parquets) {
-            def rel = partition_dir.relativize(dir)
-            // iterate over the relative path segments to build a map of conditions,
-            // e.g. ['Metadata_gene_allele=_NA_', 'Metadata_treatment=drugA'] -> [Metadata_gene_allele: '_NA_', Metadata_treatment: 'drugA']
-            def conditions = rel
-                .collect { segment ->
-                    def parts = segment.toString().split('=', 2)
-                    [(parts[0]): parts[1]]
-                }
-                .sum([:])
-            // merge list of maps into a single map
-            results << [meta + conditions, parquets]
+// The partition conditions come from the manifest rather than the directory names, because
+// DuckDB percent-encodes values in directory names (e.g. 'drug A' → 'drug%20A').
+// Each manifest entry has the form:
+//   [path: 'Metadata_treatment=drug%20A', values: [Metadata_treatment: 'drug A']]
+//
+def expandHivePartitions(meta, partition_dir, manifest_file) {
+    def manifest = new groovy.json.JsonSlurper().parse(manifest_file) as List
+    return manifest
+        .collect { partition ->
+            def dir = partition_dir.resolve(partition['path'] as String)
+            def parquets = dir.listFiles()?.findAll { f -> f.name.endsWith('.parquet') } ?: []
+            [meta + (partition['values'] as Map), parquets]
         }
-    }
-    return results
+        .findAll { _conditions, parquets -> parquets }
 }
 
 //
