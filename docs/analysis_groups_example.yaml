@@ -7,7 +7,8 @@
 
 default:
   # Every treatment value gets its own analysis group, as today.
-  - grouping_column: treatment
+  - name: treatment
+    grouping_column: treatment
     groups: one_per_value
 
 cell:
@@ -50,5 +51,6 @@ cell:
 
 well:
   # well-level grouping by cell type, added to the default treatment grouping
-  - grouping_column: cell_type
+  - name: cell_type
+    grouping_column: cell_type
     groups: one_per_value

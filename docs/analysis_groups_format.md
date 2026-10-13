@@ -13,7 +13,8 @@ It replaces the format described in the current `analysis_groups_file` help text
 
 Unchanged from the previous version: an optional `default` key, plus `cell` and/or `well` keys.
 Each value is a list of grouping criteria.
-`default` entries are added to both `cell` and `well` (de-duplicated), exactly as before.
+`default` entries are added to both `cell` and `well`, as before.
+Unlike before, duplicates are not merged: a `cell` or `well` entry with the same `name` as a `default` entry is an **error**, even if the two entries are identical.
 
 ```yaml
 default:
@@ -32,7 +33,7 @@ This is the same behavior as currently implemented.
 Every entry is an object:
 
 ```yaml
-- name: moa_grouping # optional but recommended; see "`name`" below
+- name: moa_grouping # required; see "`name`" below
   grouping_column: treatment # required; exactly one column
   groups: one_per_value # required; see "groups" below
   always_include: [DMSO] # optional
@@ -40,6 +41,15 @@ Every entry is an object:
   filter: { timepoint: [24h] } # optional; see "filter" below
   subgroup_columns: [cell_type] # optional; see "subgroup_columns" below
 ```
+
+### `name` (required)
+
+A label for the entry itself, distinct from the group names inside `groups`, which name individual value-set groups.
+It identifies the entry in error messages and logs, and labels the groups the entry produces.
+
+Names must be unique within a level, counting the `default` entries added to that level; a duplicate is an **error**.
+The same name may be used in both `cell` and `well`.
+Names may contain only letters, digits, `_`, and `-`, so they can be used safely in output paths.
 
 ### `grouping_column` (required)
 
@@ -114,13 +124,6 @@ This is exactly what `excluded` is for: a deliberately-unmapped value (e.g. a ra
 This rule does not apply to `groups: one_per_value` or `groups: all_values` — every observed value automatically forms or joins a group, so there is no "unaccounted for" case.
 `excluded` still works there, but purely as an opt-out (a value that shouldn't form or join a group), never as error-avoidance.
 
-### `name` (optional, recommended)
-
-A label for the entry itself, used only for diagnostics (error messages, logs) — distinct from the group names inside `groups`, which name individual value-set groups.
-If omitted, it's auto-generated from `grouping_column` (`Metadata_` prefix stripped) — e.g. an entry with `grouping_column: treatment` and no `name` auto-generates to `treatment`.
-
-If two entries at the same level would both auto-generate the same name (e.g., two different `treatment`-based entries, neither with an explicit `name:`), that's an **error** detectable from the file alone: at least one needs an explicit `name:` to disambiguate.
-
 ### `filter` (optional)
 
 Allows selecting rows to include in the grouping sets, applied **before** any grouping happens.
@@ -143,7 +146,6 @@ Listing a single value still requires list form (`treatment: [DMSO]`), so the sh
 - **"Observed values" means observed after filtering.** Both the per-value group enumeration of `one_per_value` and the accounting rule for named `groups` consider only values present in the filtered rows. A treatment value that exists in the data but is filtered out of this entry does not need to be mentioned in `excluded` to satisfy the accounting rule.
 - **An entry whose filter matches no rows is an error.** A filter naming a value that never appears in the data is far more likely to be a typo than an intentional empty group.
 - **A filter column missing from any platemap is an error.** This is specific to `filter` and has no analogue in the current format. `enumeratePlatemapCombos` encodes a column absent from a given platemap as the sentinel `_Absent_`, which matches no ordinary filter value — so a plate whose platemap happens to omit `treatment` would contribute **zero rows** to a `filter: {treatment: [...]}` entry, silently, while other plates matched normally. Grouping columns degrade gracefully here (the rows form an `_Absent_` group and are still visible); filters just drop the data. Every filter column must therefore be present in _every_ plate's platemap.
-- **Auto-generated names collide more easily.** Two entries that differ _only_ by `filter` (or `subgroup_columns`) share a `grouping_column` and therefore auto-generate the same name, which is already an error (see "`name`"). Filtered entries will usually want an explicit `name:`.
 
 ### `subgroup_columns` (optional)
 
@@ -203,8 +205,9 @@ Raised from `parseGroupings`, which runs in the workflow body rather than inside
 This is the same idiom as the existing cross-parameter checks (e.g. `feature_select_operations`, `clustering_linkage_method`) just above it.
 
 - malformed shapes (`filter` not a map, values not lists, `subgroup_columns` not a list, `groups` not `one_per_value`, `all_values`, or a mapping)
-- missing required keys
-- duplicate auto-generated entry names
+- missing required keys, including `name`
+- duplicate entry names within a level (including `default` entries, even if identical)
+- entry names containing characters other than letters, digits, `_`, and `-`
 - `filter` naming the entry's own `grouping_column`
 - `subgroup_columns` naming the entry's own `grouping_column`
 
@@ -227,7 +230,7 @@ It needs the platemap combos, currently enumerated later by the `enumeratePlatem
 
 ### Message style
 
-Errors should name the offending entry by its `name` (explicit or auto-generated), since that is what `name` exists for.
+Errors should name the offending entry by its `name`.
 Prefer collecting all problems and reporting them together, as `validateInputSamplesheet` does with its `errors` list, rather than failing on the first one — a groups file with three typos should report three.
 
 ## Full example
@@ -235,7 +238,8 @@ Prefer collecting all problems and reporting them together, as `validateInputSam
 ```yaml
 default:
   # Every treatment value gets its own analysis group, as today.
-  - grouping_column: treatment
+  - name: treatment
+    grouping_column: treatment
     groups: one_per_value
 
 cell:
@@ -278,7 +282,8 @@ cell:
 
 well:
   # well-level grouping by cell type, added to the default treatment grouping
-  - grouping_column: cell_type
+  - name: cell_type
+    grouping_column: cell_type
     groups: one_per_value
 ```
 
