@@ -58,7 +58,7 @@ filter:
 ```
 
 Each key is a metadata column (with or without the `Metadata_` prefix, same normalization as `grouping_column`); each value is the list of column values to **keep**.
-Multiple columns are combined with AND: a row must match every listed column to be included.
+Rows must match the expected values for all listed columns to be included.
 Listing a single value still requires list form (`treatment: [DMSO]`), so the shape is uniform.
 
 `filter` must not name the entry's own `grouping_column`; use `excluded` to drop values of that column.
@@ -78,7 +78,7 @@ Three forms:
 
 **1. `groups: one_per_value`**
 
-One analysis group per distinct value observed in the data for this column — the same behavior the current format always has.
+One analysis group per distinct value observed in the data for this column — the same behavior the current format has.
 
 **2. An explicit mapping of group name → list of values**
 
