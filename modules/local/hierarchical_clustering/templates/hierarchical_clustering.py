@@ -134,9 +134,9 @@ def main():
     # ---- Capture Nextflow variables ----------------------------------------
     embeddings_parquet = "${embeddings_parquet}"
     summary_json = "${summary_json}"
-    group_tag = "${meta.group_tag}"
     # raw string so JSON escapes in metadata values survive
     group_meta = json.loads(r"""${meta_json}""")
+    group_tag = group_meta["group_tag"]
     linkage_method = "${linkage_method}"
     distance_metric = "${distance_metric}"
     max_samples = int("${max_samples}")
@@ -146,6 +146,8 @@ def main():
     clustering_summary_json = f"clustering_summary_{group_tag}.json"
 
     validate_clustering_params(linkage_method, distance_metric, max_samples)
+    # written up front so skipped groups report versions too
+    write_versions(task_process)
 
     grouping_column = group_meta["grouping_column"]
     subgroup_values = group_meta["subgroup_values"]
@@ -172,7 +174,6 @@ def main():
             summary,
             f"upstream compute_embeddings skipped this group: {embeddings_summary.get('skip_reason', 'unknown reason')}",
         )
-        write_versions(task_process)
         return
 
     # ---- Load embeddings and select PC columns ------------------------------
@@ -186,7 +187,6 @@ def main():
             summary,
             "no PCA columns found in the embeddings parquet",
         )
-        write_versions(task_process)
         return
 
     n_samples = df.height
@@ -199,7 +199,6 @@ def main():
             summary,
             f"n_samples ({n_samples}) < 2; cannot cluster",
         )
-        write_versions(task_process)
         return
     if n_samples > max_samples:
         write_skipped(
@@ -209,7 +208,6 @@ def main():
             summary,
             f"n_samples ({n_samples}) > clustering_max_samples ({max_samples})",
         )
-        write_versions(task_process)
         return
 
     # ---- Build leaf labels + metadata ----------------------------------------
@@ -256,8 +254,6 @@ def main():
 
     with open(clustering_summary_json, "w") as f:
         json.dump(summary, f, indent=2)
-
-    write_versions(task_process)
 
 
 if __name__ == "__main__":
