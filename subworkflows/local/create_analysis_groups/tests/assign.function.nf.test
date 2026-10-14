@@ -39,12 +39,8 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = [
-                    plate_id: 'plate_001',
-                    project: 'demo',
-                    platemap_file: '${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap/platemap_001.txt',
-                ]
-                input[1] = ['Metadata_treatment']
+                input[0] = [plate_id: 'plate_001', project: 'demo']
+                input[1] = [[Metadata_treatment: 'DMSO'], [Metadata_treatment: 'drug']]
                 """
             }
         }
