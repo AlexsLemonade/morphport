@@ -26,13 +26,11 @@ input:
         type: file
         description: Per-cell parquet file produced by COSMICQC_FILTER
         pattern: "*.parquet"
-    - platemap_file:
-        type: file
+    - partition_columns:
+        type: list
         description: |
-          Tab-separated platemap file with a well_position column mapping wells to
-          experimental conditions. All columns except plate_map_name are joined into
-          the output parquet as Metadata_-prefixed columns.
-        pattern: "*.txt"
+          Metadata_-prefixed platemap columns to partition by,
+          e.g. [ 'Metadata_cell_line', 'Metadata_treatment' ]
 
 output:
   - partitions:

@@ -91,7 +91,8 @@ This produces one group containing the DMSO wells from every cell line, includin
 ### `always_include` (optional)
 
 A list of values whose data joins **every** group this grouping produces, instead of being assigned to groups by value.
-Works with `groups: one_per_value` and named `groups`. Two examples:
+Works with `groups: one_per_value` and named `groups`.
+Two examples:
 
 - Named groups: `always_include: [DMSO]` alongside MoA groups means DMSO's samples appear in the `kinase_inhibitor` group, the `hdac_inhibitor` group, and any other named group in this grouping.
 - `one_per_value`: `always_include: [DMSO]` means every per-treatment group (one per distinct treatment value) also includes DMSO's samples, i.e., "every drug vs. DMSO."

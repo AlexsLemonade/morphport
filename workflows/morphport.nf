@@ -122,12 +122,14 @@ workflow MORPHPORT {
     // we separate them out again later using the aggregate_level metadata.
     // The analysis_groups value channel carries the partition column set;
     // branch on it so PARTITION_CONDITIONS only runs when there is something to partition.
+    // Only the partition columns are passed on, so edits to the rest of the lookup
+    // (group names, membership) don't invalidate cached partitioning tasks on -resume.
     // Note that because ch_analysis_groups is a value channel,
     // all values in ch_normalized will take the same branch path
     ch_prepartition = ch_normalized
-        .combine(ch_analysis_groups)
-        .branch { _meta, _parquet, groups ->
-            partition: groups.partition_columns.size() > 0
+        .combine(ch_analysis_groups.map { groups -> [groups.partition_columns] })
+        .branch { _meta, _parquet, partition_columns ->
+            partition: partition_columns.size() > 0
             skip:      true
         }
 
@@ -137,7 +139,7 @@ workflow MORPHPORT {
         // from the partition manifest added to meta
         .flatMap { meta, partition_dir, manifest -> expandHivePartitions(meta, partition_dir, manifest) }
         // the skip branch wasn't partitioned, so just pass the files through with the original meta
-        .mix(ch_prepartition.skip.map { meta, parquet, _groups -> [meta, [parquet] as List] })
+        .mix(ch_prepartition.skip.map { meta, parquet, _partition_columns -> [meta, [parquet] as List] })
 
     ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
 
