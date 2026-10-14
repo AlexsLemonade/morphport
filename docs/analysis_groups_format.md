@@ -36,6 +36,10 @@ Every grouping entry is an object:
   subgroup_columns: [cell_type] # optional; see "subgroup_columns" below
 ```
 
+Values are compared to the platemap as text, but YAML converts some unquoted values to other types first.
+For example, `0.10` becomes `0.1`, `010` becomes `8`, `yes` becomes `true`, and `2024-01-01` becomes a date.
+Quote values like these (e.g., `excluded: ["0.10"]`) so they match the platemap exactly.
+
 ### `name` (required)
 
 A label for the grouping itself, distinct from the group names inside `groups`, which name individual value-set groups.
