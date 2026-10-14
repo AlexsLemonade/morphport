@@ -200,6 +200,82 @@ nextflow_function {
         }
     }
 
+    test("missingGroupingColumns: grouping and subgroup columns missing from a platemap are reported per plate") {
+
+        function "missingGroupingColumns"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'by_treatment',
+                            grouping_column: 'Metadata_treatment',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: ['Metadata_cell_type'],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', Metadata_cell_type: 'lineA', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: '_Absent_', Metadata_cell_type: 'lineA', project: 'demo', plate_id: 'p2'],
+                    [Metadata_treatment: 'drugA', Metadata_cell_type: '_Absent_', project: 'demo', plate_id: 'p3'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 2
+            assert function.result[0].contains("'Metadata_treatment'")
+            assert function.result[0].contains('p2')
+            assert !function.result[0].contains('p1')
+            assert function.result[1].contains("'Metadata_cell_type'")
+            assert function.result[1].contains('p3')
+        }
+    }
+
+    test("missingGroupingColumns: plates removed by the filter are not reported") {
+
+        function "missingGroupingColumns"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'dmso_only',
+                            grouping_column: 'Metadata_cell_type',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_treatment: ['DMSO']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_cell_type: 'lineA', Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'p1'],
+                    [Metadata_cell_type: '_Absent_', Metadata_treatment: 'drugA', project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
     test("validateGroupingsAgainstData: always_include values removed by the filter are an error") {
 
         function "validateGroupingsAgainstData"

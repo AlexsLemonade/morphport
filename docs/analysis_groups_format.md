@@ -218,6 +218,8 @@ This is the same idiom as the cross-parameter checks (e.g. `feature_select_opera
 
 The accounting rule, the zero-match filter check, the missing-filter-column check, the per-subgroup `always_include` check, and the check for `always_include` values removed by `filter` all need the set of values actually present in the platemaps.
 They are implemented in `validateGroupingsAgainstData`, which returns every problem found.
+A `grouping_column` or `subgroup_columns` entry missing from a plate's platemap (after `filter`) is reported by `missingGroupingColumns` as a warning rather than an error.
+A column may legitimately be absent from some plates, but a typo would otherwise put every row in a single `_Absent_` group without notice.
 
 These checks run in `CREATE_ANALYSIS_GROUPS`, on the list of samplesheet entries returned by `validateInputSamplesheet`.
 That list has every resolved `platemap_file`, and the subworkflow only emits the samplesheet once the checks pass, so nothing has launched yet when it raises.

@@ -32,6 +32,7 @@ workflow CREATE_ANALYSIS_GROUPS {
             }
             def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, platemap_combos[meta.platemap_file]) }
             def analysis_groups = buildAnalysisGroups(parsed_groups, combos)
+            missingGroupingColumns(parsed_groups, combos).each { warning -> log.warn("Analysis groups: ${warning}") }
             def errors = validateGroupingsAgainstData(parsed_groups, combos) + validateGroupTags(analysis_groups)
             if (errors) {
                 error(
@@ -561,6 +562,25 @@ def validateGroupingsAgainstData(parsed_groups, combos) {
         }
     }
     return errors
+}
+
+//
+// Find grouping and subgroup columns missing from the platemaps of plates a grouping uses
+// (after its filter). Not an error, since a column may be absent from only some plates,
+// but a typo would otherwise silently put every row in a single '_Absent_' group.
+// Returns a list of warning messages; groupings shared by both levels are checked once.
+//
+def missingGroupingColumns(parsed_groups, combos) {
+    def groupings = (parsed_groups.cell + parsed_groups.well).unique()
+    return groupings.findAll { grouping -> grouping.grouping_column }.collectMany { grouping ->
+        def filtered = combos.findAll { combo -> matchesGroupingFilter(grouping, combo) }
+        ([grouping.grouping_column] + grouping.subgroup_columns).findResults { col ->
+            def plates = filtered.findAll { combo -> combo[col] == '_Absent_' }.collect { combo -> combo.plate_id }.unique()
+            plates
+                ? "Grouping '${grouping.name}': column '${col}' is missing from the platemap for plate(s) ${plates.join(', ')}.".toString()
+                : null
+        }
+    }
 }
 
 //
