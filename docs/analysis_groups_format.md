@@ -1,17 +1,12 @@
-# Analysis groups file format (draft)
+# Analysis groups file format
 
-This document specifies the redesigned analysis groups file format defined for [issue #50](https://github.com/AlexsLemonade/morphport/issues/50).
-It replaces the format described in the current `analysis_groups_file` help text in `nextflow_schema.json`.
-
-> [!NOTE]
-> This document defines the format only.
-> Parsing, validation, and group assignment for this format are implemented in `subworkflows/local/utils_analysis_groups/main.nf`, but the pipeline is not yet wired to use them (`PIPELINE_INITIALISATION` and `createGroupChannels()`) — that is the remaining scope of [issue #51](https://github.com/AlexsLemonade/morphport/issues/51).
-> `nextflow_schema.json`, `assets/analysis_groups_example.yaml`, and `stub/analysis_groups.yml` still describe and use the old format until #51 is implemented.
-> A standalone example of this new format lives at `docs/analysis_groups_example.yaml`, not wired into any pipeline config.
+This document specifies the format of the analysis groups file (`--analysis_groups_file`), which defines how partitioned data are combined into groups for downstream analysis.
+The format was designed in [issue #50](https://github.com/AlexsLemonade/morphport/issues/50) and implemented in [issue #51](https://github.com/AlexsLemonade/morphport/issues/51), replacing a previous format in which each grouping was a comma-separated list of columns.
+A complete example is in [`assets/analysis_groups_example.yaml`](../assets/analysis_groups_example.yaml).
 
 ## Top-level structure
 
-Unchanged from the previous version: an optional `default` key, plus `cell` and/or `well` keys.
+Unchanged from the previous format: an optional `default` key, plus `cell` and/or `well` keys.
 Each value is a list of grouping criteria.
 `default` grouping entries are added to both `cell` and `well`, as before.
 Unlike before, duplicates are not merged: a `cell` or `well` grouping entry with the same `name` as a `default` grouping entry is an **error**, even if the two are identical.
@@ -26,7 +21,6 @@ well:
 ```
 
 If no analysis groups file is given, no grouping or partitioning is performed: each level (`cell` and `well`) gets a single group containing all of a project's data.
-This is the same behavior as currently implemented.
 
 ## Grouping entry format
 
@@ -53,8 +47,8 @@ Names may contain only letters, digits, `_`, and `-`, so they can be used safely
 
 ### `grouping_column` (required)
 
-Exactly one metadata column, with or without the `Metadata_` prefix (the prefix is added automatically if missing, same as today).
-Unlike the current format, a single grouping can no longer name multiple columns — there is no comma-separated or list form.
+Exactly one metadata column, with or without the `Metadata_` prefix (the prefix is added automatically if missing).
+Unlike the previous format, a single grouping can no longer name multiple columns — there is no comma-separated or list form.
 To repeat a grouping within each value of other columns, use `subgroup_columns`.
 
 ### `groups` (required)
@@ -64,7 +58,7 @@ Three forms:
 
 **1. `groups: one_per_value`**
 
-One analysis group per distinct value observed in the data for this column — the same behavior the current format has.
+One analysis group per distinct value observed in the data for this column.
 
 **2. An explicit mapping of group name → list of values**
 
@@ -145,7 +139,7 @@ Listing a single value still requires list form (`treatment: [DMSO]`), so the sh
 - **It applies first, and to all rows.** `always_include` values are subject to the filter too — a grouping with `filter: {timepoint: [24h]}` and `always_include: [DMSO]` contributes no DMSO rows if DMSO never appears at 24h. That is a mistake and should be an **error** rather than a silent empty contribution. Detecting it takes observed values; see "How errors are raised" below.
 - **"Observed values" means observed after filtering.** Both the per-value group enumeration of `one_per_value` and the accounting rule for named `groups` consider only values present in the filtered rows. A treatment value that exists in the data but is filtered out of this grouping does not need to be mentioned in `excluded` to satisfy the accounting rule.
 - **A grouping whose filter matches no rows is an error.** A filter naming a value that never appears in the data is far more likely to be a typo than an intentional empty group.
-- **A filter column missing from any platemap is an error.** This is specific to `filter` and has no analogue in the current format. `enumeratePlatemapCombos` encodes a column absent from a given platemap as the sentinel `_Absent_`, which matches no ordinary filter value — so a plate whose platemap happens to omit `treatment` would contribute **zero rows** to a `filter: {treatment: [...]}` grouping, silently, while other plates matched normally. Grouping columns degrade gracefully here (the rows form an `_Absent_` group and are still visible); filters just drop the data. Every filter column must therefore be present in _every_ plate's platemap.
+- **A filter column missing from any platemap is an error.** This is specific to `filter` and has no analogue in the previous format. `enumeratePlatemapCombos` encodes a column absent from a given platemap as the sentinel `_Absent_`, which matches no ordinary filter value — so a plate whose platemap happens to omit `treatment` would contribute **zero rows** to a `filter: {treatment: [...]}` grouping, silently, while other plates matched normally. Grouping columns degrade gracefully here (the rows form an `_Absent_` group and are still visible); filters just drop the data. Every filter column must therefore be present in _every_ plate's platemap.
 
 ### `subgroup_columns` (optional)
 
@@ -187,10 +181,9 @@ With `groups: all_values`, it yields one group per subgroup value, each pooling 
 - **`excluded` and the accounting rule apply across all subgroups combined.** They are statements about values of `grouping_column`, regardless of subgroup: a value is accounted for if it is named anywhere in the grouping, and need not appear in every subgroup. A named group that happens to have no members in a particular subgroup simply produces no group for that subgroup.
 - **Subgroup columns behave like grouping columns when absent from a platemap.** Rows from a plate whose platemap omits a `subgroup_columns` column form an `_Absent_` subgroup, the same graceful degradation as `grouping_column`, rather than being dropped as `filter` would.
 
-## Partitioning updates
+## Partitioning
 
-`PARTITION_CONDITIONS` will need to split plate data by the union of every grouping's `grouping_column`, `subgroup_columns`, **and every column named in any grouping's `filter`**, across every level and `default`.
-This is the one place `filter` changes existing behavior: today's `partition_columns` computation in `PIPELINE_INITIALISATION` is a union of grouping columns only, and it has to grow to include filter columns.
+`PARTITION_CONDITIONS` splits plate data by the union of every grouping's `grouping_column`, `subgroup_columns`, **and every column named in any grouping's `filter`**, across every level and `default` (computed by `groupingPartitionColumns`).
 
 Restricting each grouping to a single grouping column does not restrict partitioning to a single column: the same fine-grained partitions are still shared and recombined across every grouping, however many distinct columns are in use across the file.
 
@@ -202,7 +195,7 @@ Functions named here are in `subworkflows/local/utils_analysis_groups/main.nf` u
 ### Tier 1: structural — knowable from the file alone
 
 Checked by `validateGroupingStructure` and raised from `parseGroupings`, which runs in the workflow body rather than inside a channel operator, so `error()` there aborts before any process is submitted.
-This is the same idiom as the existing cross-parameter checks (e.g. `feature_select_operations`, `clustering_linkage_method`) just above it.
+This is the same idiom as the cross-parameter checks (e.g. `feature_select_operations`, `clustering_linkage_method`) just above it.
 
 - malformed shapes (`filter` not a map, values not lists, `subgroup_columns` not a list, `groups` not `one_per_value`, `all_values`, or a mapping)
 - missing required keys, including `name`
@@ -217,35 +210,31 @@ This is the same idiom as the existing cross-parameter checks (e.g. `feature_sel
 
 The accounting rule, the zero-match filter check, the missing-filter-column check, the per-subgroup `always_include` check, and the check for `always_include` values removed by `filter` all need the set of values actually present in the platemaps.
 They are implemented in `validateGroupingsAgainstData`, which returns every problem found.
-That set comes from `enumeratePlatemapCombos` and is only complete in the `.map{}` that calls `buildAnalysisGroups` while building `ch_analysis_groups`.
 
-Raising from inside a channel operator works and is already the established pattern — `validateInputSamplesheet` is invoked inside a `.map{}` while building `ch_samplesheet` and calls `error()` from there.
-
-**But the `buildAnalysisGroups` step is currently too late to fail.**
-`ch_samplesheet` feeds `ch_validated` (in the `MORPHPORT` workflow, `workflows/morphport.nf`) and the CytoTable processes directly, so by the time the `buildAnalysisGroups` closure runs those tasks have already been submitted.
-On AWS Batch that means a typo in the groups file costs real compute before it surfaces.
-
-The recommended implementation is therefore to move the value-dependent checks into the `.map{}` closure that calls `validateInputSamplesheet`.
-That closure runs on `.toList()`, already has every resolved `platemap_file`, and sits upstream of the first `ch_samplesheet` emission — nothing has launched yet when it raises.
-It needs the platemap combos, currently enumerated later by the `enumeratePlatemapCombos` call in `ch_analysis_groups`, so the implementation has to either thread that result forward or accept enumerating twice.
+These checks run in the same `.map{}` closure that calls `validateInputSamplesheet`, on the `.toList()` of the samplesheet.
+That closure has every resolved `platemap_file` and sits upstream of the first `ch_samplesheet` emission, so nothing has launched yet when it raises.
+It enumerates each plate's condition combos once with `enumeratePlateCombos`, checks them, and passes them on to `buildAnalysisGroups` to build `ch_analysis_groups`.
+Checking any later would be too late to avoid wasted work: `ch_samplesheet` feeds the CytoTable processes directly, so on AWS Batch a typo in the groups file would cost real compute before it surfaced.
 
 ### Message style
 
-Errors should name the offending grouping by its `name`.
-Prefer collecting all problems and reporting them together, as `validateInputSamplesheet` does with its `errors` list, rather than failing on the first one — a groups file with three typos should report three.
+Errors name the offending grouping by its `name`.
+All problems are collected and reported together, as `validateInputSamplesheet` does with its `errors` list, rather than failing on the first one — a groups file with three typos reports three.
 
 ## Full example
 
+This is the same as [`assets/analysis_groups_example.yaml`](../assets/analysis_groups_example.yaml).
+
 ```yaml
 default:
-  # Every treatment value gets its own analysis group, as today.
+  # Every treatment value gets its own analysis group.
   - name: treatment
     grouping_column: treatment
     groups: one_per_value
 
 cell:
   # One group per cell line, restricted to wells with no drug treatment.
-  # Note that the initial partitions will have to be split by both cell type and treatment
+  # Note that the partitions are split by both cell type and treatment
   - name: untreated_cell_lines
     grouping_column: cell_type
     groups: one_per_value

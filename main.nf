@@ -29,7 +29,7 @@ workflow ALEXSLEMONADE_MORPHPORT {
 
     take:
     samplesheet     // channel: samplesheet read in from --input
-    analysis_groups // value: nested map of analysis groups → sub-combo → expected size
+    analysis_groups // value: analysis groups lookup from buildAnalysisGroups
 
     main:
 
