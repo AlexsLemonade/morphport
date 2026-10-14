@@ -1,4 +1,4 @@
-include { groupTag; metaJson } from '../../../lib/morphport_utils.nf'
+include { groupTag } from '../../../lib/morphport_utils.nf'
 
 // Computes hierarchical clustering of the samples within one analysis group.
 process HIERARCHICAL_CLUSTERING {
@@ -24,7 +24,7 @@ process HIERARCHICAL_CLUSTERING {
 
     script:
     group_tag = groupTag(meta)
-    meta_json = metaJson(meta)
+    meta_json = groovy.json.JsonOutput.toJson(meta)
     template 'hierarchical_clustering.py'
 
     stub:

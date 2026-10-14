@@ -1,4 +1,4 @@
-include { groupTag; metaJson } from '../../../lib/morphport_utils.nf'
+include { groupTag } from '../../../lib/morphport_utils.nf'
 
 process COMPUTE_EMBEDDINGS {
     tag "${group_tag}"
@@ -26,7 +26,7 @@ process COMPUTE_EMBEDDINGS {
 
     script:
     group_tag = groupTag(meta)
-    meta_json = metaJson(meta)
+    meta_json = groovy.json.JsonOutput.toJson(meta)
     template 'compute_embeddings.py'
 
     stub:

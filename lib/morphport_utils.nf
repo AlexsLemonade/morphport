@@ -11,10 +11,3 @@ def groupTag(meta) {
         : "${meta.aggregate_level}__${meta.grouping_name}"
     tag.replaceAll('[^A-Za-z0-9._=-]', '_')
 }
-
-// Serialize a meta map as JSON for templates to parse, since Groovy nulls and maps don't
-// interpolate as valid Python. Templates should read it with a raw string so JSON escapes
-// survive, e.g. json.loads(r"""${meta_json}""").
-def metaJson(meta) {
-    groovy.json.JsonOutput.toJson(meta)
-}
