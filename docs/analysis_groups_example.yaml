@@ -1,0 +1,56 @@
+# Example analysis groups file in the draft format described in docs/analysis_groups_format.md.
+#
+# NOT wired into any pipeline config, and NOT yet understood by the parser
+# (parseGroupings/normalizeGroupings still only understand the format used by
+# assets/analysis_groups_example.yaml). This file exists purely to illustrate
+# the new format ahead of the implementation work tracked in issue #51.
+
+default:
+  # Every treatment value gets its own analysis group, as today.
+  - name: treatment
+    grouping_column: treatment
+    groups: one_per_value
+
+cell:
+  # One group per cell line, restricted to wells with no drug treatment.
+  # Note that the initial partitions will have to be split by both cell type and treatment
+  - name: untreated_cell_lines
+    grouping_column: cell_type
+    filter:
+      treatment: [DMSO]
+    groups: one_per_value
+
+  # A single group of DMSO wells pooled across all cell lines.
+  - name: dmso_all_cell_lines
+    grouping_column: cell_type
+    filter:
+      treatment: [DMSO]
+    groups: all_values
+
+  # Grouping by mechanism of action.
+  # DMSO is folded into every named group so each MoA can be compared against the shared control.
+  # drugE represents a treatment value that has no known MoA yet.
+  # It is explicitly excluded so it doesn't trigger an "unaccounted for value" error.
+  - name: moa_grouping
+    grouping_column: treatment
+    groups:
+      kinase_inhibitor: [drugA, drugB, drugC]
+      hdac_inhibitor: [drugD, drugA] # drugA has two known mechanisms
+    always_include: [DMSO]
+    excluded: [drugE]
+
+  # Treatments (drugs) further split by cell line
+  # DMSO joins each drug's group within its cell line, and does not form a group of its own
+  # For subgroups we always split by all values, which keeps things a bit simpler
+  # We could in theory split by more than one subgroup, but practically we only expect one for now
+  - name: treatment_by_cell_line
+    grouping_column: treatment
+    groups: one_per_value
+    always_include: [DMSO]
+    subgroup_columns: [cell_type]
+
+well:
+  # well-level grouping by cell type, added to the default treatment grouping
+  - name: cell_type
+    grouping_column: cell_type
+    groups: one_per_value
