@@ -432,6 +432,35 @@ nextflow_function {
         }
     }
 
+    test("validateGroupingStructure: a value in both always_include and a named group is an error") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        // a standalone control group would be silently dropped
+                        [name: 'standalone', grouping_column: 'treatment', groups: [controls: ['DMSO'], drug: ['drugA']], always_include: ['DMSO']],
+                        // listing the control in a group that has other values is redundant
+                        [name: 'redundant', grouping_column: 'treatment', groups: [kinase: ['drugA', 'DMSO'], hdac: ['drugD']], always_include: ['DMSO']],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def advice = "always_include values are added to every group; for a standalone group of these values, add a separate grouping entry."
+            assert function.result.errors == [
+                "Grouping 'standalone' in 'cell': values [DMSO] are in both always_include and named groups [controls]. ${advice}".toString(),
+                "Grouping 'redundant' in 'cell': values [DMSO] are in both always_include and named groups [kinase]. ${advice}".toString(),
+            ]
+        }
+    }
+
     test("validateGroupingStructure: always_include with all_values is a warning, not an error") {
 
         function "validateGroupingStructure"

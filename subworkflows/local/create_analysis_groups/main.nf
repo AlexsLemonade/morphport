@@ -197,6 +197,20 @@ def validateGroupingStructure(parsed) {
                     errors << "${label}: values ${overlap} are in both always_include and excluded."
                 }
             }
+            // always_include values join every group, so they can't also define a named group
+            // (a group of only those values would have no members of its own and be dropped)
+            if (grouping.always_include instanceof List && groups instanceof Map) {
+                def always_included = grouping.always_include.collect { value -> value as String }
+                def overlapping_groups = groups.findAll { _group_name, values ->
+                    values instanceof List && values.any { value -> (value as String) in always_included }
+                }
+                if (overlapping_groups) {
+                    def overlap = overlapping_groups.values().flatten().collect { value -> value as String }
+                        .intersect(always_included).unique()
+                    errors << ("${label}: values ${overlap} are in both always_include and named groups ${overlapping_groups.keySet() as List}." +
+                        " always_include values are added to every group; for a standalone group of these values, add a separate grouping entry.")
+                }
+            }
             if (groups == 'all_values' && grouping.always_include) {
                 warnings << "${label}: always_include has no effect with 'groups: all_values'."
             }

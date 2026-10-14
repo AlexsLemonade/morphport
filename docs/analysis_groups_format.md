@@ -90,14 +90,15 @@ This produces one group containing the DMSO wells from every cell line, includin
 
 ### `always_include` (optional)
 
-A list of values whose data joins **every** group this grouping produces, in addition to that value's own normal membership.
+A list of values whose data joins **every** group this grouping produces, instead of being assigned to groups by value.
 Works with `groups: one_per_value` and named `groups`. Two examples:
 
 - Named groups: `always_include: [DMSO]` alongside MoA groups means DMSO's samples appear in the `kinase_inhibitor` group, the `hdac_inhibitor` group, and any other named group in this grouping.
 - `one_per_value`: `always_include: [DMSO]` means every per-treatment group (one per distinct treatment value) also includes DMSO's samples, i.e., "every drug vs. DMSO."
 
-With `groups: one_per_value`, values listed in `always_include` do **not** form a group of their own.
-A DMSO-only group would duplicate what every other group already contains, so `always_include: [DMSO]` produces only the per-drug groups.
+Values listed in `always_include` do **not** form a group of their own.
+A DMSO-only group would duplicate what every other group already contains, so with `one_per_value`, `always_include: [DMSO]` produces only the per-drug groups.
+For the same reason, an `always_include` value may not also be listed in a named group: that is an **error**.
 If a standalone group of the `always_include` values is also wanted, add a separate grouping entry for it (e.g., using `filter`).
 
 With `groups: all_values`, every value is already in the single group, so `always_include` has no effect; it is a **warning** rather than an error.
@@ -203,6 +204,8 @@ This is the same idiom as the cross-parameter checks (e.g. `feature_select_opera
 - grouping names containing characters other than letters, digits, `_`, and `-`
 - `filter` naming the grouping's own `grouping_column`
 - `subgroup_columns` naming the grouping's own `grouping_column`
+- a value listed in both `always_include` and `excluded`
+- a value listed in both `always_include` and a named group
 
 `always_include` used with `groups: all_values` is also detected here, but as a warning (`log.warn`) rather than an error, since it does no harm.
 
