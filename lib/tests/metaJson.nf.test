@@ -1,0 +1,77 @@
+nextflow_function {
+
+    name "Test Function metaJson"
+    script "../morphport_utils.nf"
+    tag "lib"
+
+    test("metaJson: group meta without an analysis groups file") {
+
+        function "metaJson"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    project: 'demo',
+                    aggregate_level: 'well',
+                    grouping_name: 'all',
+                    grouping_column: null,
+                    group: 'all_values',
+                    subgroup_values: [:],
+                    group_id: 'all',
+                    plate_ids: ['p1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == '{"project":"demo","aggregate_level":"well","grouping_name":"all","grouping_column":null,"group":"all_values","subgroup_values":{},"group_id":"all","plate_ids":["p1"]}'
+        }
+    }
+
+    test("metaJson: nested maps, lists, and booleans are kept") {
+
+        function "metaJson"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    grouping_name: 'moa_by_cell_line',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'kinase_inhibitor',
+                    subgroup_values: [Metadata_cell_type: 'lineA'],
+                    plate_ids: ['p1', 'p2'],
+                    edge_wells_included: false,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == '{"grouping_name":"moa_by_cell_line","grouping_column":"Metadata_treatment","group":"kinase_inhibitor","subgroup_values":{"Metadata_cell_type":"lineA"},"plate_ids":["p1","p2"],"edge_wells_included":false}'
+        }
+    }
+
+    test("metaJson: quotes and backslashes are escaped") {
+
+        function "metaJson"
+
+        when {
+            function {
+                '''
+                input[0] = [group: 'drug "A" \\\\ B']
+                '''
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == /{"group":"drug \"A\" \\ B"}/
+            assert new groovy.json.JsonSlurper().parseText(function.result) == [group: 'drug "A" \\ B']
+        }
+    }
+}

@@ -135,7 +135,8 @@ def main():
     embeddings_parquet = "${embeddings_parquet}"
     summary_json = "${summary_json}"
     group_tag = "${group_tag}"
-    aggregate_level = "${meta.aggregate_level}"
+    # raw string so JSON escapes in metadata values survive
+    group_meta = json.loads(r"""${meta_json}""")
     linkage_method = "${linkage_method}"
     distance_metric = "${distance_metric}"
     max_samples = int("${max_samples}")
@@ -146,13 +147,16 @@ def main():
 
     validate_clustering_params(linkage_method, distance_metric, max_samples)
 
-    grouping_info = json.loads("""${grouping_info}""")
-    grouping_values = grouping_info["grouping_values"]
+    grouping_column = group_meta["grouping_column"]
+    subgroup_values = group_meta["subgroup_values"]
 
     summary = {
         "group_tag": group_tag,
-        "aggregate_level": aggregate_level,
-        "grouping_values": grouping_values,
+        "aggregate_level": group_meta["aggregate_level"],
+        "grouping_name": group_meta["grouping_name"],
+        "grouping_column": grouping_column,
+        "group": group_meta["group"],
+        "subgroup_values": subgroup_values,
         "method": linkage_method,
         "metric": distance_metric,
     }
@@ -209,7 +213,13 @@ def main():
         return
 
     # ---- Build leaf labels + metadata ----------------------------------------
-    metadata_cols = [col for col in grouping_values] + list(ID_COLUMNS)
+    # the grouping column (absent without an analysis groups file) and subgroup columns
+    # identify each leaf's condition within the group; the ID columns identify the sample
+    metadata_cols = (
+        ([grouping_column] if grouping_column else [])
+        + list(subgroup_values)
+        + list(ID_COLUMNS)
+    )
     # de-duplicate metadata columns while preserving order with `dict.fromkeys()`
     # and filter to only those that exist in the dataframe
     metadata_cols = [col for col in dict.fromkeys(metadata_cols) if col in df.columns]

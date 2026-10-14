@@ -1,4 +1,4 @@
-include { groupTag; groupingInfoJson } from '../../../../lib/morphport_utils.nf'
+include { groupTag; metaJson } from '../../../../lib/morphport_utils.nf'
 
 process PYCYTOMINER_FEATURE_SELECT {
     tag "${group_tag}"
@@ -40,7 +40,7 @@ process PYCYTOMINER_FEATURE_SELECT {
     assert ops_list.every { it in allowed_ops }
         : "PYCYTOMINER_FEATURE_SELECT: operations must be a comma-separated subset of ${allowed_ops}, got '${operations}'"
     group_tag = groupTag(meta)
-    grouping_info = groupingInfoJson(meta, [aggregate_level: meta.aggregate_level])
+    meta_json = metaJson(meta)
     template 'pycytominer_feature_select.py'
 
     stub:

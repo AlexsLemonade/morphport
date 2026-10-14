@@ -12,14 +12,9 @@ def groupTag(meta) {
     tag.replaceAll('[^A-Za-z0-9._=-]', '_')
 }
 
-// Bundle group identity as a single JSON blob for templates to parse, rather than
-// several stringly-typed bindings. `extra` is merged in after the identity fields.
-def groupingInfoJson(meta, extra = [:]) {
-    def info = [
-        grouping_name: meta.grouping_name,
-        grouping_column: meta.grouping_column,
-        group: meta.group,
-        subgroup_values: meta.subgroup_values ?: [:],
-    ] + extra
-    groovy.json.JsonOutput.toJson(info)
+// Serialize a meta map as JSON for templates to parse, since Groovy nulls and maps don't
+// interpolate as valid Python. Templates should read it with a raw string so JSON escapes
+// survive, e.g. json.loads(r"""${meta_json}""").
+def metaJson(meta) {
+    groovy.json.JsonOutput.toJson(meta)
 }

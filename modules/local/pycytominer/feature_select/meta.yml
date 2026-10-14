@@ -20,8 +20,10 @@ input:
   - - meta:
         type: map
         description: |
-          Groovy Map describing the analysis group,
-          e.g. [ aggregate_level:'well', grouping_columns:['Metadata_cell_line'], Metadata_cell_line:'A549', plate_ids:['plate_001','plate_002'] ]
+          Group meta map from createGroupChannels, e.g.,
+          [ project:'cpg0016', aggregate_level:'well', grouping_name:'treatment',
+            grouping_column:'Metadata_treatment', group:'drugA', subgroup_values:[:],
+            group_id:'treatment=drugA', plate_ids:['plate_001','plate_002'] ]
     - plate_metas:
         type: list
         description: List of per-plate meta maps for the parquets being combined in this group

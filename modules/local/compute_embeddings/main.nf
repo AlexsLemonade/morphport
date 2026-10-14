@@ -1,4 +1,4 @@
-include { groupTag; groupingInfoJson } from '../../../lib/morphport_utils.nf'
+include { groupTag; metaJson } from '../../../lib/morphport_utils.nf'
 
 process COMPUTE_EMBEDDINGS {
     tag "${group_tag}"
@@ -26,7 +26,7 @@ process COMPUTE_EMBEDDINGS {
 
     script:
     group_tag = groupTag(meta)
-    grouping_info = groupingInfoJson(meta, [plate_ids: meta.plate_ids])
+    meta_json = metaJson(meta)
     template 'compute_embeddings.py'
 
     stub:

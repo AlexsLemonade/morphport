@@ -34,8 +34,10 @@ input:
   - - meta:
         type: map
         description: |
-          Group key map from createGroupChannels, e.g.,
-          [ aggregate_level:'cell', grouping_columns:['Metadata_treatment'], Metadata_treatment:'drugA' ]
+          Group meta map from createGroupChannels, e.g.,
+          [ project:'cpg0016', aggregate_level:'cell', grouping_name:'treatment',
+            grouping_column:'Metadata_treatment', group:'drugA', subgroup_values:[:],
+            group_id:'treatment=drugA', plate_ids:['plate_001','plate_002'] ]
     - plate_metas:
         type: list
         description: List of per-plate meta maps for all plates contributing to this group.

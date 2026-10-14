@@ -1,4 +1,4 @@
-include { groupTag; groupingInfoJson } from '../../../lib/morphport_utils.nf'
+include { groupTag; metaJson } from '../../../lib/morphport_utils.nf'
 
 // Computes hierarchical clustering of the samples within one analysis group.
 process HIERARCHICAL_CLUSTERING {
@@ -24,7 +24,7 @@ process HIERARCHICAL_CLUSTERING {
 
     script:
     group_tag = groupTag(meta)
-    grouping_info = groupingInfoJson(meta, [plate_ids: meta.plate_ids])
+    meta_json = metaJson(meta)
     template 'hierarchical_clustering.py'
 
     stub:
