@@ -15,6 +15,7 @@ include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normal
 include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
 include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clustering'
+include { partitionKey               } from '../subworkflows/local/create_analysis_groups'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -256,7 +257,7 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
         .combine(ch_analysis_groups)
         .flatMap { meta, parquets, groups ->
             def agg_level = meta.aggregate_level
-            def partition_key = meta.subMap(groups.partition_columns + ['project'])
+            def partition_key = partitionKey(meta, groups.partition_columns)
             def level_groups = groups[agg_level] ?: [:]
             // every partition value comes from a platemap (or samplesheet) read during
             // initialisation, so a partition missing from the lookup is a pipeline bug
