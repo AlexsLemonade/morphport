@@ -1,9 +1,9 @@
 # Example analysis groups file in the draft format described in docs/analysis_groups_format.md.
 #
-# NOT wired into any pipeline config, and NOT yet understood by the parser
-# (parseGroupings/normalizeGroupings still only understand the format used by
-# assets/analysis_groups_example.yaml). This file exists purely to illustrate
-# the new format ahead of the implementation work tracked in issue #51.
+# NOT wired into any pipeline config: parseGroupings understands this format, but the
+# pipeline still uses the old format (assets/analysis_groups_example.yaml) until the
+# implementation work tracked in issue #51 is complete.
+# This file is also used as a fixture by subworkflows/local/utils_analysis_groups/tests.
 
 default:
   # Every treatment value gets its own analysis group, as today.

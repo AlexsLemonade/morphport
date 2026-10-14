@@ -10,7 +10,7 @@ nextflow_function {
     // normalizeGroupings
     //
 
-    test("normalizeGroupings: prefixes columns, fills optional keys, and prepends default entries") {
+    test("normalizeGroupings: prefixes columns, fills optional keys, and prepends default groupings") {
 
         function "normalizeGroupings"
 
@@ -91,11 +91,11 @@ nextflow_function {
 
         then {
             assert function.success
-            def entry = function.result.well[0]
-            assert entry.groups == [low: ['1', '2'], high: ['10']]
-            assert entry.always_include == ['0']
-            assert entry.excluded == ['true']
-            assert entry.filter == [Metadata_replicate: ['1']]
+            def grouping = function.result.well[0]
+            assert grouping.groups == [low: ['1', '2'], high: ['10']]
+            assert grouping.always_include == ['0']
+            assert grouping.excluded == ['true']
+            assert grouping.filter == [Metadata_replicate: ['1']]
             assert function.result.cell == []
         }
     }
@@ -191,7 +191,7 @@ nextflow_function {
         }
     }
 
-    test("validateGroupingStructure: entries must be mappings with known keys") {
+    test("validateGroupingStructure: groupings must be mappings with known keys") {
 
         function "validateGroupingStructure"
 
@@ -217,7 +217,7 @@ nextflow_function {
         }
     }
 
-    test("validateGroupingStructure: names must be unique within a level, including default entries") {
+    test("validateGroupingStructure: names must be unique within a level, including default groupings") {
 
         function "validateGroupingStructure"
 
@@ -226,7 +226,7 @@ nextflow_function {
                 """
                 input[0] = [
                     'default': [[name: 'treatment', grouping_column: 'treatment', groups: 'one_per_value']],
-                    // identical to the default entry: still an error
+                    // identical to the default grouping: still an error
                     cell: [[name: 'treatment', grouping_column: 'treatment', groups: 'one_per_value']],
                     well: [
                         [name: 'cell_type', grouping_column: 'cell_type', groups: 'one_per_value'],
@@ -460,7 +460,7 @@ nextflow_function {
     // parseGroupings
     //
 
-    test("parseGroupings: no file gives one all-encompassing entry per level") {
+    test("parseGroupings: no file gives one all-encompassing grouping per level") {
 
         function "parseGroupings"
 
@@ -474,7 +474,7 @@ nextflow_function {
 
         then {
             assert function.success
-            def all_entry = [
+            def all_grouping = [
                 name: null,
                 grouping_column: null,
                 groups: 'all_values',
@@ -483,7 +483,7 @@ nextflow_function {
                 filter: [:],
                 subgroup_columns: [],
             ]
-            assert function.result == [cell: [all_entry], well: [all_entry]]
+            assert function.result == [cell: [all_grouping], well: [all_grouping]]
         }
     }
 
@@ -509,7 +509,7 @@ nextflow_function {
                 'treatment_by_cell_line',
             ]
             assert function.result.well*.name == ['treatment', 'cell_type']
-            def moa = function.result.cell.find { entry -> entry.name == 'moa_grouping' }
+            def moa = function.result.cell.find { grouping -> grouping.name == 'moa_grouping' }
             assert moa.groups == [
                 kinase_inhibitor: ['drugA', 'drugB', 'drugC'],
                 hdac_inhibitor: ['drugD', 'drugA'],
@@ -557,7 +557,7 @@ nextflow_function {
         when {
             function {
                 """
-                def entry = { name, col, extra = [:] ->
+                def grouping = { name, col, extra = [:] ->
                     [
                         name: name,
                         grouping_column: col,
@@ -570,12 +570,12 @@ nextflow_function {
                 }
                 input[0] = [
                     cell: [
-                        entry.call('treatment', 'Metadata_treatment'),
-                        entry.call('by_line', 'Metadata_treatment', [subgroup_columns: ['Metadata_cell_type']]),
+                        grouping.call('treatment', 'Metadata_treatment'),
+                        grouping.call('by_line', 'Metadata_treatment', [subgroup_columns: ['Metadata_cell_type']]),
                     ],
                     well: [
-                        entry.call('treatment', 'Metadata_treatment'),
-                        entry.call('untreated', 'Metadata_cell_type', [filter: [Metadata_timepoint: ['24h']]]),
+                        grouping.call('treatment', 'Metadata_treatment'),
+                        grouping.call('untreated', 'Metadata_cell_type', [filter: [Metadata_timepoint: ['24h']]]),
                     ],
                 ]
                 """
@@ -595,7 +595,7 @@ nextflow_function {
         when {
             function {
                 """
-                def all_entry = [
+                def all_grouping = [
                     name: null,
                     grouping_column: null,
                     groups: 'all_values',
@@ -604,7 +604,841 @@ nextflow_function {
                     filter: [:],
                     subgroup_columns: [],
                 ]
-                input[0] = [cell: [all_entry], well: [all_entry]]
+                input[0] = [cell: [all_grouping], well: [all_grouping]]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    //
+    // enumeratePlatemapCombos / enumeratePlateCombos
+    //
+
+    test("enumeratePlatemapCombos: unique combos with _Absent_ for columns missing from the platemap") {
+
+        function "enumeratePlatemapCombos"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap/platemap_002.txt'
+                input[1] = ['Metadata_gene_allele', 'Metadata_treatment']
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                [Metadata_gene_allele: 'wt', Metadata_treatment: '_Absent_'],
+                [Metadata_gene_allele: 'mut', Metadata_treatment: '_Absent_'],
+            ]
+        }
+    }
+
+    test("enumeratePlateCombos: adds project and plate_id to each platemap combo") {
+
+        function "enumeratePlateCombos"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    plate_id: 'plate_001',
+                    project: 'demo',
+                    platemap_file: '${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap/platemap_001.txt',
+                ]
+                input[1] = ['Metadata_treatment']
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                [Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'plate_001'],
+                [Metadata_treatment: 'drug', project: 'demo', plate_id: 'plate_001'],
+            ]
+        }
+    }
+
+    //
+    // assignGroupingSets
+    // nf-test serializes function results, so map keys (here, group keys) come back as
+    // Java-style strings, e.g. '{project=demo, group=drugA, subgroup_values={}}'.
+    // Results are summarized as group key string → sorted "plate:value" members.
+    //
+
+    test("assignGroupingSets: one_per_value makes one group per observed value") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                def combo = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
+                input[0] = [
+                    name: 'treatment',
+                    grouping_column: 'Metadata_treatment',
+                    groups: 'one_per_value',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[1] = [
+                    combo.call('p1', 'DMSO'),
+                    combo.call('p1', 'drugA'),
+                    combo.call('p2', 'drugA'),
+                    combo.call('p2', 'drugB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> "${m.plate_id}:${m.Metadata_treatment}".toString() }.sort()]
+            }
+            assert summary == [
+                '{project=demo, group=DMSO, subgroup_values={}}': ['p1:DMSO'],
+                '{project=demo, group=drugA, subgroup_values={}}': ['p1:drugA', 'p2:drugA'],
+                '{project=demo, group=drugB, subgroup_values={}}': ['p2:drugB'],
+            ]
+        }
+    }
+
+    test("assignGroupingSets: one_per_value with always_include adds those values to every group and no group of their own") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                def combo = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
+                input[0] = [
+                    name: 'treatment',
+                    grouping_column: 'Metadata_treatment',
+                    groups: 'one_per_value',
+                    always_include: ['DMSO'],
+                    excluded: ['drugC'],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[1] = [
+                    combo.call('p1', 'DMSO'),
+                    combo.call('p1', 'drugA'),
+                    combo.call('p1', 'drugC'),
+                    combo.call('p2', 'drugB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> "${m.plate_id}:${m.Metadata_treatment}".toString() }.sort()]
+            }
+            assert summary == [
+                '{project=demo, group=drugA, subgroup_values={}}': ['p1:DMSO', 'p1:drugA'],
+                '{project=demo, group=drugB, subgroup_values={}}': ['p1:DMSO', 'p2:drugB'],
+            ]
+        }
+    }
+
+    test("assignGroupingSets: named groups fan out values listed in more than one group") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                def combo = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
+                input[0] = [
+                    name: 'moa',
+                    grouping_column: 'Metadata_treatment',
+                    groups: [kinase_inhibitor: ['drugA', 'drugB'], hdac_inhibitor: ['drugD', 'drugA']],
+                    always_include: ['DMSO'],
+                    excluded: ['drugE'],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[1] = ['DMSO', 'drugA', 'drugB', 'drugD', 'drugE'].collect { treatment -> combo.call('p1', treatment) }
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> "${m.plate_id}:${m.Metadata_treatment}".toString() }.sort()]
+            }
+            assert summary == [
+                '{project=demo, group=kinase_inhibitor, subgroup_values={}}': ['p1:DMSO', 'p1:drugA', 'p1:drugB'],
+                '{project=demo, group=hdac_inhibitor, subgroup_values={}}': ['p1:DMSO', 'p1:drugA', 'p1:drugD'],
+            ]
+        }
+    }
+
+    test("assignGroupingSets: all_values with filter pools the filtered rows into one group") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                def combo = { plate, cell_type, treatment ->
+                    [Metadata_cell_type: cell_type, Metadata_treatment: treatment, project: 'demo', plate_id: plate]
+                }
+                input[0] = [
+                    name: 'dmso_all_cell_lines',
+                    grouping_column: 'Metadata_cell_type',
+                    groups: 'all_values',
+                    always_include: [],
+                    excluded: [],
+                    filter: [Metadata_treatment: ['DMSO']],
+                    subgroup_columns: [],
+                ]
+                input[1] = [
+                    combo.call('p1', 'lineA', 'DMSO'),
+                    combo.call('p1', 'lineA', 'drugA'),
+                    combo.call('p2', 'lineB', 'DMSO'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> "${m.plate_id}:${m.Metadata_cell_type}".toString() }.sort()]
+            }
+            assert summary == [
+                '{project=demo, group=all_values, subgroup_values={}}': ['p1:lineA', 'p2:lineB'],
+            ]
+        }
+    }
+
+    test("assignGroupingSets: subgroup_columns split groups and apply always_include within each subgroup") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                def combo = { plate, treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
+                }
+                input[0] = [
+                    name: 'treatment_by_cell_line',
+                    grouping_column: 'Metadata_treatment',
+                    groups: 'one_per_value',
+                    always_include: ['DMSO'],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: ['Metadata_cell_type'],
+                ]
+                input[1] = [
+                    combo.call('p1', 'drugA', 'lineA'),
+                    combo.call('p1', 'DMSO', 'lineA'),
+                    combo.call('p2', 'drugA', 'lineB'),
+                    combo.call('p2', 'DMSO', 'lineB'),
+                    combo.call('p2', 'drugB', 'lineB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> "${m.plate_id}:${m.Metadata_treatment}".toString() }.sort()]
+            }
+            assert summary == [
+                '{project=demo, group=drugA, subgroup_values={Metadata_cell_type=lineA}}': ['p1:DMSO', 'p1:drugA'],
+                '{project=demo, group=drugA, subgroup_values={Metadata_cell_type=lineB}}': ['p2:DMSO', 'p2:drugA'],
+                '{project=demo, group=drugB, subgroup_values={Metadata_cell_type=lineB}}': ['p2:DMSO', 'p2:drugB'],
+            ]
+        }
+    }
+
+    test("assignGroupingSets: groups and always_include stay within each project") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                def combo = { project, treatment -> [Metadata_treatment: treatment, project: project, plate_id: project + '_p1'] }
+                input[0] = [
+                    name: 'treatment',
+                    grouping_column: 'Metadata_treatment',
+                    groups: 'one_per_value',
+                    always_include: ['DMSO'],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[1] = [
+                    combo.call('projA', 'DMSO'),
+                    combo.call('projA', 'drugA'),
+                    combo.call('projB', 'DMSO'),
+                    combo.call('projB', 'drugA'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> "${m.plate_id}:${m.Metadata_treatment}".toString() }.sort()]
+            }
+            assert summary == [
+                '{project=projA, group=drugA, subgroup_values={}}': ['projA_p1:DMSO', 'projA_p1:drugA'],
+                '{project=projB, group=drugA, subgroup_values={}}': ['projB_p1:DMSO', 'projB_p1:drugA'],
+            ]
+        }
+    }
+
+    test("assignGroupingSets: the no-file grouping puts everything in one group per project") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    name: null,
+                    grouping_column: null,
+                    groups: 'all_values',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[1] = [
+                    [project: 'demo', plate_id: 'p1'],
+                    [project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> m.plate_id }.sort()]
+            }
+            assert summary == ['{project=demo, group=all_values, subgroup_values={}}': ['p1', 'p2']]
+        }
+    }
+
+    //
+    // buildAnalysisGroups
+    //
+
+    test("buildAnalysisGroups: maps each partition key to its groups and expected sizes") {
+
+        function "buildAnalysisGroups"
+
+        when {
+            function {
+                """
+                def combo = { plate, treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
+                }
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'moa',
+                            grouping_column: 'Metadata_treatment',
+                            groups: [kinase_inhibitor: ['drugA'], hdac_inhibitor: ['drugA', 'drugD']],
+                            always_include: ['DMSO'],
+                            excluded: ['drugE'],
+                            filter: [:],
+                            subgroup_columns: ['Metadata_cell_type'],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    combo.call('p1', 'DMSO', 'lineA'),
+                    combo.call('p1', 'drugA', 'lineA'),
+                    combo.call('p1', 'drugE', 'lineA'),
+                    combo.call('p2', 'DMSO', 'lineA'),
+                    combo.call('p2', 'drugD', 'lineA'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def kinase = [
+                project: 'demo',
+                aggregate_level: 'cell',
+                grouping_name: 'moa',
+                grouping_column: 'Metadata_treatment',
+                group: 'kinase_inhibitor',
+                subgroup_values: [Metadata_cell_type: 'lineA'],
+                group_id: 'treatment=kinase_inhibitor__cell_type=lineA',
+            ]
+            def hdac = kinase + [group: 'hdac_inhibitor', group_id: 'treatment=hdac_inhibitor__cell_type=lineA']
+            // partition keys come back as strings (see the assignGroupingSets note)
+            def pk = { treatment -> "{Metadata_treatment=${treatment}, Metadata_cell_type=lineA, project=demo}".toString() }
+            assert function.result.partition_columns == ['Metadata_treatment', 'Metadata_cell_type']
+            // every observed partition is a known key in every level, even with no groups there
+            assert function.result.well.keySet() == function.result.cell.keySet()
+            assert function.result.well.values().every { groups -> groups == [] }
+            // kinase_inhibitor: p1 drugA + DMSO from p1 and p2 = 3 items
+            // hdac_inhibitor: p1 drugA + p2 drugD + DMSO from p1 and p2 = 4 items
+            assert function.result.cell == [
+                (pk.call('DMSO')): [[kinase, 3], [hdac, 4]],
+                (pk.call('drugA')): [[kinase, 3], [hdac, 4]],
+                // excluded values are still known partitions, with no groups
+                (pk.call('drugE')): [],
+                (pk.call('drugD')): [[hdac, 4]],
+            ]
+        }
+    }
+
+    test("buildAnalysisGroups: one_per_value group ids use the value; default groupings appear in both levels") {
+
+        function "buildAnalysisGroups"
+
+        when {
+            function {
+                """
+                def treatment = [
+                    name: 'treatment',
+                    grouping_column: 'Metadata_treatment',
+                    groups: 'one_per_value',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[0] = [cell: [treatment], well: [treatment]]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'drugA', project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def group_meta = { level ->
+                [
+                    project: 'demo',
+                    aggregate_level: level,
+                    grouping_name: 'treatment',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'drugA',
+                    subgroup_values: [:],
+                    group_id: 'treatment=drugA',
+                ]
+            }
+            // partition keys come back as strings (see the assignGroupingSets note)
+            def pk = '{Metadata_treatment=drugA, project=demo}'
+            assert function.result == [
+                partition_columns: ['Metadata_treatment'],
+                cell: [(pk): [[group_meta.call('cell'), 2]]],
+                well: [(pk): [[group_meta.call('well'), 2]]],
+            ]
+        }
+    }
+
+    test("buildAnalysisGroups: no analysis groups file gives one 'all' group per level and project") {
+
+        function "buildAnalysisGroups"
+
+        when {
+            function {
+                """
+                def all_grouping = [
+                    name: null,
+                    grouping_column: null,
+                    groups: 'all_values',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[0] = [cell: [all_grouping], well: [all_grouping]]
+                input[1] = [
+                    [project: 'demo', plate_id: 'p1'],
+                    [project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def group_meta = { level ->
+                [
+                    project: 'demo',
+                    aggregate_level: level,
+                    grouping_name: null,
+                    grouping_column: null,
+                    group: 'all_values',
+                    subgroup_values: [:],
+                    group_id: 'all',
+                ]
+            }
+            assert function.result == [
+                partition_columns: [],
+                cell: ['{project=demo}': [[group_meta.call('cell'), 2]]],
+                well: ['{project=demo}': [[group_meta.call('well'), 2]]],
+            ]
+        }
+    }
+
+    //
+    // validateGroupingsAgainstData
+    //
+
+    test("validateGroupingsAgainstData: valid groupings produce no errors") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def combo = { plate, treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
+                }
+                def grouping = { name, col, groups, extra ->
+                    [
+                        name: name,
+                        grouping_column: col,
+                        groups: groups,
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [
+                        grouping.call('moa', 'Metadata_treatment', [kinase_inhibitor: ['drugA']], [always_include: ['DMSO'], excluded: ['drugE']]),
+                        grouping.call('by_line', 'Metadata_treatment', 'one_per_value', [always_include: ['DMSO'], subgroup_columns: ['Metadata_cell_type']]),
+                        grouping.call('untreated', 'Metadata_cell_type', 'one_per_value', [filter: [Metadata_treatment: ['DMSO']]]),
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    combo.call('p1', 'DMSO', 'lineA'),
+                    combo.call('p1', 'drugA', 'lineA'),
+                    combo.call('p2', 'DMSO', 'lineB'),
+                    combo.call('p2', 'drugE', 'lineB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    test("validateGroupingsAgainstData: named groups must account for every observed value") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'moa',
+                            grouping_column: 'Metadata_treatment',
+                            groups: [kinase_inhibitor: ['drugA']],
+                            always_include: ['DMSO'],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = ['DMSO', 'drugA', 'drugF', 'drugG'].collect { treatment ->
+                    [Metadata_treatment: treatment, project: 'demo', plate_id: 'p1']
+                }
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'moa'")
+            assert function.result[0].contains('drugF')
+            assert function.result[0].contains('drugG')
+        }
+    }
+
+    test("validateGroupingsAgainstData: values removed by the filter need not be accounted for") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'moa_24h',
+                            grouping_column: 'Metadata_treatment',
+                            groups: [kinase_inhibitor: ['drugA']],
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_timepoint: ['24h']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', Metadata_timepoint: '24h', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'drugF', Metadata_timepoint: '48h', project: 'demo', plate_id: 'p1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    test("validateGroupingsAgainstData: a filter matching no rows is an error") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'typo',
+                            grouping_column: 'Metadata_cell_type',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_treatment: ['DSMO']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [[Metadata_cell_type: 'lineA', Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'p1']]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'typo'")
+            assert function.result[0].contains('no rows')
+        }
+    }
+
+    test("validateGroupingsAgainstData: a filter column missing from a platemap is an error naming the plate") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'untreated',
+                            grouping_column: 'Metadata_cell_type',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_treatment: ['DMSO']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_cell_type: 'lineA', Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'p1'],
+                    [Metadata_cell_type: 'lineB', Metadata_treatment: '_Absent_', project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'untreated'")
+            assert function.result[0].contains('Metadata_treatment')
+            assert function.result[0].contains('p2')
+            assert !function.result[0].contains('p1')
+        }
+    }
+
+    test("validateGroupingsAgainstData: always_include values removed by the filter are an error") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'treatment_24h',
+                            grouping_column: 'Metadata_treatment',
+                            groups: 'one_per_value',
+                            always_include: ['DMSO'],
+                            excluded: [],
+                            filter: [Metadata_timepoint: ['24h']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', Metadata_timepoint: '24h', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'DMSO', Metadata_timepoint: '48h', project: 'demo', plate_id: 'p1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'treatment_24h'")
+            assert function.result[0].contains('DMSO')
+        }
+    }
+
+    test("validateGroupingsAgainstData: always_include values missing from a subgroup are an error") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def combo = { treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: 'p1']
+                }
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'by_line',
+                            grouping_column: 'Metadata_treatment',
+                            groups: 'one_per_value',
+                            always_include: ['DMSO'],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: ['Metadata_cell_type'],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    combo.call('DMSO', 'lineA'),
+                    combo.call('drugA', 'lineA'),
+                    combo.call('drugA', 'lineB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'by_line'")
+            assert function.result[0].contains('DMSO')
+            assert function.result[0].contains('lineB')
+            assert !function.result[0].contains('lineA')
+        }
+    }
+
+    test("validateGroupingsAgainstData: all problems are collected, and default groupings are reported once") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def moa = [
+                    name: 'moa',
+                    grouping_column: 'Metadata_treatment',
+                    groups: [kinase_inhibitor: ['drugA']],
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                def typo = [
+                    name: 'typo',
+                    grouping_column: 'Metadata_treatment',
+                    groups: 'one_per_value',
+                    always_include: ['DSMO'],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                // moa is a default grouping, so it appears in both levels
+                input[0] = [cell: [moa, typo], well: [moa]]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'drugF', project: 'demo', plate_id: 'p1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 2
+            assert function.result.any { err -> err.contains("'moa'") && err.contains('drugF') }
+            assert function.result.any { err -> err.contains("'typo'") && err.contains('DSMO') }
+        }
+    }
+
+    test("validateGroupingsAgainstData: the no-file grouping is always valid") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def all_grouping = [
+                    name: null,
+                    grouping_column: null,
+                    groups: 'all_values',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[0] = [cell: [all_grouping], well: [all_grouping]]
+                input[1] = [[project: 'demo', plate_id: 'p1']]
                 """
             }
         }
