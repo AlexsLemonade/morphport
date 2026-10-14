@@ -173,7 +173,7 @@ def apply_per_channel_correlation_threshold(
 
 def main():
     parquet_dir = "input_parquet"
-    group_tag = "${group_tag}"
+    group_tag = "${meta.group_tag}"
     # raw string so JSON escapes in metadata values survive
     group_meta = json.loads(r"""${meta_json}""")
     operations = [op.strip() for op in "${operations}".split(",")]

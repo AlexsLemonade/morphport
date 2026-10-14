@@ -244,7 +244,8 @@ def groupingPartitionColumns(parsed_groups) {
 // level (e.g., it was filtered out or excluded).
 //
 // group_meta identifies the group:
-//   [project, aggregate_level, grouping_name, grouping_column, group, subgroup_values, group_id]
+//   [project, aggregate_level, grouping_name, grouping_column, group, subgroup_values, group_id, group_tag]
+// group_tag (see groupTag) names the group's output files.
 // Expected sizes count the (plate × combo) items in each group. They're used as the `size`
 // argument to groupKey(...) so groupTuple can emit each group eagerly rather than waiting for
 // the upstream channel to close.
@@ -270,6 +271,7 @@ def buildAnalysisGroups(parsed_groups, combos) {
                     subgroup_values: group_key.subgroup_values,
                     group_id: groupId(grouping.grouping_column, group_key.group, group_key.subgroup_values),
                 ]
+                group_meta = group_meta + [group_tag: groupTag(group_meta)]
                 def group_with_size = [group_meta, members.size()]
                 members.each { combo ->
                     def partition_groups = lookup[combo.subMap(partition_columns + ['project'])]
@@ -349,6 +351,20 @@ def groupId(grouping_column, group, subgroup_values) {
     }
     def parts = [(grouping_column): group] + subgroup_values
     return parts.collect { col, value -> "${(col as String).replaceFirst('^Metadata_', '')}=${value}" }.join('__')
+}
+
+//
+// Build a filesystem-safe tag from a group meta, used to name the group's output files:
+//   <aggregate_level>__<grouping_name>__<group_id>
+// e.g. cell__moa_by_cell_line__treatment=kinase_inhibitor__cell_type=lineA
+// When there is no grouping column (the 'all' grouping used without an analysis groups file),
+// there is only one group, so the group id is left out: "<aggregate_level>__all".
+//
+def groupTag(group_meta) {
+    def tag = group_meta.grouping_column
+        ? "${group_meta.aggregate_level}__${group_meta.grouping_name}__${group_meta.group_id}"
+        : "${group_meta.aggregate_level}__${group_meta.grouping_name}"
+    return tag.replaceAll('[^A-Za-z0-9._=-]', '_')
 }
 
 //

@@ -1,7 +1,5 @@
-include { groupTag } from '../../../lib/morphport_utils.nf'
-
 process COMPUTE_EMBEDDINGS {
-    tag "${group_tag}"
+    tag "${meta.group_tag}"
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
@@ -21,19 +19,17 @@ process COMPUTE_EMBEDDINGS {
     val(min_rows)
 
     output:
-    tuple val(meta), path("embeddings_${group_tag}.parquet"), path("embeddings_summary_${group_tag}.json"), emit: result
+    tuple val(meta), path("embeddings_${meta.group_tag}.parquet"), path("embeddings_summary_${meta.group_tag}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    group_tag = groupTag(meta)
     meta_json = groovy.json.JsonOutput.toJson(meta)
     template 'compute_embeddings.py'
 
     stub:
-    group_tag = groupTag(meta)
     """
-    touch embeddings_${group_tag}.parquet
-    cat <<-END_JSON > embeddings_summary_${group_tag}.json
+    touch embeddings_${meta.group_tag}.parquet
+    cat <<-END_JSON > embeddings_summary_${meta.group_tag}.json
     {
         "aggregate_level": "${meta.aggregate_level}",
         "stub": true

@@ -163,7 +163,7 @@ workflow PIPELINE_INITIALISATION {
     // where drugA_meta is
     //   [project: 'cpg0016', aggregate_level: 'cell', grouping_name: 'by_treatment',
     //    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
-    //    group_id: 'treatment=drugA']
+    //    group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
     //
     def ch_analysis_groups = ch_validated
         .map { _metas, combos -> buildAnalysisGroups(parsed_groups, combos) }

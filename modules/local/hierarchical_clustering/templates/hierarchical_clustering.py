@@ -134,7 +134,7 @@ def main():
     # ---- Capture Nextflow variables ----------------------------------------
     embeddings_parquet = "${embeddings_parquet}"
     summary_json = "${summary_json}"
-    group_tag = "${group_tag}"
+    group_tag = "${meta.group_tag}"
     # raw string so JSON escapes in metadata values survive
     group_meta = json.loads(r"""${meta_json}""")
     linkage_method = "${linkage_method}"

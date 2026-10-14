@@ -942,6 +942,110 @@ nextflow_function {
     }
 
     //
+    // groupTag
+    //
+
+    test("groupTag: no grouping column leaves out the group id") {
+
+        function "groupTag"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    aggregate_level: 'well',
+                    grouping_name: 'all',
+                    grouping_column: null,
+                    group: 'all_values',
+                    subgroup_values: [:],
+                    group_id: 'all',
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == 'well__all'
+        }
+    }
+
+    test("groupTag: grouping name and group id are joined") {
+
+        function "groupTag"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    aggregate_level: 'cell',
+                    grouping_name: 'moa',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'drugA',
+                    subgroup_values: [:],
+                    group_id: 'treatment=drugA',
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == 'cell__moa__treatment=drugA'
+        }
+    }
+
+    test("groupTag: subgroup values are part of the group id") {
+
+        function "groupTag"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    aggregate_level: 'cell',
+                    grouping_name: 'moa_by_cell_line',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'kinase_inhibitor',
+                    subgroup_values: [Metadata_cell_type: 'lineA'],
+                    group_id: 'treatment=kinase_inhibitor__cell_type=lineA',
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == 'cell__moa_by_cell_line__treatment=kinase_inhibitor__cell_type=lineA'
+        }
+    }
+
+    test("groupTag: characters outside [A-Za-z0-9._=-] are sanitized to underscores") {
+
+        function "groupTag"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    aggregate_level: 'cell',
+                    grouping_name: 'moa',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'drug A/B,control',
+                    subgroup_values: [:],
+                    group_id: 'treatment=drug A/B,control',
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == 'cell__moa__treatment=drug_A_B_control'
+        }
+    }
+
+    //
     // buildAnalysisGroups
     //
 
@@ -990,8 +1094,13 @@ nextflow_function {
                 group: 'kinase_inhibitor',
                 subgroup_values: [Metadata_cell_type: 'lineA'],
                 group_id: 'treatment=kinase_inhibitor__cell_type=lineA',
+                group_tag: 'cell__moa__treatment=kinase_inhibitor__cell_type=lineA',
             ]
-            def hdac = kinase + [group: 'hdac_inhibitor', group_id: 'treatment=hdac_inhibitor__cell_type=lineA']
+            def hdac = kinase + [
+                group: 'hdac_inhibitor',
+                group_id: 'treatment=hdac_inhibitor__cell_type=lineA',
+                group_tag: 'cell__moa__treatment=hdac_inhibitor__cell_type=lineA',
+            ]
             // partition keys come back as strings (see the assignGroupingSets note)
             def pk = { treatment -> "{Metadata_treatment=${treatment}, Metadata_cell_type=lineA, project=demo}".toString() }
             assert function.result.partition_columns == ['Metadata_treatment', 'Metadata_cell_type']
@@ -1046,6 +1155,7 @@ nextflow_function {
                     group: 'drugA',
                     subgroup_values: [:],
                     group_id: 'treatment=drugA',
+                    group_tag: "${level}__treatment__treatment=drugA".toString(),
                 ]
             }
             // partition keys come back as strings (see the assignGroupingSets note)
@@ -1094,6 +1204,7 @@ nextflow_function {
                     group: 'all_values',
                     subgroup_values: [:],
                     group_id: 'all',
+                    group_tag: "${level}__all".toString(),
                 ]
             }
             assert function.result == [

@@ -37,7 +37,8 @@ input:
           Group meta map from createGroupChannels, e.g.,
           [ project:'cpg0016', aggregate_level:'cell', grouping_name:'treatment',
             grouping_column:'Metadata_treatment', group:'drugA', subgroup_values:[:],
-            group_id:'treatment=drugA', plate_ids:['plate_001','plate_002'] ]
+            group_id:'treatment=drugA',
+            group_tag:'cell__treatment__treatment=drugA', plate_ids:['plate_001','plate_002'] ]
     - plate_metas:
         type: list
         description: List of per-plate meta maps for all plates contributing to this group.

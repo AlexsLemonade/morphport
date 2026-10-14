@@ -48,7 +48,7 @@ def main():
     # ---- Capture Nextflow variables ----------------------------------------
     parquet_dir = pathlib.Path("input_parquet")
     features_file = pathlib.Path("${features_file}")
-    group_tag = "${group_tag}"
+    group_tag = "${meta.group_tag}"
     # raw string so JSON escapes in metadata values survive
     group_meta = json.loads(r"""${meta_json}""")
     aggregate_level = group_meta["aggregate_level"]

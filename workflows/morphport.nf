@@ -15,7 +15,6 @@ include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normal
 include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
 include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clustering'
-include { groupTag                   } from '../lib/morphport_utils.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -164,7 +163,7 @@ workflow MORPHPORT {
         }
 
     ch_feature_selected.empty.subscribe { meta, _plate_metas, _parquets, _features ->
-        log.warn "Skipping COMPUTE_EMBEDDINGS for group ${groupTag(meta)}: no features selected upstream."
+        log.warn "Skipping COMPUTE_EMBEDDINGS for group ${meta.group_tag}: no features selected upstream."
     }
 
     COMPUTE_EMBEDDINGS(
