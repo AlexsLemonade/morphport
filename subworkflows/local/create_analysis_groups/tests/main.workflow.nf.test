@@ -102,4 +102,41 @@ nextflow_workflow {
             assert workflow.out.analysis_groups == []
         }
     }
+
+    test("CREATE_ANALYSIS_GROUPS: groups that would share an output tag fail before anything is emitted") {
+
+        when {
+            workflow {
+                """
+                def platemaps = "${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap"
+                input[0] = Channel.value([
+                    [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
+                    [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
+                ])
+                input[1] = [
+                    cell: [
+                        [
+                            name: 'by_allele',
+                            grouping_column: 'Metadata_gene_allele',
+                            groups: ['mutant allele': ['mut'], 'mutant/allele': ['mut'], wildtype: ['wt']],
+                            always_include: [],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert workflow.failed
+            assert workflow.stdout.any { line -> line.contains("Analysis groups validation failed") }
+            assert workflow.stdout.any { line -> line.contains("output tag 'cell__by_allele__gene_allele=mutant_allele'") }
+            assert workflow.out.samplesheet == []
+            assert workflow.out.analysis_groups == []
+        }
+    }
 }

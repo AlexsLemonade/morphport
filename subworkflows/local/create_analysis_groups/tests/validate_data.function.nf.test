@@ -350,4 +350,138 @@ nextflow_function {
             assert function.result == []
         }
     }
+
+    //
+    // validateGroupTags
+    //
+
+    test("validateGroupTags: distinct groups that share an output tag are an error") {
+
+        function "validateGroupTags"
+
+        when {
+            function {
+                """
+                def group_meta = { project, group, tag ->
+                    [
+                        project: project,
+                        aggregate_level: 'cell',
+                        grouping_name: 'moa',
+                        grouping_column: 'Metadata_treatment',
+                        group: group,
+                        subgroup_values: [:],
+                        group_id: "treatment=\${group}".toString(),
+                        group_tag: tag,
+                    ]
+                }
+                def tag = 'cell__moa__treatment=kinase_inhibitor'
+                def space = group_meta.call('demo', 'kinase inhibitor', tag)
+                def slash = group_meta.call('demo', 'kinase/inhibitor', tag)
+                def underscore = group_meta.call('demo', 'kinase_inhibitor', tag)
+                input[0] = [
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drugA', project: 'demo']: [[space, 2], [slash, 2]],
+                        [Metadata_treatment: 'drugB', project: 'demo']: [[slash, 2], [underscore, 1]],
+                    ],
+                    well: [:],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                "Grouping 'moa': groups [treatment=kinase inhibitor, treatment=kinase/inhibitor, treatment=kinase_inhibitor]" +
+                    " in project 'demo' would all be written with the output tag 'cell__moa__treatment=kinase_inhibitor'." +
+                    " Output tags keep only letters, digits, '.', '_', '=', and '-', so rename groups or values that differ only in other characters.",
+            ]
+        }
+    }
+
+    test("validateGroupTags: the same tag in different projects or levels is allowed") {
+
+        function "validateGroupTags"
+
+        when {
+            function {
+                """
+                def group_meta = { project, group, tag ->
+                    [
+                        project: project,
+                        aggregate_level: 'cell',
+                        grouping_name: 'moa',
+                        grouping_column: 'Metadata_treatment',
+                        group: group,
+                        subgroup_values: [:],
+                        group_id: "treatment=\${group}".toString(),
+                        group_tag: tag,
+                    ]
+                }
+                def demo = group_meta.call('demo', 'drug A', 'cell__moa__treatment=drug_A')
+                def other = group_meta.call('other', 'drug A', 'cell__moa__treatment=drug_A')
+                def well = demo + [aggregate_level: 'well', group_tag: 'well__moa__treatment=drug_A']
+                input[0] = [
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drug A', project: 'demo']: [[demo, 1]],
+                        [Metadata_treatment: 'drug A', project: 'other']: [[other, 1]],
+                    ],
+                    well: [
+                        [Metadata_treatment: 'drug A', project: 'demo']: [[well, 1]],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    test("validateGroupTags: one_per_value values that differ only in removed characters are an error") {
+
+        function "validateGroupTags"
+
+        when {
+            function {
+                """
+                def group_meta = { project, group, tag ->
+                    [
+                        project: project,
+                        aggregate_level: 'cell',
+                        grouping_name: 'moa',
+                        grouping_column: 'Metadata_treatment',
+                        group: group,
+                        subgroup_values: [:],
+                        group_id: "treatment=\${group}".toString(),
+                        group_tag: tag,
+                    ]
+                }
+                def spaced = group_meta.call('demo', 'drug A', 'cell__moa__treatment=drug_A')
+                def underscored = group_meta.call('demo', 'drug_A', 'cell__moa__treatment=drug_A')
+                def other = group_meta.call('demo', 'drugB', 'cell__moa__treatment=drugB')
+                input[0] = [
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drug A', project: 'demo']: [[spaced, 1]],
+                        [Metadata_treatment: 'drug_A', project: 'demo']: [[underscored, 1]],
+                        [Metadata_treatment: 'drugB', project: 'demo']: [[other, 1]],
+                    ],
+                    well: [:],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("groups [treatment=drug A, treatment=drug_A]")
+            assert function.result[0].contains("output tag 'cell__moa__treatment=drug_A'")
+        }
+    }
 }

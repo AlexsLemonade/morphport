@@ -10,8 +10,9 @@
 */
 
 //
-// Check the analysis groups against every plate's condition combos (platemap values plus
-// project and plate_id), then build the lookup createGroupChannels uses to route partitions.
+// Build the lookup createGroupChannels uses to route partitions from every plate's condition
+// combos (platemap values plus project and plate_id), and check the analysis groups against
+// those combos and for output tag collisions.
 // Errors abort the run here: the samplesheet is only emitted once the checks pass, so no
 // process is submitted with a bad groups file. Platemaps are read only once.
 //
@@ -26,19 +27,20 @@ workflow CREATE_ANALYSIS_GROUPS {
     def ch_checked = ch_metas
         .map { metas ->
             def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, partition_columns) }
-            def errors = validateGroupingsAgainstData(parsed_groups, combos)
+            def analysis_groups = buildAnalysisGroups(parsed_groups, combos)
+            def errors = validateGroupingsAgainstData(parsed_groups, combos) + validateGroupTags(analysis_groups)
             if (errors) {
                 error(
                     "Analysis groups validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
                 )
             }
-            [metas, combos]
+            [metas, analysis_groups]
         }
 
-    def ch_samplesheet = ch_checked.flatMap { metas, _combos -> metas }
+    def ch_samplesheet = ch_checked.flatMap { metas, _analysis_groups -> metas }
 
     //
-    // Build a value channel with the analysis groups lookup used to route partitions to groups
+    // A value channel with the analysis groups lookup used to route partitions to groups
     // (see buildAnalysisGroups for details):
     //   - partition_columns: list passed to PARTITION_CONDITIONS (if list is empty ⇒ no partitioning)
     //   - cell / well:       partition key → list of [group_meta, expected group size], used to
@@ -61,8 +63,7 @@ workflow CREATE_ANALYSIS_GROUPS {
     //    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
     //    group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
     //
-    def ch_analysis_groups = ch_checked
-        .map { _metas, combos -> buildAnalysisGroups(parsed_groups, combos) }
+    def ch_analysis_groups = ch_checked.map { _metas, analysis_groups -> analysis_groups }
 
     emit:
     samplesheet     = ch_samplesheet     // channel: one validated meta per plate
@@ -437,6 +438,35 @@ def groupTag(group_meta) {
         ? "${group_meta.aggregate_level}__${group_meta.grouping_name}__${group_meta.group_id}"
         : "${group_meta.aggregate_level}__${group_meta.grouping_name}"
     return tag.replaceAll('[^A-Za-z0-9._=-]', '_')
+}
+
+//
+// Check that distinct groups get distinct output tags within each project and aggregate level,
+// since published outputs are only separated by project, level, and tag.
+// groupTag replaces characters outside [A-Za-z0-9._=-] with '_', so groups or values that differ
+// only in those characters (e.g. 'kinase inhibitor' and 'kinase/inhibitor') would otherwise
+// overwrite each other's outputs. Takes the lookup from buildAnalysisGroups and returns a list
+// of error messages.
+//
+def validateGroupTags(analysis_groups) {
+    def group_metas = ['cell', 'well']
+        .collectMany { level ->
+            (analysis_groups[level] ?: [:]).values().collectMany { groups ->
+                groups.collect { group_meta, _size -> group_meta }
+            }
+        }
+        .unique()
+    return group_metas
+        .groupBy { group_meta -> [group_meta.project, group_meta.aggregate_level, group_meta.group_tag] }
+        .findAll { _key, metas -> metas.size() > 1 }
+        .collect { key, metas ->
+            def names = metas.collect { group_meta -> group_meta.grouping_name }.unique().sort()
+            def ids = metas.collect { group_meta -> group_meta.group_id }.sort()
+            ("Grouping '${names.join("', '")}': groups ${ids} in project '${key[0]}'" +
+                " would all be written with the output tag '${key[2]}'." +
+                " Output tags keep only letters, digits, '.', '_', '=', and '-'," +
+                " so rename groups or values that differ only in other characters.").toString()
+        }
 }
 
 //
