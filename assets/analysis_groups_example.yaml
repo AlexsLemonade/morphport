@@ -1,5 +1,5 @@
 # Example analysis groups file; see docs/analysis_groups_format.md for the format.
-# This file is also used as a test fixture by subworkflows/local/utils_analysis_groups/tests.
+# This file is also used as a test fixture by subworkflows/local/create_analysis_groups/tests.
 
 default:
   # Every treatment value gets its own analysis group.

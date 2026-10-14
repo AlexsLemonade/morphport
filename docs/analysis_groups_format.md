@@ -190,7 +190,7 @@ Restricting each grouping to a single grouping column does not restrict partitio
 ## How errors are raised
 
 The checks above split into two tiers by what they need to know, and the tiers fail at different points in the run.
-Functions named here are in `subworkflows/local/utils_analysis_groups/main.nf` unless noted; the channel wiring is in the `PIPELINE_INITIALISATION` workflow in `subworkflows/local/utils_nfcore_morphport_pipeline/main.nf`.
+Functions named here and the `CREATE_ANALYSIS_GROUPS` subworkflow are in `subworkflows/local/create_analysis_groups/main.nf`; it is called from the `PIPELINE_INITIALISATION` workflow in `subworkflows/local/utils_nfcore_morphport_pipeline/main.nf`.
 
 ### Tier 1: structural — knowable from the file alone
 
@@ -211,8 +211,8 @@ This is the same idiom as the cross-parameter checks (e.g. `feature_select_opera
 The accounting rule, the zero-match filter check, the missing-filter-column check, the per-subgroup `always_include` check, and the check for `always_include` values removed by `filter` all need the set of values actually present in the platemaps.
 They are implemented in `validateGroupingsAgainstData`, which returns every problem found.
 
-These checks run in the same `.map{}` closure that calls `validateInputSamplesheet`, on the `.toList()` of the samplesheet.
-That closure has every resolved `platemap_file` and sits upstream of the first `ch_samplesheet` emission, so nothing has launched yet when it raises.
+These checks run in `CREATE_ANALYSIS_GROUPS`, on the list of samplesheet entries returned by `validateInputSamplesheet`.
+That list has every resolved `platemap_file`, and the subworkflow only emits the samplesheet once the checks pass, so nothing has launched yet when it raises.
 It enumerates each plate's condition combos once with `enumeratePlateCombos`, checks them, and passes them on to `buildAnalysisGroups` to build `ch_analysis_groups`.
 Checking any later would be too late to avoid wasted work: `ch_samplesheet` feeds the CytoTable processes directly, so on AWS Batch a typo in the groups file would cost real compute before it surfaced.
 

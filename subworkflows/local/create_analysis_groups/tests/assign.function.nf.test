@@ -4,7 +4,7 @@ nextflow_function {
     script "../main.nf"
     tag "subworkflows"
     tag "subworkflows_local"
-    tag "utils_analysis_groups"
+    tag "create_analysis_groups"
 
     //
     // enumeratePlatemapCombos / enumeratePlateCombos

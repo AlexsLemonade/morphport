@@ -16,12 +16,10 @@ include { completionEmail              } from '../../nf-core/utils_nfcore_pipeli
 include { completionSummary            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE        } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE      } from '../../nf-core/utils_nextflow_pipeline'
-include { addMetadataPrefix            } from '../utils_analysis_groups'
-include { parseGroupings               } from '../utils_analysis_groups'
-include { groupingPartitionColumns     } from '../utils_analysis_groups'
-include { buildAnalysisGroups          } from '../utils_analysis_groups'
-include { enumeratePlateCombos         } from '../utils_analysis_groups'
-include { validateGroupingsAgainstData } from '../utils_analysis_groups'
+include { CREATE_ANALYSIS_GROUPS       } from '../create_analysis_groups'
+include { addMetadataPrefix            } from '../create_analysis_groups'
+include { parseGroupings               } from '../create_analysis_groups'
+include { groupingPartitionColumns     } from '../create_analysis_groups'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -118,59 +116,21 @@ workflow PIPELINE_INITIALISATION {
     def partition_columns = groupingPartitionColumns(parsed_groups)
 
     //
-    // Read the samplesheet, then enumerate every plate's condition combos (platemap values
-    // plus project and plate_id) and check the analysis groups against them.
-    // Errors in either abort the run here, before any process is submitted.
-    // The combos are carried forward so platemaps are only read once.
+    // Read and validate the samplesheet, then check the analysis groups against every plate's
+    // platemap and build the analysis groups lookup (see CREATE_ANALYSIS_GROUPS).
+    // Errors in either abort the run before any process is submitted.
     //
-    def ch_validated = channel
+    def ch_metas = channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
         .map { row -> row[0] }
         .toList()
-        .map { samplesheet ->
-            def metas = validateInputSamplesheet(samplesheet, partition_columns)
-            def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, partition_columns) }
-            def errors = validateGroupingsAgainstData(parsed_groups, combos)
-            if (errors) {
-                error(
-                    "Analysis groups validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
-                )
-            }
-            [metas, combos]
-        }
+        .map { samplesheet -> validateInputSamplesheet(samplesheet, partition_columns) }
 
-    def ch_samplesheet = ch_validated.flatMap { metas, _combos -> metas }
-
-    //
-    // Build a value channel with the analysis groups lookup used to route partitions to groups
-    // (see buildAnalysisGroups for details):
-    //   - partition_columns: list passed to PARTITION_CONDITIONS (if list is empty ⇒ no partitioning)
-    //   - cell / well:       partition key → list of [group_meta, expected group size], used to
-    //                        wrap downstream items with groupKey(...) for eager groupTuple emit.
-    //
-    // Example output structure (one plate, one grouping by treatment with DMSO always included):
-    //
-    //   [
-    //     partition_columns: ['Metadata_treatment'],
-    //     cell: [
-    //       [Metadata_treatment: 'drugA', project: 'cpg0016']: [[drugA_meta, 2]],
-    //       [Metadata_treatment: 'drugB', project: 'cpg0016']: [[drugB_meta, 2]],
-    //       [Metadata_treatment: 'DMSO', project: 'cpg0016']: [[drugA_meta, 2], [drugB_meta, 2]],
-    //     ],
-    //     well: [...]
-    //   ]
-    //
-    // where drugA_meta is
-    //   [project: 'cpg0016', aggregate_level: 'cell', grouping_name: 'by_treatment',
-    //    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
-    //    group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
-    //
-    def ch_analysis_groups = ch_validated
-        .map { _metas, combos -> buildAnalysisGroups(parsed_groups, combos) }
+    CREATE_ANALYSIS_GROUPS(ch_metas, parsed_groups)
 
     emit:
-    samplesheet     = ch_samplesheet
-    analysis_groups = ch_analysis_groups
+    samplesheet     = CREATE_ANALYSIS_GROUPS.out.samplesheet
+    analysis_groups = CREATE_ANALYSIS_GROUPS.out.analysis_groups
     versions        = ch_versions
 }
 

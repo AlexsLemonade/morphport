@@ -1,0 +1,105 @@
+nextflow_workflow {
+
+    name "Test Workflow CREATE_ANALYSIS_GROUPS"
+    script "../main.nf"
+    workflow "CREATE_ANALYSIS_GROUPS"
+    tag "subworkflows"
+    tag "subworkflows_local"
+    tag "create_analysis_groups"
+
+    test("CREATE_ANALYSIS_GROUPS: emits the samplesheet and the analysis groups lookup") {
+
+        when {
+            workflow {
+                """
+                def platemaps = "${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap"
+                input[0] = Channel.value([
+                    [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
+                    [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
+                ])
+                input[1] = [
+                    cell: [
+                        [
+                            name: 'by_allele',
+                            grouping_column: 'Metadata_gene_allele',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+            assert workflow.out.samplesheet.collect { meta -> meta.plate_id }.sort() == ['plate_001', 'plate_002']
+
+            assert workflow.out.analysis_groups.size() == 1
+            def groups = workflow.out.analysis_groups[0]
+            def group_meta = { allele ->
+                [
+                    project: 'test-project',
+                    aggregate_level: 'cell',
+                    grouping_name: 'by_allele',
+                    grouping_column: 'Metadata_gene_allele',
+                    group: allele,
+                    subgroup_values: [:],
+                    group_id: "gene_allele=${allele}".toString(),
+                    group_tag: "cell__by_allele__gene_allele=${allele}".toString(),
+                ]
+            }
+            assert groups.partition_columns == ['Metadata_gene_allele']
+            // nf-test serializes map keys as strings; each allele is on both plates
+            assert groups.cell == [
+                '{Metadata_gene_allele=mut, project=test-project}': [[group_meta.call('mut'), 2]],
+                '{Metadata_gene_allele=wt, project=test-project}': [[group_meta.call('wt'), 2]],
+            ]
+            assert groups.well == [
+                '{Metadata_gene_allele=mut, project=test-project}': [],
+                '{Metadata_gene_allele=wt, project=test-project}': [],
+            ]
+        }
+    }
+
+    test("CREATE_ANALYSIS_GROUPS: groups that don't match the platemaps fail before anything is emitted") {
+
+        when {
+            workflow {
+                """
+                def platemaps = "${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap"
+                input[0] = Channel.value([
+                    [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
+                    [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
+                ])
+                input[1] = [
+                    cell: [
+                        [
+                            name: 'wildtype_only',
+                            grouping_column: 'Metadata_gene_allele',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_gene_allele_typo: ['wt']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert workflow.failed
+            assert workflow.stdout.any { line -> line.contains("Analysis groups validation failed") }
+            assert workflow.stdout.any { line -> line.contains("Grouping 'wildtype_only'") }
+            assert workflow.out.samplesheet == []
+            assert workflow.out.analysis_groups == []
+        }
+    }
+}

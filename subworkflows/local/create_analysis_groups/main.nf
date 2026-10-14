@@ -1,7 +1,79 @@
 //
-// Functions for parsing, validating, and building analysis groups from the analysis groups file.
-// See docs/analysis_groups_format.md for the file format.
+// Subworkflow and functions for parsing, validating, and building analysis groups from the
+// analysis groups file. See docs/analysis_groups_format.md for the file format.
 //
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    SUBWORKFLOW TO CREATE ANALYSIS GROUPS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+//
+// Check the analysis groups against every plate's condition combos (platemap values plus
+// project and plate_id), then build the lookup createGroupChannels uses to route partitions.
+// Errors abort the run here: the samplesheet is only emitted once the checks pass, so no
+// process is submitted with a bad groups file. Platemaps are read only once.
+//
+workflow CREATE_ANALYSIS_GROUPS {
+    take:
+    ch_metas      // value channel: list of validated samplesheet metas, one per plate
+    parsed_groups // map: normalized analysis groups from parseGroupings
+
+    main:
+    def partition_columns = groupingPartitionColumns(parsed_groups)
+
+    def ch_checked = ch_metas
+        .map { metas ->
+            def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, partition_columns) }
+            def errors = validateGroupingsAgainstData(parsed_groups, combos)
+            if (errors) {
+                error(
+                    "Analysis groups validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
+                )
+            }
+            [metas, combos]
+        }
+
+    def ch_samplesheet = ch_checked.flatMap { metas, _combos -> metas }
+
+    //
+    // Build a value channel with the analysis groups lookup used to route partitions to groups
+    // (see buildAnalysisGroups for details):
+    //   - partition_columns: list passed to PARTITION_CONDITIONS (if list is empty ⇒ no partitioning)
+    //   - cell / well:       partition key → list of [group_meta, expected group size], used to
+    //                        wrap downstream items with groupKey(...) for eager groupTuple emit.
+    //
+    // Example output structure (one plate, one grouping by treatment with DMSO always included):
+    //
+    //   [
+    //     partition_columns: ['Metadata_treatment'],
+    //     cell: [
+    //       [Metadata_treatment: 'drugA', project: 'cpg0016']: [[drugA_meta, 2]],
+    //       [Metadata_treatment: 'drugB', project: 'cpg0016']: [[drugB_meta, 2]],
+    //       [Metadata_treatment: 'DMSO', project: 'cpg0016']: [[drugA_meta, 2], [drugB_meta, 2]],
+    //     ],
+    //     well: [...]
+    //   ]
+    //
+    // where drugA_meta is
+    //   [project: 'cpg0016', aggregate_level: 'cell', grouping_name: 'by_treatment',
+    //    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
+    //    group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
+    //
+    def ch_analysis_groups = ch_checked
+        .map { _metas, combos -> buildAnalysisGroups(parsed_groups, combos) }
+
+    emit:
+    samplesheet     = ch_samplesheet     // channel: one validated meta per plate
+    analysis_groups = ch_analysis_groups // value channel: analysis groups lookup from buildAnalysisGroups
+}
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    FUNCTIONS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 
 //
 // Ensure a column name has the "Metadata_" prefix.
