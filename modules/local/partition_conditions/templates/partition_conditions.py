@@ -7,9 +7,10 @@ ensures all partition columns are present and non-null.
 """
 
 import json
-import os
 import sys
 from importlib.metadata import version
+from pathlib import Path
+from urllib.parse import unquote
 
 import duckdb
 
@@ -18,6 +19,27 @@ def resolve_partition_columns(partition_columns_str: str) -> list[str]:
     """Parse comma-separated column names → Metadata_-prefixed list."""
     raw = [c.strip() for c in partition_columns_str.split(",") if c.strip()]
     return [c if c.startswith("Metadata_") else f"Metadata_{c}" for c in raw]
+
+
+def partition_manifest(output_dir: Path) -> list[dict]:
+    """
+    List each Hive partition directory under output_dir (relative to it) with its exact
+    partition values. DuckDB percent-encodes values in directory names (e.g. 'drug A' ->
+    'drug%20A', including '%' itself), so the values are decoded with unquote.
+    """
+    partition_dirs = sorted(
+        {path.parent.relative_to(output_dir) for path in output_dir.rglob("*.parquet")}
+    )
+    return [
+        {
+            "path": str(partition_dir),
+            "values": {
+                col: unquote(value)
+                for col, value in (part.split("=", 1) for part in partition_dir.parts)
+            },
+        }
+        for partition_dir in partition_dirs
+    ]
 
 
 def write_versions(task_process: str):
@@ -47,25 +69,8 @@ def main():
         filename_pattern=plate_id + "_{i}",
     )
 
-    # DuckDB percent-encodes partition values in directory names (e.g. 'drug A' -> 'drug%20A'),
-    # so record each partition directory with its exact values for Nextflow to read.
-    # Reading back with hive_types_autocast disabled keeps values as the original strings.
-    quoted_cols = ", ".join(f'"{col}"' for col in partition_cols)
-    partition_rows = duckdb.sql(
-        f"SELECT DISTINCT parse_dirpath(filename) AS partition_dir, {quoted_cols}"
-        f" FROM read_parquet('{plate_id}/**/*.parquet', hive_partitioning = true,"
-        " hive_types_autocast = false, filename = true)"
-    ).fetchall()
-    manifest = sorted(
-        [
-            {
-                "path": os.path.relpath(row[0], plate_id),
-                "values": dict(zip(partition_cols, row[1:])),
-            }
-            for row in partition_rows
-        ],
-        key=lambda partition: partition["path"],
-    )
+    # record each partition directory with its exact values for Nextflow to read
+    manifest = partition_manifest(Path(plate_id))
     with open(f"partitions_{plate_id}.json", "w") as f:
         json.dump(manifest, f, indent=2)
 
