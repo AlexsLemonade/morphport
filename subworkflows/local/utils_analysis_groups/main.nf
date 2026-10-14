@@ -188,13 +188,13 @@ def toStringList(values) {
 // Parse analysis_groups_file into a map of aggregate_level ('cell'/'well') → list of
 // normalized groupings (see normalizeGroupings and docs/analysis_groups_format.md).
 // Structural errors abort the run here, before any process is submitted.
-// If no file is given, each level gets a single grouping with no grouping column, meaning
-// "one all-encompassing group per level" (no partitioning).
+// If no file is given, each level gets a single grouping named 'all' with no grouping column,
+// meaning "one all-encompassing group per level" (no partitioning).
 //
 def parseGroupings(groups_file) {
     if (!groups_file) {
         def all_grouping = [
-            name: null,
+            name: 'all',
             grouping_column: null,
             groups: 'all_values',
             always_include: [],

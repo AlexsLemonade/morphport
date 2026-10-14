@@ -475,7 +475,7 @@ nextflow_function {
         then {
             assert function.success
             def all_grouping = [
-                name: null,
+                name: 'all',
                 grouping_column: null,
                 groups: 'all_values',
                 always_include: [],
@@ -596,7 +596,7 @@ nextflow_function {
             function {
                 """
                 def all_grouping = [
-                    name: null,
+                    name: 'all',
                     grouping_column: null,
                     groups: 'all_values',
                     always_include: [],
@@ -916,7 +916,7 @@ nextflow_function {
             function {
                 """
                 input[0] = [
-                    name: null,
+                    name: 'all',
                     grouping_column: null,
                     groups: 'all_values',
                     always_include: [],
@@ -1066,7 +1066,7 @@ nextflow_function {
             function {
                 """
                 def all_grouping = [
-                    name: null,
+                    name: 'all',
                     grouping_column: null,
                     groups: 'all_values',
                     always_include: [],
@@ -1089,7 +1089,7 @@ nextflow_function {
                 [
                     project: 'demo',
                     aggregate_level: level,
-                    grouping_name: null,
+                    grouping_name: 'all',
                     grouping_column: null,
                     group: 'all_values',
                     subgroup_values: [:],
@@ -1429,7 +1429,7 @@ nextflow_function {
             function {
                 """
                 def all_grouping = [
-                    name: null,
+                    name: 'all',
                     grouping_column: null,
                     groups: 'all_values',
                     always_include: [],

@@ -4,25 +4,7 @@ nextflow_function {
     script "../morphport_utils.nf"
     tag "lib"
 
-    test("groupingInfoJson: no grouping columns and no extra") {
-
-        function "groupingInfoJson"
-
-        when {
-            function {
-                """
-                input[0] = [aggregate_level: 'well']
-                """
-            }
-        }
-
-        then {
-            assert function.success
-            assert function.result == '{"grouping_values":{}}'
-        }
-    }
-
-    test("groupingInfoJson: grouping columns are collected into grouping_values") {
+    test("groupingInfoJson: no analysis groups file and no extra") {
 
         function "groupingInfoJson"
 
@@ -30,9 +12,12 @@ nextflow_function {
             function {
                 """
                 input[0] = [
-                    aggregate_level: 'cell',
-                    grouping_columns: ['Metadata_treatment'],
-                    Metadata_treatment: 'drugA',
+                    aggregate_level: 'well',
+                    grouping_name: 'all',
+                    grouping_column: null,
+                    group: 'all_values',
+                    subgroup_values: [:],
+                    group_id: 'all',
                 ]
                 """
             }
@@ -40,11 +25,11 @@ nextflow_function {
 
         then {
             assert function.success
-            assert function.result == '{"grouping_values":{"Metadata_treatment":"drugA"}}'
+            assert function.result == '{"grouping_name":"all","grouping_column":null,"group":"all_values","subgroup_values":{}}'
         }
     }
 
-    test("groupingInfoJson: extra keys are merged in after grouping_values") {
+    test("groupingInfoJson: group identity fields are collected") {
 
         function "groupingInfoJson"
 
@@ -53,8 +38,37 @@ nextflow_function {
                 """
                 input[0] = [
                     aggregate_level: 'cell',
-                    grouping_columns: ['Metadata_treatment'],
-                    Metadata_treatment: 'drugA',
+                    grouping_name: 'moa_by_cell_line',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'kinase_inhibitor',
+                    subgroup_values: [Metadata_cell_type: 'lineA'],
+                    group_id: 'treatment=kinase_inhibitor__cell_type=lineA',
+                    project: 'demo',
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == '{"grouping_name":"moa_by_cell_line","grouping_column":"Metadata_treatment","group":"kinase_inhibitor","subgroup_values":{"Metadata_cell_type":"lineA"}}'
+        }
+    }
+
+    test("groupingInfoJson: extra keys are merged in after the identity fields") {
+
+        function "groupingInfoJson"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    aggregate_level: 'cell',
+                    grouping_name: 'moa',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'drugA',
+                    subgroup_values: [:],
+                    group_id: 'treatment=drugA',
                 ]
                 input[1] = [plate_ids: ['p1', 'p2']]
                 """
@@ -63,7 +77,7 @@ nextflow_function {
 
         then {
             assert function.success
-            assert function.result == '{"grouping_values":{"Metadata_treatment":"drugA"},"plate_ids":["p1","p2"]}'
+            assert function.result == '{"grouping_name":"moa","grouping_column":"Metadata_treatment","group":"drugA","subgroup_values":{},"plate_ids":["p1","p2"]}'
         }
     }
 }

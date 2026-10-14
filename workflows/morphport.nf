@@ -15,6 +15,7 @@ include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normal
 include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
 include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clustering'
+include { groupTag                   } from '../lib/morphport_utils.nf'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -25,7 +26,7 @@ include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clust
 workflow MORPHPORT {
     take:
     ch_samplesheet     // channel: samplesheet read in from --input
-    ch_analysis_groups // value:   nested map of analysis groups → sub-combo → expected size
+    ch_analysis_groups // value:   analysis groups lookup from buildAnalysisGroups
     outdir
 
     main:
@@ -163,7 +164,7 @@ workflow MORPHPORT {
         }
 
     ch_feature_selected.empty.subscribe { meta, _plate_metas, _parquets, _features ->
-        log.warn "Skipping COMPUTE_EMBEDDINGS for ${meta.aggregate_level} group ${meta.grouping_columns?.collect { col -> "${col}=${meta[col]}" }?.join(', ') ?: 'all'}: no features selected upstream."
+        log.warn "Skipping COMPUTE_EMBEDDINGS for group ${groupTag(meta)}: no features selected upstream."
     }
 
     COMPUTE_EMBEDDINGS(
@@ -243,47 +244,32 @@ def expandHivePartitions(meta, partition_dir, manifest_file) {
 }
 
 //
-// Build a channel of all condition groupings across aggregate levels.
-// Each tuple from ch_partitioned is fanned out into one tuple per matching grouping
-// (those whose aggregate_level matches the partition's level), keyed by groupKey(..., size)
-// so groupTuple can release each group as soon as size items have arrived.
+// Build a channel of all analysis groups across aggregate levels.
+// Each tuple from ch_partitioned is looked up in the analysis groups (see buildAnalysisGroups)
+// by its aggregate level and partition key (partition column values plus project), and fanned
+// out into one tuple per group it belongs to, keyed by groupKey(group_meta, size) so groupTuple
+// can release each group as soon as size items have arrived.
+// A partition that belongs to no group at its level (filtered out or excluded) emits nothing.
 //
 def createGroupChannels(ch_partitioned, ch_analysis_groups) {
     def ch_grouping = ch_partitioned
-        // add full map to each ch_partitioned tuple
+        // add the analysis groups lookup to each ch_partitioned tuple
         .combine(ch_analysis_groups)
-        // for each partition tuple, find the matching grouping(s) based on aggregate level and add the group key info
         .flatMap { meta, parquets, groups ->
             def agg_level = meta.aggregate_level
-            // look up the groupings for this aggregate level
-            //if not present, an empty list (no grouping)
-            def level_data = groups[agg_level] ?: [:]
-            // for each set of grouping values, create a tuple keyed by groupKey(..., size)
-            // with the grouping columns and values in the meta
-            level_data.collect { grouping_cols, grouping_value_sizes ->
-                // get the values of the grouping columns for this partition by subsetting the
-                // partition conditions from the meta.
-                // Add project so analysis groups stay separated by project
-                def grouping_value = meta.subMap(grouping_cols + ['project'])
-                def key_data  = grouping_value + [
-                    aggregate_level  : agg_level,
-                    grouping_columns : grouping_cols,
-                ]
-                // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate
-                // groups; deliberately excluded from grouping_value so the expected-size lookup
-                // below stays keyed on the original grouping values for both variants.
-                if (params.edge_well_filter == 'both') {
-                    key_data = key_data + [edge_wells_included: meta.edge_wells_included]
-                }
-                // Look up the expected size for this grouping
-                // A missing predicted size means the partition's grouping values weren't seen in any
-                // platemap during init
-                // Warn and set the expected value to max so emission happens at end with remainder: true.
-                def expected_size = grouping_value_sizes.get(grouping_value, Integer.MAX_VALUE)
-                if (expected_size == Integer.MAX_VALUE) {
-                    log.warn "morphport: no predicted size for ${agg_level} grouping ${grouping_cols} grouping_value ${grouping_value}"
-                }
-
+            def partition_key = meta.subMap(groups.partition_columns + ['project'])
+            def level_groups = groups[agg_level] ?: [:]
+            // every partition value comes from a platemap (or samplesheet) read during
+            // initialisation, so a partition missing from the lookup is a pipeline bug
+            if (!level_groups.containsKey(partition_key)) {
+                error("Internal error: no analysis groups lookup entry for ${agg_level} partition ${partition_key} (plate '${meta.plate_id}')")
+            }
+            level_groups[partition_key].collect { group_meta, expected_size ->
+                // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate groups.
+                // Each variant gets every partition, so the expected size is the same for both.
+                def key_data = params.edge_well_filter == 'both'
+                    ? group_meta + [edge_wells_included: meta.edge_wells_included]
+                    : group_meta
                 [groupKey(key_data, expected_size), meta, parquets]
             }
         }

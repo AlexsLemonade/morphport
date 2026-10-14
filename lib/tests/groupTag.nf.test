@@ -4,14 +4,21 @@ nextflow_function {
     script "../morphport_utils.nf"
     tag "lib"
 
-    test("groupTag: no grouping columns falls back to 'all'") {
+    test("groupTag: no grouping column leaves out the group id") {
 
         function "groupTag"
 
         when {
             function {
                 """
-                input[0] = [aggregate_level: 'well']
+                input[0] = [
+                    aggregate_level: 'well',
+                    grouping_name: 'all',
+                    grouping_column: null,
+                    group: 'all_values',
+                    subgroup_values: [:],
+                    group_id: 'all',
+                ]
                 """
             }
         }
@@ -22,7 +29,7 @@ nextflow_function {
         }
     }
 
-    test("groupTag: single grouping column strips the Metadata_ prefix") {
+    test("groupTag: grouping name and group id are joined") {
 
         function "groupTag"
 
@@ -31,8 +38,11 @@ nextflow_function {
                 """
                 input[0] = [
                     aggregate_level: 'cell',
-                    grouping_columns: ['Metadata_treatment'],
-                    Metadata_treatment: 'drugA',
+                    grouping_name: 'moa',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'drugA',
+                    subgroup_values: [:],
+                    group_id: 'treatment=drugA',
                 ]
                 """
             }
@@ -40,11 +50,11 @@ nextflow_function {
 
         then {
             assert function.success
-            assert function.result == 'cell__treatment=drugA'
+            assert function.result == 'cell__moa__treatment=drugA'
         }
     }
 
-    test("groupTag: multiple grouping columns are joined in order") {
+    test("groupTag: subgroup values are part of the group id") {
 
         function "groupTag"
 
@@ -53,9 +63,11 @@ nextflow_function {
                 """
                 input[0] = [
                     aggregate_level: 'cell',
-                    grouping_columns: ['Metadata_gene_allele', 'Metadata_treatment'],
-                    Metadata_gene_allele: 'BRCA1',
-                    Metadata_treatment: 'drugA',
+                    grouping_name: 'moa_by_cell_line',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'kinase_inhibitor',
+                    subgroup_values: [Metadata_cell_type: 'lineA'],
+                    group_id: 'treatment=kinase_inhibitor__cell_type=lineA',
                 ]
                 """
             }
@@ -63,7 +75,7 @@ nextflow_function {
 
         then {
             assert function.success
-            assert function.result == 'cell__gene_allele=BRCA1__treatment=drugA'
+            assert function.result == 'cell__moa_by_cell_line__treatment=kinase_inhibitor__cell_type=lineA'
         }
     }
 
@@ -76,8 +88,11 @@ nextflow_function {
                 """
                 input[0] = [
                     aggregate_level: 'cell',
-                    grouping_columns: ['Metadata_treatment'],
-                    Metadata_treatment: 'drug A/B,control',
+                    grouping_name: 'moa',
+                    grouping_column: 'Metadata_treatment',
+                    group: 'drug A/B,control',
+                    subgroup_values: [:],
+                    group_id: 'treatment=drug A/B,control',
                 ]
                 """
             }
@@ -85,7 +100,7 @@ nextflow_function {
 
         then {
             assert function.success
-            assert function.result == 'cell__treatment=drug_A_B_control'
+            assert function.result == 'cell__moa__treatment=drug_A_B_control'
         }
     }
 }
