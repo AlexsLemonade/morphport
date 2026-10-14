@@ -1,0 +1,617 @@
+nextflow_function {
+
+    name "Test analysis groups parsing"
+    script "../main.nf"
+    tag "subworkflows"
+    tag "subworkflows_local"
+    tag "utils_analysis_groups"
+
+    //
+    // normalizeGroupings
+    //
+
+    test("normalizeGroupings: prefixes columns, fills optional keys, and prepends default groupings") {
+
+        function "normalizeGroupings"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    'default': [
+                        [name: 'treatment', grouping_column: 'treatment', groups: 'one_per_value'],
+                    ],
+                    cell: [
+                        [
+                            name: 'moa',
+                            grouping_column: 'Metadata_treatment',
+                            groups: [kinase_inhibitor: ['drugA', 'drugB'], hdac_inhibitor: ['drugD']],
+                            always_include: ['DMSO'],
+                            excluded: ['drugE'],
+                            filter: [timepoint: ['24h']],
+                            subgroup_columns: ['cell_type'],
+                        ],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def treatment = [
+                name: 'treatment',
+                grouping_column: 'Metadata_treatment',
+                groups: 'one_per_value',
+                always_include: [],
+                excluded: [],
+                filter: [:],
+                subgroup_columns: [],
+            ]
+            assert function.result == [
+                cell: [
+                    treatment,
+                    [
+                        name: 'moa',
+                        grouping_column: 'Metadata_treatment',
+                        groups: [kinase_inhibitor: ['drugA', 'drugB'], hdac_inhibitor: ['drugD']],
+                        always_include: ['DMSO'],
+                        excluded: ['drugE'],
+                        filter: [Metadata_timepoint: ['24h']],
+                        subgroup_columns: ['Metadata_cell_type'],
+                    ],
+                ],
+                well: [treatment],
+            ]
+        }
+    }
+
+    test("normalizeGroupings: values are coerced to strings to match platemap values") {
+
+        function "normalizeGroupings"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    well: [
+                        [
+                            name: 'dose',
+                            grouping_column: 'dose',
+                            groups: [low: [1, 2], high: [10]],
+                            always_include: [0],
+                            excluded: [true],
+                            filter: [replicate: [1]],
+                        ],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def grouping = function.result.well[0]
+            assert grouping.groups == [low: ['1', '2'], high: ['10']]
+            assert grouping.always_include == ['0']
+            assert grouping.excluded == ['true']
+            assert grouping.filter == [Metadata_replicate: ['1']]
+            assert function.result.cell == []
+        }
+    }
+
+    //
+    // validateGroupingStructure
+    //
+
+    test("validateGroupingStructure: the documented example is valid") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = new org.yaml.snakeyaml.Yaml().load(file('${projectDir}/assets/analysis_groups_example.yaml').text)
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [errors: [], warnings: []]
+        }
+    }
+
+    test("validateGroupingStructure: top level must be a mapping of known levels to lists") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cells: [[name: 'a', grouping_column: 'treatment', groups: 'one_per_value']],
+                    well: [name: 'b', grouping_column: 'treatment', groups: 'one_per_value'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.errors.size() == 2
+            assert function.result.errors.any { err -> err.contains("'cells'") }
+            assert function.result.errors.any { err -> err.contains("'well'") && err.contains('list') }
+        }
+    }
+
+    test("validateGroupingStructure: an empty file is an error") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = null
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.errors.size() == 1
+        }
+    }
+
+    test("validateGroupingStructure: missing required keys are reported") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [grouping_column: 'treatment', groups: 'one_per_value'],
+                        [name: 'no_column', groups: 'one_per_value'],
+                        [name: 'no_groups', grouping_column: 'treatment'],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 3
+            assert errors.any { err -> err.contains("'name'") }
+            assert errors.any { err -> err.contains("'no_column'") && err.contains("'grouping_column'") }
+            assert errors.any { err -> err.contains("'no_groups'") && err.contains("'groups'") }
+        }
+    }
+
+    test("validateGroupingStructure: groupings must be mappings with known keys") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        'treatment',
+                        [name: 'typo', grouping_column: 'treatment', groups: 'one_per_value', subgroup_column: ['cell_type']],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 2
+            assert errors.any { err -> err.contains('treatment') && err.contains('mapping') }
+            assert errors.any { err -> err.contains("'typo'") && err.contains("'subgroup_column'") }
+        }
+    }
+
+    test("validateGroupingStructure: names must be unique within a level, including default groupings") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    'default': [[name: 'treatment', grouping_column: 'treatment', groups: 'one_per_value']],
+                    // identical to the default grouping: still an error
+                    cell: [[name: 'treatment', grouping_column: 'treatment', groups: 'one_per_value']],
+                    well: [
+                        [name: 'cell_type', grouping_column: 'cell_type', groups: 'one_per_value'],
+                        [name: 'cell_type', grouping_column: 'cell_type', groups: 'all_values'],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 2
+            assert errors.any { err -> err.contains("'treatment'") && err.contains("'cell'") }
+            assert errors.any { err -> err.contains("'cell_type'") && err.contains("'well'") }
+        }
+    }
+
+    test("validateGroupingStructure: the same name may be used in cell and well") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [[name: 'treatment', grouping_column: 'treatment', groups: 'one_per_value']],
+                    well: [[name: 'treatment', grouping_column: 'treatment', groups: 'one_per_value']],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.errors == []
+        }
+    }
+
+    test("validateGroupingStructure: names may only contain letters, digits, underscores, and hyphens") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [name: 'ok-name_1', grouping_column: 'treatment', groups: 'one_per_value'],
+                        [name: 'bad name', grouping_column: 'treatment', groups: 'one_per_value'],
+                        [name: 'bad/name', grouping_column: 'treatment', groups: 'one_per_value'],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 2
+            assert errors.any { err -> err.contains("'bad name'") }
+            assert errors.any { err -> err.contains("'bad/name'") }
+        }
+    }
+
+    test("validateGroupingStructure: grouping_column must be a single column") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [name: 'as_list', grouping_column: ['treatment', 'cell_type'], groups: 'one_per_value'],
+                        [name: 'comma', grouping_column: 'treatment,cell_type', groups: 'one_per_value'],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 2
+            assert errors.any { err -> err.contains("'as_list'") }
+            assert errors.any { err -> err.contains("'comma'") }
+        }
+    }
+
+    test("validateGroupingStructure: groups must be one_per_value, all_values, or a mapping of lists") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [name: 'bad_keyword', grouping_column: 'treatment', groups: 'per_value'],
+                        [name: 'not_list', grouping_column: 'treatment', groups: [kinase_inhibitor: 'drugA']],
+                        [name: 'empty_map', grouping_column: 'treatment', groups: [:]],
+                        [name: 'ok', grouping_column: 'treatment', groups: [kinase_inhibitor: ['drugA']]],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 3
+            assert errors.any { err -> err.contains("'bad_keyword'") }
+            assert errors.any { err -> err.contains("'not_list'") && err.contains("'kinase_inhibitor'") }
+            assert errors.any { err -> err.contains("'empty_map'") }
+        }
+    }
+
+    test("validateGroupingStructure: optional keys must have the right shapes") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [name: 'always_str', grouping_column: 'treatment', groups: 'one_per_value', always_include: 'DMSO'],
+                        [name: 'excluded_str', grouping_column: 'treatment', groups: 'one_per_value', excluded: 'drugE'],
+                        [name: 'filter_list', grouping_column: 'treatment', groups: 'one_per_value', filter: ['timepoint']],
+                        [name: 'filter_scalar', grouping_column: 'treatment', groups: 'one_per_value', filter: [timepoint: '24h']],
+                        [name: 'subgroup_str', grouping_column: 'treatment', groups: 'one_per_value', subgroup_columns: 'cell_type'],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 5
+            ['always_str', 'excluded_str', 'filter_list', 'filter_scalar', 'subgroup_str'].each { name ->
+                assert errors.any { err -> err.contains("'${name}'") }
+            }
+        }
+    }
+
+    test("validateGroupingStructure: filter and subgroup_columns must not name the grouping column") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        // prefix normalization applies before comparing
+                        [name: 'self_filter', grouping_column: 'treatment', groups: 'one_per_value', filter: [Metadata_treatment: ['DMSO']]],
+                        [name: 'self_subgroup', grouping_column: 'Metadata_treatment', groups: 'one_per_value', subgroup_columns: ['treatment']],
+                        // naming the same column in filter and subgroup_columns is allowed
+                        [name: 'ok', grouping_column: 'treatment', groups: 'one_per_value', filter: [cell_type: ['lineA']], subgroup_columns: ['cell_type']],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 2
+            assert errors.any { err -> err.contains("'self_filter'") && err.contains('filter') }
+            assert errors.any { err -> err.contains("'self_subgroup'") && err.contains('subgroup_columns') }
+        }
+    }
+
+    test("validateGroupingStructure: a value in both always_include and excluded is an error") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [name: 'conflict', grouping_column: 'treatment', groups: 'one_per_value', always_include: ['DMSO'], excluded: ['DMSO', 'drugE']],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.errors.size() == 1
+            assert function.result.errors[0].contains("'conflict'")
+            assert function.result.errors[0].contains('DMSO')
+        }
+    }
+
+    test("validateGroupingStructure: always_include with all_values is a warning, not an error") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [name: 'pooled', grouping_column: 'cell_type', groups: 'all_values', always_include: ['lineA']],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.errors == []
+            assert function.result.warnings.size() == 1
+            assert function.result.warnings[0].contains("'pooled'")
+        }
+    }
+
+    //
+    // parseGroupings
+    //
+
+    test("parseGroupings: no file gives one all-encompassing grouping per level") {
+
+        function "parseGroupings"
+
+        when {
+            function {
+                """
+                input[0] = null
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def all_grouping = [
+                name: 'all',
+                grouping_column: null,
+                groups: 'all_values',
+                always_include: [],
+                excluded: [],
+                filter: [:],
+                subgroup_columns: [],
+            ]
+            assert function.result == [cell: [all_grouping], well: [all_grouping]]
+        }
+    }
+
+    test("parseGroupings: parses the documented example") {
+
+        function "parseGroupings"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/assets/analysis_groups_example.yaml'
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.cell*.name == [
+                'treatment',
+                'untreated_cell_lines',
+                'dmso_all_cell_lines',
+                'moa_grouping',
+                'treatment_by_cell_line',
+            ]
+            assert function.result.well*.name == ['treatment', 'cell_type']
+            def moa = function.result.cell.find { grouping -> grouping.name == 'moa_grouping' }
+            assert moa.groups == [
+                kinase_inhibitor: ['drugA', 'drugB', 'drugC'],
+                hdac_inhibitor: ['drugD', 'drugA'],
+            ]
+        }
+    }
+
+    test("parseGroupings: structural errors fail with every problem listed") {
+
+        function "parseGroupings"
+
+        when {
+            function {
+                """
+                def groups_file = new File(File.createTempDir('groups-'), 'groups.yml')
+                groups_file.text = '''
+                cell:
+                  - name: bad name
+                    grouping_column: treatment
+                    groups: one_per_value
+                  - name: no_groups
+                    grouping_column: treatment
+                '''.stripIndent()
+                input[0] = groups_file.path
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("'bad name'")
+            assert output.contains("'no_groups'")
+        }
+    }
+
+    //
+    // groupingPartitionColumns
+    //
+
+    test("groupingPartitionColumns: union of grouping, subgroup, and filter columns across levels") {
+
+        function "groupingPartitionColumns"
+
+        when {
+            function {
+                """
+                def grouping = { name, col, extra = [:] ->
+                    [
+                        name: name,
+                        grouping_column: col,
+                        groups: 'one_per_value',
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [
+                        grouping.call('treatment', 'Metadata_treatment'),
+                        grouping.call('by_line', 'Metadata_treatment', [subgroup_columns: ['Metadata_cell_type']]),
+                    ],
+                    well: [
+                        grouping.call('treatment', 'Metadata_treatment'),
+                        grouping.call('untreated', 'Metadata_cell_type', [filter: [Metadata_timepoint: ['24h']]]),
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == ['Metadata_treatment', 'Metadata_cell_type', 'Metadata_timepoint']
+        }
+    }
+
+    test("groupingPartitionColumns: no grouping columns gives no partition columns") {
+
+        function "groupingPartitionColumns"
+
+        when {
+            function {
+                """
+                def all_grouping = [
+                    name: 'all',
+                    grouping_column: null,
+                    groups: 'all_values',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[0] = [cell: [all_grouping], well: [all_grouping]]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+}
