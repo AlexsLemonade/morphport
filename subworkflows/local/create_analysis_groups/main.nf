@@ -26,11 +26,14 @@ workflow CREATE_ANALYSIS_GROUPS {
 
     def ch_checked = ch_metas
         .map { metas ->
-            // plates often share a platemap, so read each file only once
-            def platemap_combos = metas.collect { meta -> meta.platemap_file }.unique().collectEntries { path ->
-                [(path): enumeratePlatemapCombos(path, partition_columns)]
+            // plates often share a platemap, so read each file only once.
+            // Key by the path string: platemap_file may be a Path, String, or GString, and a GString
+            // key won't match an equal String (or another GString) on lookup.
+            // The original value is still what gets read, since an S3 Path's string drops the scheme.
+            def platemap_combos = metas.groupBy { meta -> meta.platemap_file.toString() }.collectEntries { path_key, path_metas ->
+                [(path_key): enumeratePlatemapCombos(path_metas[0].platemap_file, partition_columns)]
             }
-            def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, platemap_combos[meta.platemap_file]) }
+            def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, platemap_combos[meta.platemap_file.toString()]) }
             def analysis_groups = buildAnalysisGroups(parsed_groups, combos)
             missingGroupingColumns(parsed_groups, combos).each { warning -> log.warn("Analysis groups: ${warning}") }
             def errors = validateGroupingsAgainstData(parsed_groups, combos) + validateGroupTags(analysis_groups)
