@@ -18,6 +18,7 @@ include { UTILS_NFCORE_PIPELINE        } from '../../nf-core/utils_nfcore_pipeli
 include { UTILS_NEXTFLOW_PIPELINE      } from '../../nf-core/utils_nextflow_pipeline'
 include { CREATE_ANALYSIS_GROUPS       } from '../create_analysis_groups'
 include { addMetadataPrefix            } from '../create_analysis_groups'
+include { readPlatemap                 } from '../create_analysis_groups'
 include { parseGroupings               } from '../create_analysis_groups'
 include { groupingPartitionColumns     } from '../create_analysis_groups'
 
@@ -314,22 +315,18 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
 }
 
 //
-// Parse the columns from a platemap file, excluding the well column.
+// Parse the columns from a platemap file, excluding the well column (which annotation will replace with Metadata_Well)
 // Returns a list of column names with "Metadata_" prefix added if not already present.
 // `extra_columns` (already Metadata_-prefixed) are appended so that columns required
 // downstream, like the partition columns, travel with meta even if a given platemap
 // happens to omit them.
 //
 def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []) {
-    // read only the header line of the platemap file
-    def text = file(platemap_path).newReader().readLine()
-    // strip UTF-8 BOM if present
-    if (text.startsWith('\uFEFF')) text = text.substring(1)
-
-    def header_cols = text.split('\t')
-        .collect { it -> it.trim() }
-        .findAll { it -> it && it != platemap_well_column }
-        .collect { it -> addMetadataPrefix(it) }
+    // read only the first well; its keys are the (Metadata_-prefixed) platemap columns
+    def rows = readPlatemap(platemap_path, 1)
+    def well_column = addMetadataPrefix(platemap_well_column)
+    def header_cols = (rows ? rows[0].keySet() as List : [])
+        .findAll { col -> col && col != well_column }
     return (header_cols + extra_columns).unique()
 }
 

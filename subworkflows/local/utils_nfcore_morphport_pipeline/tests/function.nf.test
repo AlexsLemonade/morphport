@@ -1,0 +1,32 @@
+nextflow_function {
+
+    name "Test morphport pipeline utility functions"
+    script "../main.nf"
+    tag "subworkflows"
+    tag "subworkflows_local"
+    tag "utils_nfcore_morphport_pipeline"
+
+    //
+    // parsePlatemapColumns
+    //
+
+    test("parsePlatemapColumns: quoted headers are unquoted, prefixed, and exclude the well column") {
+
+        function "parsePlatemapColumns"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/quoted.txt'
+                input[1] = 'well_position'
+                input[2] = ['Metadata_treatment', 'Metadata_extra']
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == ['Metadata_treatment', 'Metadata_dose', 'Metadata_extra']
+        }
+    }
+}
