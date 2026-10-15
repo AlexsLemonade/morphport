@@ -656,7 +656,9 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/quoted.txt'
+                def platemap = new File(File.createTempDir('platemaps-'), 'quoted.txt')
+                platemap.text = '\\uFEFF"well_position"\\t"treatment"\\tdose\\nA01\\t"drugA"\\t1\\nA02\\tdrugA\\t1\\nA03\\t"drug\\tB"\\t2\\nA04\\t5" plate\\t\\n\\nA05\\t  DMSO  \\t0\\n'
+                input[0] = platemap.path
                 """
             }
         }
@@ -680,7 +682,9 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/blank_first_row.txt'
+                def platemap = new File(File.createTempDir('platemaps-'), 'blank_first_row.txt')
+                platemap.text = 'well_position\\ttreatment\\tdose\\n\\t \\t\\nA01\\tdrugA\\n'
+                input[0] = platemap.path
                 """
             }
         }
@@ -700,7 +704,9 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/duplicate_columns.txt'
+                def platemap = new File(File.createTempDir('platemaps-'), 'duplicate_columns.txt')
+                platemap.text = 'well_position\\ttreatment\\tMetadata_treatment\\nA01\\tx\\ty\\n'
+                input[0] = platemap.path
                 """
             }
         }
@@ -720,7 +726,74 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/header_only.txt'
+                def platemap = new File(File.createTempDir('platemaps-'), 'header_only.txt')
+                platemap.text = 'well_position\\ttreatment\\tdose\\n'
+                input[0] = platemap.path
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("has no data rows")
+        }
+    }
+
+    test("readPlatemap: rows with more fields than the header are an error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'extra_fields.txt')
+                platemap.text = 'well_position\\ttreatment\\nA01\\tx\\nA03\\tz\\textra\\n'
+                input[0] = platemap.path
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("more fields than its 2 header columns")
+            assert output.contains("first starts with 'A03'")
+        }
+    }
+
+    test("readPlatemap: spaces after a closing quote fail with a clear error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'space_after_quote.txt')
+                platemap.text = 'well_position\\ttreatment\\nA01\\t"DMSO"  \\n'
+                input[0] = platemap.path
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("Could not parse platemap")
+            assert output.contains("after a closing quote")
+        }
+    }
+
+    test("readPlatemap: an empty file is an error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'empty.txt')
+                platemap.text = ''
+                input[0] = platemap.path
                 """
             }
         }
@@ -739,7 +812,7 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/does_not_exist.txt'
+                input[0] = new File(File.createTempDir('platemaps-'), 'does_not_exist.txt').path
                 """
             }
         }
@@ -758,7 +831,9 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/escaped_quote.txt'
+                def platemap = new File(File.createTempDir('platemaps-'), 'escaped_quote.txt')
+                platemap.text = 'well_position\\ttreatment\\nA01\\t\"say \"\"hi\"\"\"\\n'
+                input[0] = platemap.path
                 """
             }
         }
@@ -778,7 +853,9 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/multiline.txt'
+                def platemap = new File(File.createTempDir('platemaps-'), 'multiline.txt')
+                platemap.text = 'well_position\\ttreatment\\nA01\\t"multi\\nline"\\n'
+                input[0] = platemap.path
                 """
             }
         }

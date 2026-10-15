@@ -39,7 +39,9 @@ nextflow_function {
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/quoted.txt'
+                def platemap = new File(File.createTempDir('platemaps-'), 'quoted.txt')
+                platemap.text = '\\uFEFF"well_position"\\t"treatment"\\tdose\\nA01\\t"drugA"\\t1\\nA02\\tdrugA\\t1\\nA03\\t"drug\\tB"\\t2\\nA04\\t5" plate\\t\\n\\nA05\\t  DMSO  \\t0\\n'
+                input[0] = platemap.path
                 input[1] = ['Metadata_treatment', 'Metadata_dose']
                 """
             }

@@ -1,7 +1,0 @@
-﻿"well_position"	"treatment"	dose
-A01	"drugA"	1
-A02	drugA	1
-A03	"drug	B"	2
-A04	5" plate
-
-A05	  DMSO  	0

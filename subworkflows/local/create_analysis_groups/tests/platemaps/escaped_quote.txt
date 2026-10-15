@@ -1,2 +1,0 @@
-well_position	treatment
-A01	"say ""hi"""

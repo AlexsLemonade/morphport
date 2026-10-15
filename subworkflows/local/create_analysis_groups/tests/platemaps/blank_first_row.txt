@@ -1,3 +1,0 @@
-well_position	treatment	dose
-
-A01	drugA

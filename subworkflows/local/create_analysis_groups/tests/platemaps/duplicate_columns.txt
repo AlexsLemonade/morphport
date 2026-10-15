@@ -1,2 +1,0 @@
-well_position	treatment	Metadata_treatment
-A01	x	y
