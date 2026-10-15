@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Nextflow template script to annotate a per-plate parquet file with platemap metadata using pycytominer.
-The platemap is expected to be a tab-delimited file with a column matching the well identifier
-in the parquet metadata (e.g. Metadata_Well).
+The platemap is expected to be a comma-delimited (.csv) or tab-delimited (.tsv or .txt) file
+with a column matching the well identifier in the parquet metadata (e.g. Metadata_Well).
+The delimiter is chosen by file extension, matching readPlatemap in the create_analysis_groups subworkflow.
 The annotated output is written in parquet format.
 
 All platemap metadata columns (except plate_map_name) are added to the parquet file by pycytominer annotate as 'Metadata_'-prefixed columns
@@ -45,9 +46,19 @@ def main():
     # same file when predicting analysis groups (enumeratePlatemapCombos): no type inference
     # (e.g. '010' stays '010', not 10.0), no NA-like strings ('NA', 'null') converted to nulls,
     # and surrounding whitespace stripped. Only blank cells become '_NA_'.
+    # choose the delimiter by extension, matching platemapSeparator in Nextflow
+    platemap_ext = platemap_file.rsplit(".", 1)[-1].lower()
+    if platemap_ext == "csv":
+        platemap_sep = ","
+    elif platemap_ext in ("tsv", "txt"):
+        platemap_sep = "\\t"
+    else:
+        raise ValueError(
+            f"Platemap {platemap_file} must have a .csv, .tsv, or .txt extension."
+        )
     platemap_df = pd.read_csv(
         platemap_file,
-        sep="\\t",
+        sep=platemap_sep,
         encoding="utf-8-sig",
         dtype="string[pyarrow]",
         na_filter=False,
