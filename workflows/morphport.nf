@@ -15,6 +15,7 @@ include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normal
 include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
 include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clustering'
+include { CREATE_ANALYSIS_GROUPS     } from '../subworkflows/local/create_analysis_groups'
 include { partitionKey               } from '../subworkflows/local/create_analysis_groups'
 
 /*
@@ -25,13 +26,20 @@ include { partitionKey               } from '../subworkflows/local/create_analys
 
 workflow MORPHPORT {
     take:
-    ch_samplesheet     // channel: samplesheet read in from --input
-    ch_analysis_groups // value:   analysis groups lookup from buildAnalysisGroups
+    ch_samplesheet       // channel: samplesheet read in from --input
+    analysis_groups_file // string: path to the analysis groups file (null for a single group per level)
     outdir
 
     main:
 
-    ch_validated = ch_samplesheet
+    // Parse the analysis groups file, check the groups against every plate's platemap
+    // and build the analysis groups lookup (see CREATE_ANALYSIS_GROUPS).
+    // Downstream steps use the samplesheet emitted by CREATE_ANALYSIS_GROUPS rather than ch_samplesheet
+    // so no process starts until the checks pass; it also adds the partition columns to plate_metadata_columns.
+    CREATE_ANALYSIS_GROUPS(ch_samplesheet.toList(), analysis_groups_file)
+    ch_analysis_groups = CREATE_ANALYSIS_GROUPS.out.analysis_groups
+
+    ch_validated = CREATE_ANALYSIS_GROUPS.out.samplesheet
         .map { meta -> [meta + [aggregate_level: 'cell'], file(meta.plate_dir)] }
         .branch { it ->
             skip_cytotable: it[0].cytotable_preset == 'skip'

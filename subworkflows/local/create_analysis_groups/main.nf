@@ -10,18 +10,20 @@
 */
 
 //
-// Build the lookup createGroupChannels uses to route partitions from every plate's condition
+// Parse the analysis groups file, then build the lookup createGroupChannels uses to route partitions from every plate's condition
 // combos (platemap values plus project and plate_id), and check the analysis groups against
 // those combos and for output tag collisions.
-// Errors abort the run here: the samplesheet is only emitted once the checks pass, so no
-// process is submitted with a bad groups file. Platemaps are read only once.
+// Errors abort the run here: structural errors in the file are raised by parseGroupings while
+// the workflow is being built, and the samplesheet is only emitted once the data checks pass,
+// so no process is submitted with a bad groups file. Platemaps are read only once.
 //
 workflow CREATE_ANALYSIS_GROUPS {
     take:
     ch_metas      // value channel: list of validated samplesheet metas, one per plate
-    parsed_groups // map: normalized analysis groups from parseGroupings
+    groups_file   // string: path to the analysis groups file (null for a single group per level)
 
     main:
+    def parsed_groups = parseGroupings(groups_file)
     def partition_columns = groupingPartitionColumns(parsed_groups)
 
     def ch_checked = ch_metas
@@ -45,7 +47,13 @@ workflow CREATE_ANALYSIS_GROUPS {
             [metas, analysis_groups]
         }
 
-    def ch_samplesheet = ch_checked.flatMap { metas, _analysis_groups -> metas }
+    // partition columns travel with meta even if a given platemap omits them
+    // (PYCYTOMINER_ANNOTATE fills any missing column with '_Absent_')
+    def ch_samplesheet = ch_checked.flatMap { metas, _analysis_groups ->
+        metas.collect { meta ->
+            meta + [plate_metadata_columns: ((meta.plate_metadata_columns ?: []) + partition_columns).unique()]
+        }
+    }
 
     // A value channel with the analysis groups lookup used to route partitions to groups:
     // partition_columns (passed to PARTITION_CONDITIONS; empty ⇒ no partitioning), and for each

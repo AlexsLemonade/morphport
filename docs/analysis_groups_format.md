@@ -196,12 +196,12 @@ Restricting each grouping to a single grouping column does not restrict partitio
 ## How errors are raised
 
 The checks above split into two tiers by what they need to know, and the tiers fail at different points in the run.
-Functions named here and the `CREATE_ANALYSIS_GROUPS` subworkflow are in `subworkflows/local/create_analysis_groups/main.nf`; it is called from the `PIPELINE_INITIALISATION` workflow in `subworkflows/local/utils_nfcore_morphport_pipeline/main.nf`.
+Functions named here and the `CREATE_ANALYSIS_GROUPS` subworkflow are in `subworkflows/local/create_analysis_groups/main.nf`; it is called as the first step of the `MORPHPORT` workflow in `workflows/morphport.nf`.
 
 ### Tier 1: structural — knowable from the file alone
 
 Checked by `validateGroupingStructure` and raised from `parseGroupings`, which runs in the workflow body rather than inside a channel operator, so `error()` there aborts before any process is submitted.
-This is the same idiom as the cross-parameter checks (e.g. `feature_select_operations`, `clustering_linkage_method`) just above it.
+This is the same idiom as the cross-parameter checks (e.g. `feature_select_operations`, `clustering_linkage_method`) in `PIPELINE_INITIALISATION`.
 
 - malformed shapes (`filter` not a map, values not lists, `subgroup_columns` not a list, `groups` not `one_per_value`, `all_values`, or a mapping)
 - missing required keys, including `name`

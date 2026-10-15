@@ -16,10 +16,7 @@ include { completionEmail              } from '../../nf-core/utils_nfcore_pipeli
 include { completionSummary            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE        } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE      } from '../../nf-core/utils_nextflow_pipeline'
-include { CREATE_ANALYSIS_GROUPS       } from '../create_analysis_groups'
 include { addMetadataPrefix            } from '../create_analysis_groups'
-include { parseGroupings               } from '../create_analysis_groups'
-include { groupingPartitionColumns     } from '../create_analysis_groups'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -105,33 +102,18 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
-    // Create channel from input file provided through params.input
+    // Create channel from input file provided through params.input.
+    // The samplesheet is validated as a single list so every problem is reported at once.
     //
-
-    //
-    // Compute analysis groupings and the partition column set using the information in the analysis groups file
-    // Since these don't depend on any channel elements, they don't need to be a channel process.
-    //
-    def parsed_groups = parseGroupings(params.analysis_groups_file)
-    def partition_columns = groupingPartitionColumns(parsed_groups)
-
-    //
-    // Read and validate the samplesheet, then check the analysis groups against every plate's
-    // platemap and build the analysis groups lookup (see CREATE_ANALYSIS_GROUPS).
-    // Errors in either abort the run before any process is submitted.
-    //
-    def ch_metas = channel
+    def ch_samplesheet = channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
         .map { row -> row[0] }
         .toList()
-        .map { samplesheet -> validateInputSamplesheet(samplesheet, partition_columns) }
-
-    CREATE_ANALYSIS_GROUPS(ch_metas, parsed_groups)
+        .flatMap { samplesheet -> validateInputSamplesheet(samplesheet) }
 
     emit:
-    samplesheet     = CREATE_ANALYSIS_GROUPS.out.samplesheet
-    analysis_groups = CREATE_ANALYSIS_GROUPS.out.analysis_groups
-    versions        = ch_versions
+    samplesheet = ch_samplesheet // channel: one validated meta per plate
+    versions    = ch_versions
 }
 
 /*
@@ -186,7 +168,7 @@ workflow PIPELINE_COMPLETION {
 //
 // Validate channels from input samplesheet
 //
-def validateInputSamplesheet(metas, partition_columns) {
+def validateInputSamplesheet(metas) {
     def errors = []
 
     def validated_metas = metas.collect { meta ->
@@ -247,9 +229,9 @@ def validateInputSamplesheet(metas, partition_columns) {
             }
         }
 
-        // read platemap columns so they travel with meta through the pipeline;
-        // partition columns are always included even if absent from this platemap
-        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column, partition_columns) : []
+        // read platemap columns so they travel with meta through the pipeline
+        // (CREATE_ANALYSIS_GROUPS adds the partition columns)
+        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column) : []
 
         // update and return
         meta + [plate_dir: plate_dir, platemap_file: platemap_path, plate_metadata_columns: platemap_cols]
@@ -316,11 +298,8 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
 //
 // Parse the columns from a platemap file, excluding the well column.
 // Returns a list of column names with "Metadata_" prefix added if not already present.
-// `extra_columns` (already Metadata_-prefixed) are appended so that columns required
-// downstream, like the partition columns, travel with meta even if a given platemap
-// happens to omit them.
 //
-def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []) {
+def parsePlatemapColumns(platemap_path, platemap_well_column) {
     // read only the header line of the platemap file
     def text = file(platemap_path).newReader().readLine()
     // strip UTF-8 BOM if present
@@ -330,7 +309,7 @@ def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []
         .collect { it -> it.trim() }
         .findAll { it -> it && it != platemap_well_column }
         .collect { it -> addMetadataPrefix(it) }
-    return (header_cols + extra_columns).unique()
+    return header_cols.unique()
 }
 
 //

@@ -17,7 +17,9 @@ nextflow_workflow {
                     [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
                     [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
                 ])
-                input[1] = [
+                // CREATE_ANALYSIS_GROUPS reads the groupings from a file, so write them to a temporary one
+                def groups_file = new File(File.createTempDir(), 'analysis_groups.yml')
+                groups_file.text = new org.yaml.snakeyaml.Yaml().dump([
                     cell: [
                         [
                             name: 'by_allele',
@@ -30,7 +32,8 @@ nextflow_workflow {
                         ],
                     ],
                     well: [],
-                ]
+                ])
+                input[1] = groups_file.path
                 """
             }
         }
@@ -76,7 +79,9 @@ nextflow_workflow {
                     [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
                     [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
                 ])
-                input[1] = [
+                // CREATE_ANALYSIS_GROUPS reads the groupings from a file, so write them to a temporary one
+                def groups_file = new File(File.createTempDir(), 'analysis_groups.yml')
+                groups_file.text = new org.yaml.snakeyaml.Yaml().dump([
                     cell: [
                         [
                             name: 'wildtype_only',
@@ -89,7 +94,8 @@ nextflow_workflow {
                         ],
                     ],
                     well: [],
-                ]
+                ])
+                input[1] = groups_file.path
                 """
             }
         }
@@ -113,7 +119,9 @@ nextflow_workflow {
                     [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
                     [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
                 ])
-                input[1] = [
+                // CREATE_ANALYSIS_GROUPS reads the groupings from a file, so write them to a temporary one
+                def groups_file = new File(File.createTempDir(), 'analysis_groups.yml')
+                groups_file.text = new org.yaml.snakeyaml.Yaml().dump([
                     cell: [
                         [
                             name: 'by_allele',
@@ -126,7 +134,8 @@ nextflow_workflow {
                         ],
                     ],
                     well: [],
-                ]
+                ])
+                input[1] = groups_file.path
                 """
             }
         }
