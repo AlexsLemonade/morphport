@@ -88,152 +88,179 @@ def addMetadataPrefix(col) {
 }
 
 //
-// Check the structure of a parsed analysis groups file (Tier 1 validation: anything knowable
-// from the file alone, without reading platemaps). See docs/analysis_groups_format.md.
+// Check the structure of a parsed analysis groups file. See docs/analysis_groups_format.md.
+// Each grouping is checked by validateGrouping; this function checks the file as a whole.
 // Returns [errors: [...], warnings: [...]] so that every problem can be reported at once.
 //
 def validateGroupingStructure(parsed) {
     def errors = []
     def warnings = []
-    def grouping_keys = ['name', 'grouping_column', 'groups', 'always_include', 'excluded', 'filter', 'subgroup_columns']
+    def levels = ['default', 'cell', 'well']
 
     if (!(parsed instanceof Map)) {
-        errors << "The analysis groups file must be a mapping with 'default', 'cell', and/or 'well' keys."
+        errors << "The analysis groups file is not the correct format; it should be a YAML or JSON file with top-level keys for 'default', 'cell', and/or 'well'."
         return [errors: errors, warnings: warnings]
     }
-    def unknown_levels = parsed.keySet().collect { key -> key as String } - ['default', 'cell', 'well']
-    unknown_levels.each { key ->
+
+    // check that we only have the expected top-level keys
+    (parsed.keySet().collect { key -> key as String } - levels).each { key ->
         errors << "Unknown top-level key '${key}': expected 'default', 'cell', and/or 'well'."
     }
 
-    def level_groupings = ['default', 'cell', 'well'].collectEntries { level ->
+    // check that each level contains a list of groupings; a missing level has no groupings
+    def level_groupings = levels.collectEntries { level ->
         def groupings = parsed.get(level)
         if (groupings != null && !(groupings instanceof List)) {
-            errors << "Top-level key '${level}' must be a list of groupings."
+            errors << "'${level}' must contain a list of groupings."
             groupings = []
         }
         [(level): groupings ?: []]
     }
 
+    // check each grouping
     level_groupings.each { level, groupings ->
         groupings.eachWithIndex { grouping, idx ->
-            def label = "Grouping ${idx + 1} in '${level}'"
-            if (!(grouping instanceof Map)) {
-                errors << "${label} ('${grouping}') must be a mapping with 'name', 'grouping_column', and 'groups' keys."
-                return
-            }
-            if (grouping.name != null) {
-                label = "Grouping '${grouping.name}' in '${level}'"
-            }
-
-            // keys
-            (grouping.keySet().collect { key -> key as String } - grouping_keys).each { key ->
-                errors << "${label}: unknown key '${key}'."
-            }
-            ['name', 'grouping_column', 'groups'].findAll { key -> grouping.get(key) == null }.each { key ->
-                errors << "${label}: missing required key '${key}'."
-            }
-
-            // name
-            if (grouping.name != null && !((grouping.name as String) ==~ /[A-Za-z0-9_-]+/)) {
-                errors << "${label}: name may contain only letters, digits, '_', and '-'."
-            }
-
-            // grouping_column
-            def grouping_column = null
-            if (grouping.grouping_column != null) {
-                if (!(grouping.grouping_column instanceof String) || (grouping.grouping_column as String).contains(',')) {
-                    errors << "${label}: grouping_column must be a single column name; use subgroup_columns to subdivide by other columns."
-                }
-                else {
-                    grouping_column = addMetadataPrefix(grouping.grouping_column as String)
-                }
-            }
-
-            // groups
-            def groups = grouping.groups
-            if (groups instanceof Map) {
-                if (groups.isEmpty()) {
-                    errors << "${label}: groups mapping must define at least one group."
-                }
-                groups.each { group_name, values ->
-                    if (!(values instanceof List)) {
-                        errors << "${label}: group '${group_name}' must be a list of values."
-                    }
-                }
-            }
-            else if (groups != null && !(groups in ['one_per_value', 'all_values'])) {
-                errors << "${label}: groups must be 'one_per_value', 'all_values', or a mapping of group names to lists of values."
-            }
-
-            // optional list-valued keys
-            ['always_include', 'excluded', 'subgroup_columns'].each { key ->
-                if (grouping.get(key) != null && !(grouping.get(key) instanceof List)) {
-                    errors << "${label}: ${key} must be a list."
-                }
-            }
-            if (grouping.filter != null) {
-                if (!(grouping.filter instanceof Map)) {
-                    errors << "${label}: filter must be a mapping of column names to lists of values."
-                }
-                else {
-                    grouping.filter.each { col, values ->
-                        if (!(values instanceof List)) {
-                            errors << "${label}: filter column '${col}' must be a list of values."
-                        }
-                    }
-                }
-            }
-
-            // cross-key checks
-            if (grouping_column) {
-                if (grouping.filter instanceof Map && grouping.filter.keySet().any { col -> addMetadataPrefix(col as String) == grouping_column }) {
-                    errors << "${label}: filter must not name the grouping_column; use excluded to drop its values."
-                }
-                if (grouping.subgroup_columns instanceof List && grouping.subgroup_columns.any { col -> addMetadataPrefix(col as String) == grouping_column }) {
-                    errors << "${label}: subgroup_columns must not name the grouping_column."
-                }
-            }
-            if (grouping.always_include instanceof List && grouping.excluded instanceof List) {
-                def overlap = grouping.always_include.collect { value -> value as String }
-                    .intersect(grouping.excluded.collect { value -> value as String })
-                if (overlap) {
-                    errors << "${label}: values ${overlap} are in both always_include and excluded."
-                }
-            }
-            // always_include values join every group, so they can't also define a named group
-            // (a group of only those values would have no members of its own and be dropped)
-            if (grouping.always_include instanceof List && groups instanceof Map) {
-                def group_values = groups.values().findAll { values -> values instanceof List }.flatten()
-                def overlap = group_values.collect { value -> value as String }
-                    .intersect(grouping.always_include.collect { value -> value as String }).unique()
-                if (overlap) {
-                    def overlapping_groups = groups.findAll { _group_name, values ->
-                        values instanceof List && values.any { value -> (value as String) in overlap }
-                    }
-                    errors << ("${label}: values ${overlap} are in both always_include and named groups ${overlapping_groups.keySet() as List}." +
-                        " always_include values are added to every group; for a standalone group of these values, add a separate grouping entry.")
-                }
-            }
-            if (groups == 'all_values' && grouping.always_include) {
-                warnings << "${label}: always_include has no effect with 'groups: all_values'."
-            }
+            def result = validateGrouping(grouping, level, idx + 1)
+            errors.addAll(result.errors)
+            warnings.addAll(result.warnings)
         }
     }
 
-    // names must be unique within each level, counting the default groupings added to it
-    def default_names = level_groupings['default'].findAll { grouping -> grouping instanceof Map && grouping.name != null }
-        .collect { grouping -> grouping.name as String }
+    // check that grouping names are unique within each level, counting the default groupings added to it
+    def named = level_groupings.collectEntries { level, groupings ->
+        [(level): groupings.findAll { grouping -> grouping instanceof Map && grouping.name != null }.collect { grouping -> grouping.name as String }]
+    }
     ['cell', 'well'].each { level ->
-        def names = default_names + level_groupings[level]
-            .findAll { grouping -> grouping instanceof Map && grouping.name != null }
-            .collect { grouping -> grouping.name as String }
-        names.countBy { name -> name }.findAll { _name, count -> count > 1 }.each { name, _count ->
+        (named['default'] + named[level]).countBy { name -> name }.findAll { _name, count -> count > 1 }.each { name, _count ->
             errors << "Grouping name '${name}' is used more than once in '${level}' (including 'default' groupings)."
         }
     }
 
     return [errors: errors, warnings: warnings]
+}
+
+
+//
+// Check the structure of a single grouping from the analysis groups file (see validateGroupingStructure).
+// `position` is the grouping's 1-based position in its level, used to label it in messages if it has no name.
+// Returns [errors: [...], warnings: [...]].
+//
+def validateGrouping(grouping, level, position) {
+    def errors = []
+    def warnings = []
+
+    if (!(grouping instanceof Map)) {
+        errors << "Grouping ${position} in '${level}' ('${grouping}') must be a mapping with 'name', 'grouping_column', and 'groups' keys."
+        return [errors: errors, warnings: warnings]
+    }
+    def label = grouping.name != null ? "Grouping '${grouping.name}' in '${level}'" : "Grouping ${position} in '${level}'"
+
+    // check that all keys are known and the required keys are present
+    def known_keys = ['name', 'grouping_column', 'groups', 'always_include', 'excluded', 'filter', 'subgroup_columns']
+    (grouping.keySet().collect { key -> key as String } - known_keys).each { key ->
+        errors << "${label}: unknown key '${key}'."
+    }
+    ['name', 'grouping_column', 'groups'].findAll { key -> grouping.get(key) == null }.each { key ->
+        errors << "${label}: missing required key '${key}'."
+    }
+
+    // check that the name can be used in output file names
+    if (grouping.name != null && !((grouping.name as String) ==~ /[A-Za-z0-9_-]+/)) {
+        errors << "${label}: name may contain only letters, digits, '_', and '-'."
+    }
+
+    // check that grouping_column is a single column name
+    def grouping_column = null
+    if (grouping.grouping_column != null) {
+        if (!(grouping.grouping_column instanceof String) || (grouping.grouping_column as String).contains(',')) {
+            errors << "${label}: grouping_column must be a single column name; use subgroup_columns to subdivide by other columns."
+        }
+        else {
+            // add the metadata prefix here so the conflict checks below can compare column names consistently
+            grouping_column = addMetadataPrefix(grouping.grouping_column as String)
+        }
+    }
+
+    // check that groups is one of the special strings, or a mapping of group names to lists of values
+    def groups = grouping.groups
+    if (groups instanceof Map) {
+        if (groups.isEmpty()) {
+            errors << "${label}: groups mapping must define at least one group."
+        }
+        groups.each { group_name, values ->
+            if (!isFlatList(values)) {
+                errors << "${label}: group '${group_name}' must be a list of values, without nested lists or mappings."
+            }
+        }
+    }
+    else if (groups != null && !(groups in ['one_per_value', 'all_values'])) {
+        errors << "${label}: groups must be 'one_per_value', 'all_values', or a mapping of group names to lists of values."
+    }
+
+    // check that the optional keys are the right type, if present
+    ['always_include', 'excluded', 'subgroup_columns'].each { key ->
+        if (grouping.get(key) != null && !isFlatList(grouping.get(key))) {
+            errors << "${label}: ${key} must be a list, without nested lists or mappings."
+        }
+    }
+    if (grouping.filter != null) {
+        if (!(grouping.filter instanceof Map)) {
+            errors << "${label}: filter must be a mapping of column names to lists of values."
+        }
+        else {
+            grouping.filter.each { col, values ->
+                if (!isFlatList(values)) {
+                    errors << "${label}: filter column '${col}' must be a list of values, without nested lists or mappings."
+                }
+            }
+        }
+    }
+
+    // check that filter and subgroup_columns don't name the grouping_column
+    if (grouping_column) {
+        if (grouping.filter instanceof Map && grouping.filter.keySet().any { col -> addMetadataPrefix(col as String) == grouping_column }) {
+            errors << "${label}: filter must not name the grouping_column; use excluded to drop its values."
+        }
+        if (grouping.subgroup_columns instanceof List && grouping.subgroup_columns.any { col -> addMetadataPrefix(col as String) == grouping_column }) {
+            errors << "${label}: subgroup_columns must not name the grouping_column."
+        }
+    }
+
+    // check that always_include values aren't also excluded or used to define a named group
+    if (grouping.always_include instanceof List) {
+        def always_include = toStringList(grouping.always_include)
+        if (grouping.excluded instanceof List) {
+            def overlap = always_include.intersect(toStringList(grouping.excluded))
+            if (overlap) {
+                errors << "${label}: values ${overlap} are in both always_include and excluded."
+            }
+        }
+        // always_include values are in every group, so they can't also define a named group
+        // (a group of only those values would have no members of its own and be dropped)
+        if (groups instanceof Map) {
+            def group_values = toStringList(groups.values().findAll { values -> values instanceof List }.flatten())
+            def overlap = group_values.intersect(always_include).unique()
+            if (overlap) {
+                def overlapping_groups = groups.findAll { _group_name, values ->
+                    values instanceof List && values.any { value -> (value as String) in overlap }
+                }
+                errors << ("${label}: values ${overlap} are in both always_include and named groups ${overlapping_groups.keySet() as List}." +
+                    " always_include values are added to every group; for a standalone group of these values, add a separate grouping entry.")
+            }
+        }
+    }
+    if (groups == 'all_values' && grouping.always_include) {
+        warnings << "${label}: always_include has no effect with 'groups: all_values'."
+    }
+
+    return [errors: errors, warnings: warnings]
+}
+
+//
+// Check if values are a flat list (no nested lists or mappings).
+//
+def isFlatList(values) {
+    return values instanceof List && !values.any { value -> value instanceof List || value instanceof Map }
 }
 
 //
@@ -519,7 +546,7 @@ def validateGroupTags(analysis_groups) {
 
 //
 // Check the analysis groups against the condition combos observed in the platemaps
-// (Tier 2 validation, see docs/analysis_groups_format.md). Returns a list of error messages:
+// Returns a list of error messages:
 //   - a filter column missing from any plate's platemap
 //   - a filter that matches no rows
 //   - named groups that don't account for an observed (filtered) value

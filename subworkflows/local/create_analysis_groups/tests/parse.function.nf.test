@@ -379,6 +379,38 @@ nextflow_function {
         }
     }
 
+    test("validateGroupingStructure: value lists must not contain nested lists or mappings") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [name: 'group_nested', grouping_column: 'treatment', groups: [kinase_inhibitor: ['drugA', ['drugB']]]],
+                        [name: 'always_nested', grouping_column: 'treatment', groups: 'one_per_value', always_include: [[control: 'DMSO']]],
+                        [name: 'excluded_nested', grouping_column: 'treatment', groups: 'one_per_value', excluded: [['drugE']]],
+                        [name: 'filter_nested', grouping_column: 'treatment', groups: 'one_per_value', filter: [timepoint: [['24h']]]],
+                        [name: 'subgroup_nested', grouping_column: 'treatment', groups: 'one_per_value', subgroup_columns: [['cell_type']]],
+                        // unquoted YAML numbers are fine; normalizeGroupings converts them to strings
+                        [name: 'numbers_ok', grouping_column: 'dose', groups: [low: [1, 2], high: [10]], excluded: [0.5]],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 5
+            ['group_nested', 'always_nested', 'excluded_nested', 'filter_nested', 'subgroup_nested'].each { name ->
+                assert errors.any { err -> err.contains("'${name}'") && err.contains("nested") }
+            }
+        }
+    }
+
     test("validateGroupingStructure: filter and subgroup_columns must not name the grouping column") {
 
         function "validateGroupingStructure"
