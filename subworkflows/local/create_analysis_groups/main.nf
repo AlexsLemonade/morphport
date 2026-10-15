@@ -74,30 +74,49 @@ def addMetadataPrefix(col) {
 //
 // Read a tab-delimited platemap file into a list of rows, one Map per well,
 // keyed by Metadata_-prefixed column names, with whitespace trimmed from names and values.
-// `limit` caps the number of rows read (0 reads all).
+// Columns with blank names and rows with only blank values are dropped.
 // Quoted fields are supported, but escaped quotes ("") and line breaks within quotes raise an error.
-// A platemap with only a header row returns no rows.
+// Duplicate column names (after prefixing) and platemaps with no data rows also raise an error.
 //
-def readPlatemap(platemap_path, limit = 0) {
-    def rows = []
+def readPlatemap(platemap_path) {
+    def platemap = file(platemap_path)
+    if (!platemap.exists()) {
+        throw new Exception("Platemap file not found: ${platemap_path}")
+    }
+    def lines = []
     try {
-        rows = file(platemap_path).splitCsv(sep: '\t', quote: '"', header: true, limit: limit)
+        lines = platemap.splitCsv(sep: '\t', quote: '"')
     }
     catch (Exception e) {
         throw new Exception(
             "Could not parse platemap ${platemap_path}: ${e.message}\n" +
-            "Quoted fields may not contain escaped quotes (\"\") or line breaks.",
+            "Check for unsupported quoting, such as escaped quotes (\"\") or line breaks within quotes.",
             e
         )
     }
-    return rows
-        .collect { row ->
-            row.collectEntries { col, value ->
-                def name = col.trim()
-                [(name ? addMetadataPrefix(name) : name): value?.trim() ?: '']
-            }
+
+    // header row: blank names are kept as placeholders so column positions line up with fields
+    def columns = (lines ? lines[0] : []).collect { col -> col.trim() ? addMetadataPrefix(col.trim()) : '' }
+    def duplicates = columns
+        .findAll { col -> col }
+        .countBy { col -> col }
+        .findAll { _col, count -> count > 1 }
+        .keySet()
+    if (duplicates) {
+        throw new Exception("Platemap ${platemap_path} has duplicate column names: ${duplicates.join(', ')}")
+    }
+
+    def named_idx = columns.indices.findAll { idx -> columns[idx] }
+    def rows = lines.drop(1)
+        .collect { fields ->
+            // fields[idx] is null for missing trailing fields
+            named_idx.collectEntries { idx -> [(columns[idx]): fields[idx]?.trim() ?: ''] }
         }
         .findAll { row -> row.values().any() }
+    if (!rows) {
+        throw new Exception("Platemap ${platemap_path} has no data rows.")
+    }
+    return rows
 }
 
 //
