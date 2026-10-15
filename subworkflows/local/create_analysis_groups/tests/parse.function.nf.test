@@ -673,15 +673,14 @@ nextflow_function {
         }
     }
 
-    test("readPlatemap: limit caps the number of rows read") {
+    test("readPlatemap: blank rows are dropped and missing trailing fields are blank") {
 
         function "readPlatemap"
 
         when {
             function {
                 """
-                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/quoted.txt'
-                input[1] = 1
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/blank_first_row.txt'
                 """
             }
         }
@@ -689,8 +688,66 @@ nextflow_function {
         then {
             assert function.success
             assert function.result == [
-                [Metadata_well_position: 'A01', Metadata_treatment: 'drugA', Metadata_dose: '1'],
+                [Metadata_well_position: 'A01', Metadata_treatment: 'drugA', Metadata_dose: ''],
             ]
+        }
+    }
+
+    test("readPlatemap: duplicate column names after prefixing are an error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/duplicate_columns.txt'
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("duplicate column names")
+            assert output.contains("Metadata_treatment")
+        }
+    }
+
+    test("readPlatemap: a platemap with no data rows is an error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/header_only.txt'
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("has no data rows")
+        }
+    }
+
+    test("readPlatemap: a missing file is an error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/does_not_exist.txt'
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("Platemap file not found")
         }
     }
 
