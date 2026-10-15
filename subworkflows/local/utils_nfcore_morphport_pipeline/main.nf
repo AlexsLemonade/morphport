@@ -328,13 +328,19 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
 // `extra_columns` (already Metadata_-prefixed) are appended so that columns required
 // downstream, like the partition columns, travel with meta even if a given platemap
 // happens to omit them.
+// Throws an exception if the platemap has no well column, since annotation joins on it.
 //
 def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []) {
     // every row has the same keys: the (Metadata_-prefixed) platemap columns
     def rows = readPlatemap(platemap_path)
+    def columns = rows[0].keySet() as List
     def well_column = addMetadataPrefix(platemap_well_column)
-    def header_cols = (rows[0].keySet() as List)
-        .findAll { col -> col != well_column }
+    if (!(well_column in columns)) {
+        throw new Exception(
+            "Platemap ${platemap_path} is missing the well column '${platemap_well_column}' (set by --platemap_well_column)."
+        )
+    }
+    def header_cols = columns.findAll { col -> col != well_column }
     return (header_cols + extra_columns).unique()
 }
 

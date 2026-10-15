@@ -52,4 +52,26 @@ nextflow_function {
             assert function.result == ['Metadata_treatment', 'Metadata_dose']
         }
     }
+
+    test("parsePlatemapColumns: a missing well column is an error") {
+
+        function "parsePlatemapColumns"
+
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'no_well.txt')
+                platemap.text = 'well\\ttreatment\\nA01\\tdrugA\\n'
+                input[0] = platemap.path
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("missing the well column 'well_position'")
+        }
+    }
 }

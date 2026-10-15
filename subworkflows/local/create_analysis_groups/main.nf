@@ -669,11 +669,11 @@ def enumeratePlateCombos(meta, platemap_combos) {
 def enumeratePlatemapCombos(platemap_path, partition_columns) {
     def rows = readPlatemap(platemap_path)
 
-    // Every row has the same columns, so a column missing from a row is missing from the platemap.
+    // every row has the same keys, so the platemap's columns can be read from the first row
+    def present_columns = rows[0].keySet()
     def combos = rows.collect { row ->
         partition_columns.collectEntries { col ->
-            def value = row.containsKey(col) ? (row[col] ?: '_NA_') : '_Absent_'
-            [(col): value]
+            [(col): col in present_columns ? (row[col] ?: '_NA_') : '_Absent_']
         }
     }
     return combos.unique()
