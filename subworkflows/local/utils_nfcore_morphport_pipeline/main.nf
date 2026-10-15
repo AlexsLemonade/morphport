@@ -16,7 +16,6 @@ include { completionEmail              } from '../../nf-core/utils_nfcore_pipeli
 include { completionSummary            } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NFCORE_PIPELINE        } from '../../nf-core/utils_nfcore_pipeline'
 include { UTILS_NEXTFLOW_PIPELINE      } from '../../nf-core/utils_nextflow_pipeline'
-include { addMetadataPrefix            } from '../create_analysis_groups'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -229,12 +228,9 @@ def validateInputSamplesheet(metas) {
             }
         }
 
-        // read platemap columns so they travel with meta through the pipeline
-        // (CREATE_ANALYSIS_GROUPS adds the partition columns)
-        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column) : []
-
         // update and return
-        meta + [plate_dir: plate_dir, platemap_file: platemap_path, plate_metadata_columns: platemap_cols]
+        // (CREATE_ANALYSIS_GROUPS adds plate_metadata_columns from the platemap)
+        meta + [plate_dir: plate_dir, platemap_file: platemap_path]
     }
 
     if (errors) {
@@ -293,23 +289,6 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
     }
     // return the resolved platemap path as a URI string for storage in the meta map
     return resolved.toUriString()
-}
-
-//
-// Parse the columns from a platemap file, excluding the well column.
-// Returns a list of column names with "Metadata_" prefix added if not already present.
-//
-def parsePlatemapColumns(platemap_path, platemap_well_column) {
-    // read only the header line of the platemap file
-    def text = file(platemap_path).newReader().readLine()
-    // strip UTF-8 BOM if present
-    if (text.startsWith('\uFEFF')) text = text.substring(1)
-
-    def header_cols = text.split('\t')
-        .collect { it -> it.trim() }
-        .findAll { it -> it && it != platemap_well_column }
-        .collect { it -> addMetadataPrefix(it) }
-    return header_cols.unique()
 }
 
 //

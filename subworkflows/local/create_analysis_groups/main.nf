@@ -19,23 +19,32 @@
 //
 workflow CREATE_ANALYSIS_GROUPS {
     take:
-    ch_metas      // value channel: list of validated samplesheet metas, one per plate
-    groups_file   // string: path to the analysis groups file (null for a single group per level)
+    ch_samplesheet       // channel: one validated samplesheet meta per plate
+    groups_file          // string: path to the analysis groups file (null for a single group per level)
+    platemap_well_column // string: name of the well column in the platemaps (excluded from plate_metadata_columns)
 
     main:
     def parsed_groups = parseGroupings(groups_file)
     def partition_columns = groupingPartitionColumns(parsed_groups)
 
-    def ch_checked = ch_metas
+    // the checks and group sizes need every plate at once, so collect the samplesheet into a single list
+    def ch_checked = ch_samplesheet
+        .toList()
         .map { metas ->
             // plates often share a platemap, so read each file only once.
             // Key by the path string: platemap_file may be a Path, String, or GString, and a GString
             // key won't match an equal String (or another GString) on lookup.
             // The original value is still what gets read, since an S3 Path's string drops the scheme.
-            def platemap_combos = metas.groupBy { meta -> meta.platemap_file.toString() }.collectEntries { path_key, path_metas ->
-                [(path_key): enumeratePlatemapCombos(path_metas[0].platemap_file, partition_columns)]
+            def platemaps = metas.groupBy { meta -> meta.platemap_file.toString() }.collectEntries { path_key, path_metas ->
+                def platemap_file = path_metas[0].platemap_file
+                [(path_key): [
+                    combos: enumeratePlatemapCombos(platemap_file, partition_columns),
+                    // partition columns travel with meta even if a given platemap omits them
+                    // (PYCYTOMINER_ANNOTATE fills any missing column with '_Absent_')
+                    columns: (parsePlatemapColumns(platemap_file, platemap_well_column) + partition_columns).unique(),
+                ]]
             }
-            def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, platemap_combos[meta.platemap_file.toString()]) }
+            def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, platemaps[meta.platemap_file.toString()].combos) }
             def analysis_groups = buildAnalysisGroups(parsed_groups, combos)
             missingGroupingColumns(parsed_groups, combos).each { warning -> log.warn("Analysis groups: ${warning}") }
             def errors = validateGroupingsAgainstData(parsed_groups, combos) + validateGroupTags(analysis_groups)
@@ -44,16 +53,15 @@ workflow CREATE_ANALYSIS_GROUPS {
                     "Analysis groups validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
                 )
             }
-            [metas, analysis_groups]
+            // add the platemap columns so they travel with meta through the pipeline
+            def updated_metas = metas.collect { meta ->
+                meta + [plate_metadata_columns: platemaps[meta.platemap_file.toString()].columns]
+            }
+            [updated_metas, analysis_groups]
         }
 
-    // partition columns travel with meta even if a given platemap omits them
-    // (PYCYTOMINER_ANNOTATE fills any missing column with '_Absent_')
-    def ch_samplesheet = ch_checked.flatMap { metas, _analysis_groups ->
-        metas.collect { meta ->
-            meta + [plate_metadata_columns: ((meta.plate_metadata_columns ?: []) + partition_columns).unique()]
-        }
-    }
+    // emitted only once the checks pass, with plate_metadata_columns added
+    def ch_metas = ch_checked.flatMap { metas, _analysis_groups -> metas }
 
     // A value channel with the analysis groups lookup used to route partitions to groups:
     // partition_columns (passed to PARTITION_CONDITIONS; empty ⇒ no partitioning), and for each
@@ -62,7 +70,7 @@ workflow CREATE_ANALYSIS_GROUPS {
     def ch_analysis_groups = ch_checked.map { _metas, analysis_groups -> analysis_groups }
 
     emit:
-    samplesheet     = ch_samplesheet     // channel: one validated meta per plate
+    samplesheet     = ch_metas           // channel: one validated meta per plate
     analysis_groups = ch_analysis_groups // value channel: analysis groups lookup from buildAnalysisGroups
 }
 
@@ -603,6 +611,23 @@ def missingGroupingColumns(parsed_groups, combos) {
 def enumeratePlateCombos(meta, platemap_combos) {
     return platemap_combos
         .collect { combo -> combo + [project: meta.project, plate_id: meta.plate_id] }
+}
+
+//
+// Parse the columns from a platemap file, excluding the well column.
+// Returns a list of column names with "Metadata_" prefix added if not already present.
+//
+def parsePlatemapColumns(platemap_path, platemap_well_column) {
+    // read only the header line of the platemap file
+    def text = file(platemap_path).newReader().readLine()
+    // strip UTF-8 BOM if present
+    if (text.startsWith('\uFEFF')) text = text.substring(1)
+
+    def header_cols = text.split('\t')
+        .collect { it -> it.trim() }
+        .findAll { it -> it && it != platemap_well_column }
+        .collect { it -> addMetadataPrefix(it) }
+    return header_cols.unique()
 }
 
 //

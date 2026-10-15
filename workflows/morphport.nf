@@ -36,7 +36,11 @@ workflow MORPHPORT {
     // and build the analysis groups lookup (see CREATE_ANALYSIS_GROUPS).
     // Downstream steps use the samplesheet emitted by CREATE_ANALYSIS_GROUPS rather than ch_samplesheet
     // so no process starts until the checks pass; it also adds the partition columns to plate_metadata_columns.
-    CREATE_ANALYSIS_GROUPS(ch_samplesheet.toList(), analysis_groups_file)
+    CREATE_ANALYSIS_GROUPS(
+        ch_samplesheet,
+        analysis_groups_file,
+        params.platemap_well_column,
+    )
     ch_analysis_groups = CREATE_ANALYSIS_GROUPS.out.analysis_groups
 
     ch_validated = CREATE_ANALYSIS_GROUPS.out.samplesheet

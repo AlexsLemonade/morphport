@@ -221,7 +221,7 @@ They are implemented in `validateGroupingsAgainstData`, which returns every prob
 A `grouping_column` or `subgroup_columns` entry missing from a plate's platemap (after `filter`) is reported by `missingGroupingColumns` as a warning rather than an error.
 A column may legitimately be absent from some plates, but a typo would otherwise put every row in a single `_Absent_` group without notice.
 
-These checks run in `CREATE_ANALYSIS_GROUPS`, on the list of samplesheet entries returned by `validateInputSamplesheet`.
+These checks run in `CREATE_ANALYSIS_GROUPS`, which collects the samplesheet entries validated by `validateInputSamplesheet` into a single list.
 That list has every resolved `platemap_file`, and the subworkflow only emits the samplesheet once the checks pass, so nothing has launched yet when it raises.
 It enumerates each plate's condition combos once with `enumeratePlateCombos`, checks them, and passes them on to `buildAnalysisGroups` to build `ch_analysis_groups`.
 Checking any later would be too late to avoid wasted work: `ch_samplesheet` feeds the CytoTable processes directly, so on AWS Batch a typo in the groups file would cost real compute before it surfaced.

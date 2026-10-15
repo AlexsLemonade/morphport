@@ -13,10 +13,10 @@ nextflow_workflow {
             workflow {
                 """
                 def platemaps = "${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap"
-                input[0] = Channel.value([
+                input[0] = Channel.of(
                     [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
                     [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
-                ])
+                )
                 // CREATE_ANALYSIS_GROUPS reads the groupings from a file, so write them to a temporary one
                 def groups_file = new File(File.createTempDir(), 'analysis_groups.yml')
                 groups_file.text = new org.yaml.snakeyaml.Yaml().dump([
@@ -34,6 +34,7 @@ nextflow_workflow {
                     well: [],
                 ])
                 input[1] = groups_file.path
+                input[2] = 'well_position'
                 """
             }
         }
@@ -41,6 +42,11 @@ nextflow_workflow {
         then {
             assert workflow.success
             assert workflow.out.samplesheet.collect { meta -> meta.plate_id }.sort() == ['plate_001', 'plate_002']
+            // platemap columns (minus the well column) are added to each meta
+            assert workflow.out.samplesheet.collectEntries { meta -> [(meta.plate_id): meta.plate_metadata_columns] } == [
+                plate_001: ['Metadata_plate_map_name', 'Metadata_gene_allele', 'Metadata_treatment'],
+                plate_002: ['Metadata_plate_map_name', 'Metadata_gene_allele'],
+            ]
 
             assert workflow.out.analysis_groups.size() == 1
             def groups = workflow.out.analysis_groups[0]
@@ -75,10 +81,10 @@ nextflow_workflow {
             workflow {
                 """
                 def platemaps = "${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap"
-                input[0] = Channel.value([
+                input[0] = Channel.of(
                     [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
                     [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
-                ])
+                )
                 // CREATE_ANALYSIS_GROUPS reads the groupings from a file, so write them to a temporary one
                 def groups_file = new File(File.createTempDir(), 'analysis_groups.yml')
                 groups_file.text = new org.yaml.snakeyaml.Yaml().dump([
@@ -96,6 +102,7 @@ nextflow_workflow {
                     well: [],
                 ])
                 input[1] = groups_file.path
+                input[2] = 'well_position'
                 """
             }
         }
@@ -115,10 +122,10 @@ nextflow_workflow {
             workflow {
                 """
                 def platemaps = "${projectDir}/stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap"
-                input[0] = Channel.value([
+                input[0] = Channel.of(
                     [plate_id: 'plate_001', project: 'test-project', platemap_file: "\${platemaps}/platemap_001.txt"],
                     [plate_id: 'plate_002', project: 'test-project', platemap_file: "\${platemaps}/platemap_002.txt"],
-                ])
+                )
                 // CREATE_ANALYSIS_GROUPS reads the groupings from a file, so write them to a temporary one
                 def groups_file = new File(File.createTempDir(), 'analysis_groups.yml')
                 groups_file.text = new org.yaml.snakeyaml.Yaml().dump([
@@ -136,6 +143,7 @@ nextflow_workflow {
                     well: [],
                 ])
                 input[1] = groups_file.path
+                input[2] = 'well_position'
                 """
             }
         }
