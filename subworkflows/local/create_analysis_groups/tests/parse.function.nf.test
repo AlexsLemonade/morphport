@@ -643,4 +643,94 @@ nextflow_function {
             assert function.result == []
         }
     }
+
+    //
+    // readPlatemap
+    // Expected values match pd.read_csv(sep="\t") as used in pycytominer_annotate.py
+    //
+
+    test("readPlatemap: quoted headers and values are unquoted, and names are prefixed") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/quoted.txt'
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                [Metadata_well_position: 'A01', Metadata_treatment: 'drugA', Metadata_dose: '1'],
+                [Metadata_well_position: 'A02', Metadata_treatment: 'drugA', Metadata_dose: '1'],
+                [Metadata_well_position: 'A03', Metadata_treatment: 'drug\tB', Metadata_dose: '2'],
+                [Metadata_well_position: 'A04', Metadata_treatment: '5" plate', Metadata_dose: ''],
+                [Metadata_well_position: 'A05', Metadata_treatment: 'DMSO', Metadata_dose: '0'],
+            ]
+        }
+    }
+
+    test("readPlatemap: limit caps the number of rows read") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/quoted.txt'
+                input[1] = 1
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                [Metadata_well_position: 'A01', Metadata_treatment: 'drugA', Metadata_dose: '1'],
+            ]
+        }
+    }
+
+    test("readPlatemap: escaped quotes fail with a clear error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/escaped_quote.txt'
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("Could not parse platemap")
+            assert output.contains("escaped_quote.txt")
+        }
+    }
+
+    test("readPlatemap: line breaks in quoted fields fail with a clear error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/multiline.txt'
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = function.stdout.join('\n')
+            assert output.contains("Could not parse platemap")
+            assert output.contains("multiline.txt")
+        }
+    }
 }
