@@ -629,33 +629,21 @@ def enumeratePlateCombos(meta, platemap_combos) {
 //
 // Read a platemap file and return the list of unique condition combinations present on the plate.
 // Each combination is a Map keyed by Metadata_-prefixed column names → row values, read the same
-// way pycytominer_annotate.py reads the platemap before partitioning: values are literal text with
-// surrounding whitespace stripped, and
+// way pycytominer_annotate.py reads the platemap before partitioning (see readPlatemap), and
 //   - blank cell                                 → '_NA_'
 //   - condition column absent from this platemap → '_Absent_' (mirrors the plate_metadata_columns fill)
 // Keeping the encoding aligned is what lets buildAnalysisGroups predict partition keys that
 // actually match the values recorded by PARTITION_CONDITIONS.
 //
 def enumeratePlatemapCombos(platemap_path, partition_columns) {
-    def lines = file(platemap_path).text.readLines()
-    if (lines.size() < 2) return []
+    def rows = readPlatemap(platemap_path)
 
-    def header_line = lines[0]
-    if (header_line.startsWith('\uFEFF')) header_line = header_line.substring(1)
-
-    // Normalize headers to Metadata_-prefixed form so lookup against the already-prefixed
-    // partition_columns works whether or not the platemap shipped headers with the prefix.
-    def headers = header_line.split('\t')*.trim().collect { col -> addMetadataPrefix(col) }
-
-    def combos = lines.drop(1)
-        .findAll { line -> line.trim() }
-        .collect { line ->
-            def row = line.split('\t', -1)*.trim()
-            partition_columns.collectEntries { col ->
-                def idx = headers.indexOf(col) // returns -1 if not found
-                def value = idx < 0 ? '_Absent_' : (idx < row.size() && row[idx] ? row[idx] : '_NA_')
-                [(col): value]
-            }
+    // Every row has the same columns, so a column missing from a row is missing from the platemap.
+    def combos = rows.collect { row ->
+        partition_columns.collectEntries { col ->
+            def value = row.containsKey(col) ? (row[col] ?: '_NA_') : '_Absent_'
+            [(col): value]
         }
+    }
     return combos.unique()
 }

@@ -32,6 +32,30 @@ nextflow_function {
         }
     }
 
+    test("enumeratePlatemapCombos: blank values are _NA_ and duplicate combos are removed") {
+
+        function "enumeratePlatemapCombos"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/quoted.txt'
+                input[1] = ['Metadata_treatment', 'Metadata_dose']
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                [Metadata_treatment: 'drugA', Metadata_dose: '1'],
+                [Metadata_treatment: 'drug\tB', Metadata_dose: '2'],
+                [Metadata_treatment: '5" plate', Metadata_dose: '_NA_'],
+                [Metadata_treatment: 'DMSO', Metadata_dose: '0'],
+            ]
+        }
+    }
+
     test("enumeratePlateCombos: adds project and plate_id to each platemap combo") {
 
         function "enumeratePlateCombos"
