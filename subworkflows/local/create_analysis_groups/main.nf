@@ -72,6 +72,35 @@ def addMetadataPrefix(col) {
 }
 
 //
+// Read a tab-delimited platemap file into a list of rows, one Map per well,
+// keyed by Metadata_-prefixed column names, with whitespace trimmed from names and values.
+// `limit` caps the number of rows read (0 reads all).
+// Quoted fields are supported, but escaped quotes ("") and line breaks within quotes raise an error.
+// A platemap with only a header row returns no rows.
+//
+def readPlatemap(platemap_path, limit = 0) {
+    def rows = []
+    try {
+        rows = file(platemap_path).splitCsv(sep: '\t', quote: '"', header: true, limit: limit)
+    }
+    catch (Exception e) {
+        throw new Exception(
+            "Could not parse platemap ${platemap_path}: ${e.message}\n" +
+            "Quoted fields may not contain escaped quotes (\"\") or line breaks.",
+            e
+        )
+    }
+    return rows
+        .collect { row ->
+            row.collectEntries { col, value ->
+                def name = col.trim()
+                [(name ? addMetadataPrefix(name) : name): value?.trim() ?: '']
+            }
+        }
+        .findAll { row -> row.values().any() }
+}
+
+//
 // Check the structure of a parsed analysis groups file (Tier 1 validation: anything knowable
 // from the file alone, without reading platemaps). See docs/analysis_groups_format.md.
 // Returns [errors: [...], warnings: [...]] so that every problem can be reported at once.
