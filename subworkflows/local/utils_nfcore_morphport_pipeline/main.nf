@@ -279,8 +279,8 @@ def validateInputSamplesheet(metas, partition_columns) {
 // Resolve the platemap file path for a plate from a platemaps directory tree.
 //
 // Reads {platemaps_base}/{batch}/barcode_platemap.csv to map the plate barcode
-// to a Plate_Map_Name, then returns the path to the corresponding .txt file at
-// {platemaps_base}/{batch}/platemap/{Plate_Map_Name}.txt.
+// to a Plate_Map_Name, then returns the path to the corresponding platemap file at
+// {platemaps_base}/{batch}/platemap/{Plate_Map_Name}.{txt,tsv,csv}.
 //
 // Returns the resolved platemap path as a String.
 // Throws an exception with a descriptive message if the barcode file, the plate
@@ -314,10 +314,15 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
     if (!platemap_name) {
         throw new Exception("plate '${plate_id}' not found in ${barcode_file}")
     }
-    def resolved = file("${platemaps_base}/${batch}/platemap/${platemap_name}.txt")
-    if (!resolved.exists()) {
-        throw new Exception("platemap file not found at ${resolved}")
+    def candidates = ['txt', 'tsv', 'csv'].collect { ext -> file("${platemaps_base}/${batch}/platemap/${platemap_name}.${ext}") }
+    def found = candidates.findAll { candidate -> candidate.exists() }
+    if (!found) {
+        throw new Exception("platemap file not found at ${platemaps_base}/${batch}/platemap/${platemap_name}.{txt,tsv,csv}")
     }
+    if (found.size() > 1) {
+        throw new Exception("multiple platemap files found for '${platemap_name}': ${found.join(', ')}")
+    }
+    def resolved = found[0]
     // return the resolved platemap path as a URI string for storage in the meta map
     return resolved.toUriString()
 }

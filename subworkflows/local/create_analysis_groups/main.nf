@@ -72,7 +72,23 @@ def addMetadataPrefix(col) {
 }
 
 //
-// Read a tab-delimited platemap file into a list of rows, one Map per well,
+// Return the field separator for a platemap file, based on its extension:
+// comma for .csv, tab for .tsv and .txt. Other extensions raise an error.
+// pycytominer_annotate.py uses the same rule, so both read the file identically.
+//
+def platemapSeparator(platemap_path) {
+    def extension = file(platemap_path).extension.toLowerCase()
+    if (extension == 'csv') {
+        return ','
+    }
+    if (extension in ['tsv', 'txt']) {
+        return '\t'
+    }
+    throw new Exception("Platemap ${platemap_path} must have a .csv, .tsv, or .txt extension.")
+}
+
+//
+// Read a platemap file (comma- or tab-delimited, see platemapSeparator) into a list of rows, one Map per well,
 // keyed by Metadata_-prefixed column names, with whitespace trimmed from names and values.
 // Columns with blank names and rows with only blank values are dropped.
 // Quoted fields are supported, but escaped quotes (""), line breaks within quotes,
@@ -85,9 +101,10 @@ def readPlatemap(platemap_path) {
     if (!platemap.exists()) {
         throw new Exception("Platemap file not found: ${platemap_path}")
     }
+    def sep = platemapSeparator(platemap_path)
     def lines = []
     try {
-        lines = platemap.splitCsv(sep: '\t', quote: '"')
+        lines = platemap.splitCsv(sep: sep, quote: '"')
     }
     catch (Exception e) {
         throw new Exception(
