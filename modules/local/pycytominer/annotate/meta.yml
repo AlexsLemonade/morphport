@@ -29,7 +29,7 @@ input:
         pattern: "*.parquet"
     - platemap_file:
         type: file
-        description: Tab-delimited platemap with a column matching the well identifier
+        description: Comma-delimited (.csv) or tab-delimited (.tsv, .txt) platemap with a column matching the well identifier
         pattern: "*.{tsv,txt}"
   - - platemap_well_column:
         type: string

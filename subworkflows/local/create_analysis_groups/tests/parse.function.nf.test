@@ -867,4 +867,71 @@ nextflow_function {
             assert output.contains("multiline.txt")
         }
     }
+
+    test("readPlatemap: .csv platemaps are comma-delimited, and quoted commas are kept") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'comma.csv')
+                platemap.text = 'well,"cell_line",seeding_density\\nC03,DAOY,1000\\nC04,"A673, clone 2",2000\\nC05,G401\\tx,\\n'
+                input[0] = platemap.path
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                [Metadata_well: 'C03', Metadata_cell_line: 'DAOY', Metadata_seeding_density: '1000'],
+                [Metadata_well: 'C04', Metadata_cell_line: 'A673, clone 2', Metadata_seeding_density: '2000'],
+                [Metadata_well: 'C05', Metadata_cell_line: 'G401\tx', Metadata_seeding_density: ''],
+            ]
+        }
+    }
+
+    test("readPlatemap: .tsv platemaps are tab-delimited, ignoring extension case") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'tab.TSV')
+                platemap.text = 'well\\tcell_line\\nC03\\tA673, clone 2\\n'
+                input[0] = platemap.path
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                [Metadata_well: 'C03', Metadata_cell_line: 'A673, clone 2'],
+            ]
+        }
+    }
+
+    test("readPlatemap: an unsupported extension is an error") {
+
+        function "readPlatemap"
+
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'platemap.xlsx')
+                platemap.text = 'well\\tcell_line\\nC03\\tDAOY\\n'
+                input[0] = platemap.path
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = (function.stdout + function.stderr).join('\n')
+            assert output.contains("must have a .csv, .tsv, or .txt extension")
+        }
+    }
 }
