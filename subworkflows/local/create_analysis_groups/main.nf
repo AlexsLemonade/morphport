@@ -75,8 +75,10 @@ def addMetadataPrefix(col) {
 // Read a tab-delimited platemap file into a list of rows, one Map per well,
 // keyed by Metadata_-prefixed column names, with whitespace trimmed from names and values.
 // Columns with blank names and rows with only blank values are dropped.
-// Quoted fields are supported, but escaped quotes ("") and line breaks within quotes raise an error.
-// Duplicate column names (after prefixing) and platemaps with no data rows also raise an error.
+// Quoted fields are supported, but escaped quotes (""), line breaks within quotes,
+// and any characters (including spaces) after a closing quote raise an error.
+// Duplicate column names (after prefixing), rows with more fields than the header,
+// and platemaps with no data rows also raise an error.
 //
 def readPlatemap(platemap_path) {
     def platemap = file(platemap_path)
@@ -90,7 +92,7 @@ def readPlatemap(platemap_path) {
     catch (Exception e) {
         throw new Exception(
             "Could not parse platemap ${platemap_path}: ${e.message}\n" +
-            "Check for unsupported quoting, such as escaped quotes (\"\") or line breaks within quotes.",
+            "Check for unsupported quoting: escaped quotes (\"\"), line breaks within quotes, or any characters (including spaces) after a closing quote.",
             e
         )
     }
@@ -106,8 +108,18 @@ def readPlatemap(platemap_path) {
         throw new Exception("Platemap ${platemap_path} has duplicate column names: ${duplicates.join(', ')}")
     }
 
+    // extra fields (even empty ones) would shift columns when read by pandas, so values would not match
+    def data_lines = lines.drop(1)
+    def overlong = data_lines.findAll { fields -> fields.size() > columns.size() }
+    if (overlong) {
+        throw new Exception(
+            "Platemap ${platemap_path} has ${overlong.size()} row(s) with more fields than its ${columns.size()} header columns" +
+            " (first starts with '${overlong[0][0]}')."
+        )
+    }
+
     def named_idx = columns.indices.findAll { idx -> columns[idx] }
-    def rows = lines.drop(1)
+    def rows = data_lines
         .collect { fields ->
             // fields[idx] is null for missing trailing fields
             named_idx.collectEntries { idx -> [(columns[idx]): fields[idx]?.trim() ?: ''] }
