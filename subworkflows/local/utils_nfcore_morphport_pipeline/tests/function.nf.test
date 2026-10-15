@@ -70,7 +70,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("missing the well column 'well_position'")
         }
     }

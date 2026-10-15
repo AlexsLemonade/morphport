@@ -569,7 +569,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("'bad name'")
             assert output.contains("'no_groups'")
         }
@@ -713,7 +713,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("duplicate column names")
             assert output.contains("Metadata_treatment")
         }
@@ -735,7 +735,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("has no data rows")
         }
     }
@@ -756,7 +756,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("more fields than its 2 header columns")
             assert output.contains("first starts with 'A03'")
         }
@@ -778,7 +778,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("Could not parse platemap")
             assert output.contains("after a closing quote")
         }
@@ -800,7 +800,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("has no data rows")
         }
     }
@@ -819,7 +819,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("Platemap file not found")
         }
     }
@@ -840,7 +840,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("Could not parse platemap")
             assert output.contains("escaped_quote.txt")
         }
@@ -862,7 +862,7 @@ nextflow_function {
 
         then {
             assert function.failed
-            def output = function.stdout.join('\n')
+            def output = (function.stdout + function.stderr).join('\n')
             assert output.contains("Could not parse platemap")
             assert output.contains("multiline.txt")
         }

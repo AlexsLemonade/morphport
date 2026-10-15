@@ -96,8 +96,8 @@ nextflow_workflow {
 
         then {
             assert workflow.failed
-            assert workflow.stdout.any { line -> line.contains("Analysis groups validation failed") }
-            assert workflow.stdout.any { line -> line.contains("Grouping 'wildtype_only'") }
+            assert (workflow.stdout + workflow.stderr).any { line -> line.contains("Analysis groups validation failed") }
+            assert (workflow.stdout + workflow.stderr).any { line -> line.contains("Grouping 'wildtype_only'") }
             assert workflow.out.samplesheet == []
             assert workflow.out.analysis_groups == []
         }
@@ -133,8 +133,8 @@ nextflow_workflow {
 
         then {
             assert workflow.failed
-            assert workflow.stdout.any { line -> line.contains("Analysis groups validation failed") }
-            assert workflow.stdout.any { line -> line.contains("output tag 'cell__by_allele__gene_allele=mutant_allele'") }
+            assert (workflow.stdout + workflow.stderr).any { line -> line.contains("Analysis groups validation failed") }
+            assert (workflow.stdout + workflow.stderr).any { line -> line.contains("output tag 'cell__by_allele__gene_allele=mutant_allele'") }
             assert workflow.out.samplesheet == []
             assert workflow.out.analysis_groups == []
         }

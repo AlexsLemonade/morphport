@@ -262,7 +262,7 @@ nextflow_workflow {
 
         then {
             assert workflow.failed
-            assert workflow.stdout.any { line -> line.contains("no analysis groups lookup entry for cell partition") }
+            assert (workflow.stdout + workflow.stderr).any { line -> line.contains("no analysis groups lookup entry for cell partition") }
         }
     }
 }
