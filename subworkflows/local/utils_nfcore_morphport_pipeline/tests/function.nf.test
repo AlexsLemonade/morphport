@@ -29,4 +29,23 @@ nextflow_function {
             assert function.result == ['Metadata_treatment', 'Metadata_dose', 'Metadata_extra']
         }
     }
+
+    test("parsePlatemapColumns: a blank first row does not affect the columns") {
+
+        function "parsePlatemapColumns"
+
+        when {
+            function {
+                """
+                input[0] = '${projectDir}/subworkflows/local/create_analysis_groups/tests/platemaps/blank_first_row.txt'
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == ['Metadata_treatment', 'Metadata_dose']
+        }
+    }
 }

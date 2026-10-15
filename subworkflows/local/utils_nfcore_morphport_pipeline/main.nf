@@ -250,7 +250,15 @@ def validateInputSamplesheet(metas, partition_columns) {
 
         // read platemap columns so they travel with meta through the pipeline;
         // partition columns are always included even if absent from this platemap
-        def platemap_cols = platemap_path ? parsePlatemapColumns(platemap_path, params.platemap_well_column, partition_columns) : []
+        def platemap_cols = []
+        if (platemap_path) {
+            try {
+                platemap_cols = parsePlatemapColumns(platemap_path, params.platemap_well_column, partition_columns)
+            }
+            catch (Exception e) {
+                errors << "Plate '${meta.plate_id}': ${e.message}"
+            }
+        }
 
         // update and return
         meta + [plate_dir: plate_dir, platemap_file: platemap_path, plate_metadata_columns: platemap_cols]
@@ -322,11 +330,11 @@ def resolvePlatemapFromDir(plate_id, batch, platemaps_base) {
 // happens to omit them.
 //
 def parsePlatemapColumns(platemap_path, platemap_well_column, extra_columns = []) {
-    // read only the first well; its keys are the (Metadata_-prefixed) platemap columns
-    def rows = readPlatemap(platemap_path, 1)
+    // every row has the same keys: the (Metadata_-prefixed) platemap columns
+    def rows = readPlatemap(platemap_path)
     def well_column = addMetadataPrefix(platemap_well_column)
-    def header_cols = (rows ? rows[0].keySet() as List : [])
-        .findAll { col -> col && col != well_column }
+    def header_cols = (rows[0].keySet() as List)
+        .findAll { col -> col != well_column }
     return (header_cols + extra_columns).unique()
 }
 
