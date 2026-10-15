@@ -703,18 +703,19 @@ def enumeratePlateCombos(meta, platemap_combos) {
 //
 // Parse the columns from a platemap file, excluding the well column.
 // Returns a list of column names with "Metadata_" prefix added if not already present.
+// The platemap is read with readPlatemap, so its checks apply; a missing well column is also an error.
 //
 def parsePlatemapColumns(platemap_path, platemap_well_column) {
-    // read only the header line of the platemap file
-    def text = file(platemap_path).newReader().readLine()
-    // strip UTF-8 BOM if present
-    if (text.startsWith('\uFEFF')) text = text.substring(1)
-
-    def header_cols = text.split('\t')
-        .collect { it -> it.trim() }
-        .findAll { it -> it && it != platemap_well_column }
-        .collect { it -> addMetadataPrefix(it) }
-    return header_cols.unique()
+    // every row has the same keys: the (Metadata_-prefixed) platemap columns
+    def rows = readPlatemap(platemap_path)
+    def columns = rows[0].keySet() as List
+    def well_column = addMetadataPrefix(platemap_well_column)
+    if (!(well_column in columns)) {
+        throw new Exception(
+            "Platemap ${platemap_path} is missing the well column '${platemap_well_column}' (set by --platemap_well_column)."
+        )
+    }
+    return columns.findAll { col -> col != well_column }
 }
 
 //
