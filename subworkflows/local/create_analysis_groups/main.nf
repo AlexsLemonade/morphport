@@ -15,7 +15,7 @@
 // those combos and for output tag collisions.
 // Errors abort the run here: structural errors in the file are raised by parseGroupings while
 // the workflow is being built, and the samplesheet is only emitted once the data checks pass,
-// so no process is submitted with a bad groups file. Platemaps are read only once.
+// so no process is submitted with a bad groups file. Each platemap file is processed once.
 //
 workflow CREATE_ANALYSIS_GROUPS {
     take:
