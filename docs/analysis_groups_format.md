@@ -1,7 +1,6 @@
 # Analysis groups file format
 
 This document specifies the format of the analysis groups file (`--analysis_groups_file`), which defines how partitioned data are combined into groups for downstream analysis.
-The format was designed in [issue #50](https://github.com/AlexsLemonade/morphport/issues/50) and implemented in [issue #51](https://github.com/AlexsLemonade/morphport/issues/51), replacing a previous format in which each grouping was a comma-separated list of columns.
 A complete example is in [`assets/analysis_groups_example.yaml`](../assets/analysis_groups_example.yaml).
 
 ## Top-level structure
@@ -114,7 +113,7 @@ A list of values that deliberately produce or join **no** group under this group
 Distinct from `always_include`'s counterpart concept in one direction only: `excluded` removes a value from consideration entirely for this grouping, it does not mean "form its own group but exclude it from others."
 This is primarily designed to capture values that are excluded from groupings, such as drugs for which no MoA is defined, so that we can catch errors quickly when there are values that are not listed in the grouping sets but _should_ have been.
 
-### The accounting rule for named `groups`
+### Accounting for all grouping values
 
 When `groups` is an explicit name → value-set mapping, every value observed in the data for that grouping column **must** appear in at least one of: a named group, `always_include`, or `excluded`.
 A value that appears in none of these is an **error**, not a warning — the pipeline should fail rather than silently produce an incomplete or surprising set of groups.
@@ -186,50 +185,6 @@ With `groups: all_values`, it yields one group per subgroup value, each pooling 
 - **An `always_include` value missing from a subgroup is an error.** If a cell line has no DMSO wells, its groups would silently lack the shared control the grouping asked for. This is checked per subgroup, against observed values (Tier 2).
 - **`excluded` and the accounting rule apply across all subgroups combined.** They are statements about values of `grouping_column`, regardless of subgroup: a value is accounted for if it is named anywhere in the grouping, and need not appear in every subgroup. A named group that happens to have no members in a particular subgroup simply produces no group for that subgroup.
 - **Subgroup columns behave like grouping columns when absent from a platemap.** Rows from a plate whose platemap omits a `subgroup_columns` column form an `_Absent_` subgroup, the same graceful degradation as `grouping_column`, rather than being dropped as `filter` would.
-
-## Partitioning
-
-`PARTITION_CONDITIONS` splits plate data by the union of every grouping's `grouping_column`, `subgroup_columns`, **and every column named in any grouping's `filter`**, across every level and `default` (computed by `groupingPartitionColumns`).
-
-Restricting each grouping to a single grouping column does not restrict partitioning to a single column: the same fine-grained partitions are still shared and recombined across every grouping, however many distinct columns are in use across the file.
-
-## How errors are raised
-
-The checks above split into two tiers by what they need to know, and the tiers fail at different points in the run.
-Functions named here and the `CREATE_ANALYSIS_GROUPS` subworkflow are in `subworkflows/local/create_analysis_groups/main.nf`; it is called from the `PIPELINE_INITIALISATION` workflow in `subworkflows/local/utils_nfcore_morphport_pipeline/main.nf`.
-
-### Tier 1: structural — knowable from the file alone
-
-Checked by `validateGroupingStructure` and raised from `parseGroupings`, which runs in the workflow body rather than inside a channel operator, so `error()` there aborts before any process is submitted.
-This is the same idiom as the cross-parameter checks (e.g. `feature_select_operations`, `clustering_linkage_method`) just above it.
-
-- malformed shapes (`filter` not a map, values not lists, `subgroup_columns` not a list, `groups` not `one_per_value`, `all_values`, or a mapping)
-- missing required keys, including `name`
-- duplicate grouping names within a level (including `default` grouping entries, even if identical)
-- grouping names containing characters other than letters, digits, `_`, and `-`
-- `filter` naming the grouping's own `grouping_column`
-- `subgroup_columns` naming the grouping's own `grouping_column`
-- a value listed in both `always_include` and `excluded`
-- a value listed in both `always_include` and a named group
-
-`always_include` used with `groups: all_values` is also detected here, but as a warning (`log.warn`) rather than an error, since it does no harm.
-
-### Tier 2: data-dependent — needs observed values
-
-The accounting rule, the zero-match filter check, the missing-filter-column check, the per-subgroup `always_include` check, and the check for `always_include` values removed by `filter` all need the set of values actually present in the platemaps.
-They are implemented in `validateGroupingsAgainstData`, which returns every problem found.
-A `grouping_column` or `subgroup_columns` entry missing from a plate's platemap (after `filter`) is reported by `missingGroupingColumns` as a warning rather than an error.
-A column may legitimately be absent from some plates, but a typo would otherwise put every row in a single `_Absent_` group without notice.
-
-These checks run in `CREATE_ANALYSIS_GROUPS`, on the list of samplesheet entries returned by `validateInputSamplesheet`.
-That list has every resolved `platemap_file`, and the subworkflow only emits the samplesheet once the checks pass, so nothing has launched yet when it raises.
-It enumerates each plate's condition combos once with `enumeratePlateCombos`, checks them, and passes them on to `buildAnalysisGroups` to build `ch_analysis_groups`.
-Checking any later would be too late to avoid wasted work: `ch_samplesheet` feeds the CytoTable processes directly, so on AWS Batch a typo in the groups file would cost real compute before it surfaced.
-
-### Message style
-
-Errors name the offending grouping by its `name`.
-All problems are collected and reported together, as `validateInputSamplesheet` does with its `errors` list, rather than failing on the first one — a groups file with three typos reports three.
 
 ## Full example
 
