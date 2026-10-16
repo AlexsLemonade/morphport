@@ -28,8 +28,11 @@ input:
   - - meta:
         type: map
         description: |
-          Group key map from createGroupChannels, e.g.,
-          [ aggregate_level:'cell', grouping_columns:['Metadata_treatment'], Metadata_treatment:'drugA' ]
+          Group meta map from createGroupChannels, e.g.,
+          [ project:'cpg0016', aggregate_level:'cell', grouping_name:'treatment',
+            grouping_column:'Metadata_treatment', group:'drugA', subgroup_values:[:],
+            group_id:'treatment=drugA',
+            group_tag:'cell__treatment__treatment=drugA', plate_ids:['plate_001','plate_002'] ]
     - embeddings_parquet:
         type: file
         description: PCA/UMAP embeddings parquet for this group, from compute_embeddings.
@@ -74,8 +77,8 @@ output:
           type: file
           description: |
             One row per leaf with columns leaf_id, leaf_order (position in the
-            dendrogram), label, and the grouping and identifying metadata
-            columns present in the embeddings parquet.
+            dendrogram), label, and the grouping column, subgroup columns, and
+            identifying metadata columns present in the embeddings parquet.
             Empty (zero rows) for skipped groups.
           pattern: "clustering_leaves_*.parquet"
       - "clustering_summary_*.json":

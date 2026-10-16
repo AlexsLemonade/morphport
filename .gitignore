@@ -11,6 +11,7 @@ null/
 
 # keep updates to .gitignore below to prevent linting error
 .nf-test
+.nf-test-*.nf
 .nf-test.log
 stub/results/
 

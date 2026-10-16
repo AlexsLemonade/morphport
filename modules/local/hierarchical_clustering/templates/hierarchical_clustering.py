@@ -134,8 +134,9 @@ def main():
     # ---- Capture Nextflow variables ----------------------------------------
     embeddings_parquet = "${embeddings_parquet}"
     summary_json = "${summary_json}"
-    group_tag = "${group_tag}"
-    aggregate_level = "${meta.aggregate_level}"
+    # raw string so JSON escapes in metadata values survive
+    group_meta = json.loads(r"""${meta_json}""")
+    group_tag = group_meta["group_tag"]
     linkage_method = "${linkage_method}"
     distance_metric = "${distance_metric}"
     max_samples = int("${max_samples}")
@@ -145,14 +146,19 @@ def main():
     clustering_summary_json = f"clustering_summary_{group_tag}.json"
 
     validate_clustering_params(linkage_method, distance_metric, max_samples)
+    # written up front so skipped groups report versions too
+    write_versions(task_process)
 
-    grouping_info = json.loads("""${grouping_info}""")
-    grouping_values = grouping_info["grouping_values"]
+    grouping_column = group_meta["grouping_column"]
+    subgroup_values = group_meta["subgroup_values"]
 
     summary = {
         "group_tag": group_tag,
-        "aggregate_level": aggregate_level,
-        "grouping_values": grouping_values,
+        "aggregate_level": group_meta["aggregate_level"],
+        "grouping_name": group_meta["grouping_name"],
+        "grouping_column": grouping_column,
+        "group": group_meta["group"],
+        "subgroup_values": subgroup_values,
         "method": linkage_method,
         "metric": distance_metric,
     }
@@ -168,7 +174,6 @@ def main():
             summary,
             f"upstream compute_embeddings skipped this group: {embeddings_summary.get('skip_reason', 'unknown reason')}",
         )
-        write_versions(task_process)
         return
 
     # ---- Load embeddings and select PC columns ------------------------------
@@ -182,7 +187,6 @@ def main():
             summary,
             "no PCA columns found in the embeddings parquet",
         )
-        write_versions(task_process)
         return
 
     n_samples = df.height
@@ -195,7 +199,6 @@ def main():
             summary,
             f"n_samples ({n_samples}) < 2; cannot cluster",
         )
-        write_versions(task_process)
         return
     if n_samples > max_samples:
         write_skipped(
@@ -205,11 +208,16 @@ def main():
             summary,
             f"n_samples ({n_samples}) > clustering_max_samples ({max_samples})",
         )
-        write_versions(task_process)
         return
 
     # ---- Build leaf labels + metadata ----------------------------------------
-    metadata_cols = [col for col in grouping_values] + list(ID_COLUMNS)
+    # the grouping column (absent without an analysis groups file) and subgroup columns
+    # identify each leaf's condition within the group; the ID columns identify the sample
+    metadata_cols = (
+        ([grouping_column] if grouping_column else [])
+        + list(subgroup_values)
+        + list(ID_COLUMNS)
+    )
     # de-duplicate metadata columns while preserving order with `dict.fromkeys()`
     # and filter to only those that exist in the dataframe
     metadata_cols = [col for col in dict.fromkeys(metadata_cols) if col in df.columns]
@@ -246,8 +254,6 @@ def main():
 
     with open(clustering_summary_json, "w") as f:
         json.dump(summary, f, indent=2)
-
-    write_versions(task_process)
 
 
 if __name__ == "__main__":

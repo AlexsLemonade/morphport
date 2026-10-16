@@ -22,6 +22,8 @@ The pipeline takes per-plate CellProfiler outputs through conversion, quality co
 - `COMPUTE_EMBEDDINGS`: computes PCA and UMAP embeddings.
 - `HIERARCHICAL_CLUSTERING`: performs hierarchical clustering on the resulting embeddings.
 
+Analyses performed after partitioning (feature selection, embeddings, clustering, etc.) are run on groups of experimental conditions defined by an analysis groups file (`--analysis_groups_file`); see `docs/analysis_groups_format.md`.
+
 ### `Fixed`
 
 ### `Dependencies`

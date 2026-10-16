@@ -48,8 +48,11 @@ def main():
     # ---- Capture Nextflow variables ----------------------------------------
     parquet_dir = pathlib.Path("input_parquet")
     features_file = pathlib.Path("${features_file}")
-    group_tag = "${group_tag}"
-    aggregate_level = "${meta.aggregate_level}"
+    # raw string so JSON escapes in metadata values survive
+    group_meta = json.loads(r"""${meta_json}""")
+    group_tag = group_meta["group_tag"]
+    aggregate_level = group_meta["aggregate_level"]
+    plate_ids = group_meta["plate_ids"]
     n_components_req = int("${pca_components}")
     n_neighbors = int("${umap_neighbors}")
     min_dist = float("${umap_min_dist}")
@@ -58,10 +61,6 @@ def main():
     min_rows = int("${min_rows}")
     task_cpus = int("${task.cpus}")
     task_process = "${task.process}"
-
-    grouping_info = json.loads("""${grouping_info}""")
-    grouping_values = grouping_info["grouping_values"]
-    plate_ids = grouping_info["plate_ids"]
 
     # ---- Load selected feature list ----------------------------------------
     # The upstream feature_select step writes one column name per line; the file
@@ -141,7 +140,10 @@ def main():
     summary = {
         "group_tag": group_tag,
         "aggregate_level": aggregate_level,
-        "grouping_values": grouping_values,
+        "grouping_name": group_meta["grouping_name"],
+        "grouping_column": group_meta["grouping_column"],
+        "group": group_meta["group"],
+        "subgroup_values": group_meta["subgroup_values"],
         "source_plate_ids": plate_ids,
         "n_plates": len(plate_ids),
         "n_parquets_read": len(parquet_paths),

@@ -9,6 +9,8 @@ ensures all partition columns are present and non-null.
 import json
 import sys
 from importlib.metadata import version
+from pathlib import Path
+from urllib.parse import unquote
 
 import duckdb
 
@@ -17,6 +19,27 @@ def resolve_partition_columns(partition_columns_str: str) -> list[str]:
     """Parse comma-separated column names → Metadata_-prefixed list."""
     raw = [c.strip() for c in partition_columns_str.split(",") if c.strip()]
     return [c if c.startswith("Metadata_") else f"Metadata_{c}" for c in raw]
+
+
+def partition_manifest(output_dir: Path) -> list[dict]:
+    """
+    List each Hive partition directory under output_dir (relative to it) with its exact
+    partition values. DuckDB percent-encodes values in directory names (e.g. 'drug A' ->
+    'drug%20A', including '%' itself), so the values are decoded with unquote.
+    """
+    partition_dirs = sorted(
+        {path.parent.relative_to(output_dir) for path in output_dir.rglob("*.parquet")}
+    )
+    return [
+        {
+            "path": str(partition_dir),
+            "values": {
+                col: unquote(value)
+                for col, value in (part.split("=", 1) for part in partition_dir.parts)
+            },
+        }
+        for partition_dir in partition_dirs
+    ]
 
 
 def write_versions(task_process: str):
@@ -45,6 +68,11 @@ def main():
         partition_by=partition_cols,
         filename_pattern=plate_id + "_{i}",
     )
+
+    # record each partition directory with its exact values for Nextflow to read
+    manifest = partition_manifest(Path(plate_id))
+    with open(f"partitions_{plate_id}.json", "w") as f:
+        json.dump(manifest, f, indent=2)
 
     partition_sizes = {}
     for col in partition_cols:

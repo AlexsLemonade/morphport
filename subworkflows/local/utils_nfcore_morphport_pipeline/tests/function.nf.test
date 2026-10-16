@@ -1,0 +1,62 @@
+nextflow_function {
+
+    name "Test morphport pipeline utility functions"
+    script "../main.nf"
+    tag "subworkflows"
+    tag "subworkflows_local"
+    tag "utils_nfcore_morphport_pipeline"
+
+    //
+    // resolvePlatemapFromDir
+    //
+
+    test("resolvePlatemapFromDir: finds a .csv platemap") {
+
+        function "resolvePlatemapFromDir"
+
+        when {
+            function {
+                """
+                def base = File.createTempDir('platemaps-')
+                new File(base, 'batch1/platemap').mkdirs()
+                new File(base, 'batch1/barcode_platemap.csv').text = 'Assay_Plate_Barcode,Plate_Map_Name\\nplate1,layout1\\n'
+                new File(base, 'batch1/platemap/layout1.csv').text = 'well,cell_line\\nC03,DAOY\\n'
+                input[0] = 'plate1'
+                input[1] = 'batch1'
+                input[2] = base.path
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.endsWith('/batch1/platemap/layout1.csv')
+        }
+    }
+
+    test("resolvePlatemapFromDir: platemaps with the same name and different extensions are an error") {
+
+        function "resolvePlatemapFromDir"
+
+        when {
+            function {
+                """
+                def base = File.createTempDir('platemaps-')
+                new File(base, 'batch1/platemap').mkdirs()
+                new File(base, 'batch1/barcode_platemap.csv').text = 'Assay_Plate_Barcode,Plate_Map_Name\\nplate1,layout1\\n'
+                new File(base, 'batch1/platemap/layout1.csv').text = 'well,cell_line\\nC03,DAOY\\n'
+                new File(base, 'batch1/platemap/layout1.txt').text = 'well\\tcell_line\\nC03\\tDAOY\\n'
+                input[0] = 'plate1'
+                input[1] = 'batch1'
+                input[2] = base.path
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = (function.stdout + function.stderr).join('\n')
+            assert output.contains("multiple platemap files found for 'layout1'")
+        }
+    }
+}

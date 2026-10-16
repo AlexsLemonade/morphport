@@ -1,0 +1,563 @@
+nextflow_function {
+
+    name "Test analysis groups data validation"
+    script "../main.nf"
+    tag "subworkflows"
+    tag "subworkflows_local"
+    tag "create_analysis_groups"
+
+    //
+    // validateGroupingsAgainstData
+    //
+
+    test("validateGroupingsAgainstData: valid groupings produce no errors") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def combo = { plate, treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
+                }
+                def grouping = { name, col, groups, extra ->
+                    [
+                        name: name,
+                        grouping_column: col,
+                        groups: groups,
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [
+                        grouping.call('moa', 'Metadata_treatment', [kinase_inhibitor: ['drugA']], [always_include: ['DMSO'], excluded: ['drugE']]),
+                        grouping.call('by_line', 'Metadata_treatment', 'one_per_value', [always_include: ['DMSO'], subgroup_columns: ['Metadata_cell_type']]),
+                        grouping.call('untreated', 'Metadata_cell_type', 'one_per_value', [filter: [Metadata_treatment: ['DMSO']]]),
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    combo.call('p1', 'DMSO', 'lineA'),
+                    combo.call('p1', 'drugA', 'lineA'),
+                    combo.call('p2', 'DMSO', 'lineB'),
+                    combo.call('p2', 'drugE', 'lineB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    test("validateGroupingsAgainstData: named groups must account for every observed value") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'moa',
+                            grouping_column: 'Metadata_treatment',
+                            groups: [kinase_inhibitor: ['drugA']],
+                            always_include: ['DMSO'],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = ['DMSO', 'drugA', 'drugF', 'drugG'].collect { treatment ->
+                    [Metadata_treatment: treatment, project: 'demo', plate_id: 'p1']
+                }
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'moa'")
+            assert function.result[0].contains('drugF')
+            assert function.result[0].contains('drugG')
+        }
+    }
+
+    test("validateGroupingsAgainstData: values removed by the filter need not be accounted for") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'moa_24h',
+                            grouping_column: 'Metadata_treatment',
+                            groups: [kinase_inhibitor: ['drugA']],
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_timepoint: ['24h']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', Metadata_timepoint: '24h', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'drugF', Metadata_timepoint: '48h', project: 'demo', plate_id: 'p1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    test("validateGroupingsAgainstData: a filter matching no rows is an error") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'typo',
+                            grouping_column: 'Metadata_cell_type',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_treatment: ['DSMO']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [[Metadata_cell_type: 'lineA', Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'p1']]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'typo'")
+            assert function.result[0].contains('no rows')
+        }
+    }
+
+    test("validateGroupingsAgainstData: a filter column missing from a platemap is an error naming the plate") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'untreated',
+                            grouping_column: 'Metadata_cell_type',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_treatment: ['DMSO']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_cell_type: 'lineA', Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'p1'],
+                    [Metadata_cell_type: 'lineB', Metadata_treatment: '_Absent_', project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'untreated'")
+            assert function.result[0].contains('Metadata_treatment')
+            assert function.result[0].contains('p2')
+            assert !function.result[0].contains('p1')
+        }
+    }
+
+    test("missingGroupingColumns: grouping and subgroup columns missing from a platemap are reported per plate") {
+
+        function "missingGroupingColumns"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'by_treatment',
+                            grouping_column: 'Metadata_treatment',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: ['Metadata_cell_type'],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', Metadata_cell_type: 'lineA', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: '_Absent_', Metadata_cell_type: 'lineA', project: 'demo', plate_id: 'p2'],
+                    [Metadata_treatment: 'drugA', Metadata_cell_type: '_Absent_', project: 'demo', plate_id: 'p3'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 2
+            assert function.result[0].contains("'Metadata_treatment'")
+            assert function.result[0].contains('p2')
+            assert !function.result[0].contains('p1')
+            assert function.result[1].contains("'Metadata_cell_type'")
+            assert function.result[1].contains('p3')
+        }
+    }
+
+    test("missingGroupingColumns: plates removed by the filter are not reported") {
+
+        function "missingGroupingColumns"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'dmso_only',
+                            grouping_column: 'Metadata_cell_type',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_treatment: ['DMSO']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_cell_type: 'lineA', Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'p1'],
+                    [Metadata_cell_type: '_Absent_', Metadata_treatment: 'drugA', project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    test("validateGroupingsAgainstData: always_include values removed by the filter are an error") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'treatment_24h',
+                            grouping_column: 'Metadata_treatment',
+                            groups: 'one_per_value',
+                            always_include: ['DMSO'],
+                            excluded: [],
+                            filter: [Metadata_timepoint: ['24h']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', Metadata_timepoint: '24h', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'DMSO', Metadata_timepoint: '48h', project: 'demo', plate_id: 'p1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'treatment_24h'")
+            assert function.result[0].contains('DMSO')
+        }
+    }
+
+    test("validateGroupingsAgainstData: always_include values missing from a subgroup are an error") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def combo = { treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: 'p1']
+                }
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'by_line',
+                            grouping_column: 'Metadata_treatment',
+                            groups: 'one_per_value',
+                            always_include: ['DMSO'],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: ['Metadata_cell_type'],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    combo.call('DMSO', 'lineA'),
+                    combo.call('drugA', 'lineA'),
+                    combo.call('drugA', 'lineB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'by_line'")
+            assert function.result[0].contains('DMSO')
+            assert function.result[0].contains('lineB')
+            assert !function.result[0].contains('lineA')
+        }
+    }
+
+    test("validateGroupingsAgainstData: all problems are collected, and default groupings are reported once") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def moa = [
+                    name: 'moa',
+                    grouping_column: 'Metadata_treatment',
+                    groups: [kinase_inhibitor: ['drugA']],
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                def typo = [
+                    name: 'typo',
+                    grouping_column: 'Metadata_treatment',
+                    groups: 'one_per_value',
+                    always_include: ['DSMO'],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                // moa is a default grouping, so it appears in both levels
+                input[0] = [cell: [moa, typo], well: [moa]]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'drugF', project: 'demo', plate_id: 'p1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 2
+            assert function.result.any { err -> err.contains("'moa'") && err.contains('drugF') }
+            assert function.result.any { err -> err.contains("'typo'") && err.contains('DSMO') }
+        }
+    }
+
+    test("validateGroupingsAgainstData: the no-file grouping is always valid") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def all_grouping = [
+                    name: 'all',
+                    grouping_column: null,
+                    groups: 'all_values',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                ]
+                input[0] = [cell: [all_grouping], well: [all_grouping]]
+                input[1] = [[project: 'demo', plate_id: 'p1']]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    //
+    // validateGroupTags
+    //
+
+    test("validateGroupTags: distinct groups that share an output tag are an error") {
+
+        function "validateGroupTags"
+
+        when {
+            function {
+                """
+                def group_meta = { project, group, tag ->
+                    [
+                        project: project,
+                        aggregate_level: 'cell',
+                        grouping_name: 'moa',
+                        grouping_column: 'Metadata_treatment',
+                        group: group,
+                        subgroup_values: [:],
+                        group_id: "treatment=\${group}".toString(),
+                        group_tag: tag,
+                    ]
+                }
+                def tag = 'cell__moa__treatment=kinase_inhibitor'
+                def space = group_meta.call('demo', 'kinase inhibitor', tag)
+                def slash = group_meta.call('demo', 'kinase/inhibitor', tag)
+                def underscore = group_meta.call('demo', 'kinase_inhibitor', tag)
+                input[0] = [
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drugA', project: 'demo']: [[space, 2], [slash, 2]],
+                        [Metadata_treatment: 'drugB', project: 'demo']: [[slash, 2], [underscore, 1]],
+                    ],
+                    well: [:],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                "Grouping 'moa': groups [treatment=kinase inhibitor, treatment=kinase/inhibitor, treatment=kinase_inhibitor]" +
+                    " in project 'demo' would all be written with the output tag 'cell__moa__treatment=kinase_inhibitor'." +
+                    " Output tags keep only letters, digits, '.', '_', '=', and '-', so rename groups or values that differ only in other characters.",
+            ]
+        }
+    }
+
+    test("validateGroupTags: the same tag in different projects or levels is allowed") {
+
+        function "validateGroupTags"
+
+        when {
+            function {
+                """
+                def group_meta = { project, group, tag ->
+                    [
+                        project: project,
+                        aggregate_level: 'cell',
+                        grouping_name: 'moa',
+                        grouping_column: 'Metadata_treatment',
+                        group: group,
+                        subgroup_values: [:],
+                        group_id: "treatment=\${group}".toString(),
+                        group_tag: tag,
+                    ]
+                }
+                def demo = group_meta.call('demo', 'drug A', 'cell__moa__treatment=drug_A')
+                def other = group_meta.call('other', 'drug A', 'cell__moa__treatment=drug_A')
+                def well = demo + [aggregate_level: 'well', group_tag: 'well__moa__treatment=drug_A']
+                input[0] = [
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drug A', project: 'demo']: [[demo, 1]],
+                        [Metadata_treatment: 'drug A', project: 'other']: [[other, 1]],
+                    ],
+                    well: [
+                        [Metadata_treatment: 'drug A', project: 'demo']: [[well, 1]],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    test("validateGroupTags: one_per_value values that differ only in removed characters are an error") {
+
+        function "validateGroupTags"
+
+        when {
+            function {
+                """
+                def group_meta = { project, group, tag ->
+                    [
+                        project: project,
+                        aggregate_level: 'cell',
+                        grouping_name: 'moa',
+                        grouping_column: 'Metadata_treatment',
+                        group: group,
+                        subgroup_values: [:],
+                        group_id: "treatment=\${group}".toString(),
+                        group_tag: tag,
+                    ]
+                }
+                def spaced = group_meta.call('demo', 'drug A', 'cell__moa__treatment=drug_A')
+                def underscored = group_meta.call('demo', 'drug_A', 'cell__moa__treatment=drug_A')
+                def other = group_meta.call('demo', 'drugB', 'cell__moa__treatment=drugB')
+                input[0] = [
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drug A', project: 'demo']: [[spaced, 1]],
+                        [Metadata_treatment: 'drug_A', project: 'demo']: [[underscored, 1]],
+                        [Metadata_treatment: 'drugB', project: 'demo']: [[other, 1]],
+                    ],
+                    well: [:],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("groups [treatment=drug A, treatment=drug_A]")
+            assert function.result[0].contains("output tag 'cell__moa__treatment=drug_A'")
+        }
+    }
+}

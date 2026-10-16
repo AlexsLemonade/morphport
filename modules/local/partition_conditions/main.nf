@@ -11,15 +11,15 @@ process PARTITION_CONDITIONS {
     }
 
     input:
-    tuple val(meta), path(parquet_file), val(analysis_groups)
+    tuple val(meta), path(parquet_file), val(partition_columns)
 
     output:
-    tuple val(meta), path("${meta.plate_id}"),         emit: partitions
+    tuple val(meta), path("${meta.plate_id}"), path("partitions_${meta.plate_id}.json"), emit: partitions
     path "platemap_summary_${meta.plate_id}.json",     emit: summary
     path "versions.yml",                               emit: versions, topic: versions
 
     script:
-    partition_columns_str = (analysis_groups.partition_columns as List).join(',')
+    partition_columns_str = (partition_columns as List).join(',')
     template 'partition_conditions.py'
 
     stub:
@@ -27,11 +27,15 @@ process PARTITION_CONDITIONS {
     // This matches what enumeratePlatemapCombos predicts for a column missing from the platemap,
     // so the stub setup pairs with an analysis_groups file that references columns absent
     // from the stub platemaps — no need to read the platemap here.
-    condition_cols = analysis_groups.partition_columns as List
+    condition_cols = partition_columns as List
     stub_path = condition_cols.collect { col -> "${col}=_Absent_" }.join('/')
+    stub_manifest = groovy.json.JsonOutput.toJson([
+        [path: stub_path, values: condition_cols.collectEntries { col -> [(col): '_Absent_'] }]
+    ])
     """
     mkdir -p "${meta.plate_id}/${stub_path}"
     touch "${meta.plate_id}/${stub_path}/${meta.plate_id}_0.parquet"
+    echo '${stub_manifest}' > partitions_${meta.plate_id}.json
 
     cat <<-END_JSON > platemap_summary_${meta.plate_id}.json
     {

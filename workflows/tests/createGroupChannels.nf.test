@@ -6,7 +6,7 @@ nextflow_workflow {
     tag "workflows"
     tag "workflows_morphport"
 
-    test("createGroupChannels: groups partitions by aggregate level and grouping columns") {
+    test("createGroupChannels: routes partitions to their groups") {
 
         when {
             params {
@@ -15,17 +15,24 @@ nextflow_workflow {
             }
             workflow {
                 """
+                def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
+                    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:], group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
+                def drugB = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
+                    grouping_column: 'Metadata_treatment', group: 'drugB', subgroup_values: [:], group_id: 'treatment=drugB', group_tag: 'cell__by_treatment__treatment=drugB']
                 input[0] = Channel.of(
                     [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA'], ['p1.parquet']],
                     [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA'], ['p2.parquet']],
                     [[plate_id: 'p3', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugB'], ['p3.parquet']],
                 )
                 input[1] = Channel.value([
+                    partition_columns: ['Metadata_treatment'],
                     cell: [
-                        (['Metadata_treatment']): [
-                            [Metadata_treatment: 'drugA', project: 'demo']: 2,
-                            [Metadata_treatment: 'drugB', project: 'demo']: 1,
-                        ],
+                        [Metadata_treatment: 'drugA', project: 'demo']: [[drugA, 2]],
+                        [Metadata_treatment: 'drugB', project: 'demo']: [[drugB, 1]],
+                    ],
+                    well: [
+                        [Metadata_treatment: 'drugA', project: 'demo']: [],
+                        [Metadata_treatment: 'drugB', project: 'demo']: [],
                     ],
                 ])
                 """
@@ -38,14 +45,18 @@ nextflow_workflow {
                 .collect { group_meta, metas, parquets ->
                     [group_meta, metas.collect { meta -> meta.plate_id }.sort(), parquets.sort()]
                 }
-                .sort { entry -> entry[0].toString() }
+                .sort { result -> result[0].toString() }
             assert stable == [
                 [
                     [
-                        Metadata_treatment: 'drugA',
                         project: 'demo',
                         aggregate_level: 'cell',
-                        grouping_columns: ['Metadata_treatment'],
+                        grouping_name: 'by_treatment',
+                        grouping_column: 'Metadata_treatment',
+                        group: 'drugA',
+                        subgroup_values: [:],
+                        group_id: 'treatment=drugA',
+                        group_tag: 'cell__by_treatment__treatment=drugA',
                         plate_ids: ['p1', 'p2'],
                     ],
                     ['p1', 'p2'],
@@ -53,10 +64,14 @@ nextflow_workflow {
                 ],
                 [
                     [
-                        Metadata_treatment: 'drugB',
                         project: 'demo',
                         aggregate_level: 'cell',
-                        grouping_columns: ['Metadata_treatment'],
+                        grouping_name: 'by_treatment',
+                        grouping_column: 'Metadata_treatment',
+                        group: 'drugB',
+                        subgroup_values: [:],
+                        group_id: 'treatment=drugB',
+                        group_tag: 'cell__by_treatment__treatment=drugB',
                         plate_ids: ['p3'],
                     ],
                     ['p3'],
@@ -66,7 +81,7 @@ nextflow_workflow {
         }
     }
 
-    test("createGroupChannels: unpredicted grouping value still emits via remainder") {
+    test("createGroupChannels: a partition in several groups is sent to each") {
 
         when {
             params {
@@ -74,14 +89,21 @@ nextflow_workflow {
             }
             workflow {
                 """
+                def kinase = [project: 'demo', aggregate_level: 'cell', grouping_name: 'moa',
+                    grouping_column: 'Metadata_treatment', group: 'kinase_inhibitor', subgroup_values: [:],
+                    group_id: 'treatment=kinase_inhibitor', group_tag: 'cell__moa__treatment=kinase_inhibitor']
+                def all_inhibitors = [project: 'demo', aggregate_level: 'cell', grouping_name: 'moa',
+                    grouping_column: 'Metadata_treatment', group: 'all_inhibitors', subgroup_values: [:],
+                    group_id: 'treatment=all_inhibitors', group_tag: 'cell__moa__treatment=all_inhibitors']
                 input[0] = Channel.of(
-                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugZ'], ['p1.parquet']],
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA'], ['p1_drugA.parquet']],
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugB'], ['p1_drugB.parquet']],
                 )
                 input[1] = Channel.value([
+                    partition_columns: ['Metadata_treatment'],
                     cell: [
-                        (['Metadata_treatment']): [
-                            [Metadata_treatment: 'drugA', project: 'demo']: 2,
-                        ],
+                        [Metadata_treatment: 'drugA', project: 'demo']: [[kinase, 1], [all_inhibitors, 2]],
+                        [Metadata_treatment: 'drugB', project: 'demo']: [[all_inhibitors, 2]],
                     ],
                 ])
                 """
@@ -91,22 +113,156 @@ nextflow_workflow {
         then {
             assert workflow.success
             def stable = workflow.out.result
-                .collect { group_meta, metas, parquets ->
-                    [group_meta, metas.collect { meta -> meta.plate_id }.sort(), parquets.sort()]
-                }
+                .collect { group_meta, _metas, parquets -> [group_meta.group, parquets.sort()] }
+                .sort { result -> result[0] }
             assert stable == [
-                [
-                    [
-                        Metadata_treatment: 'drugZ',
-                        project: 'demo',
-                        aggregate_level: 'cell',
-                        grouping_columns: ['Metadata_treatment'],
-                        plate_ids: ['p1'],
-                    ],
-                    ['p1'],
-                    ['p1.parquet'],
-                ],
+                ['all_inhibitors', ['p1_drugA.parquet', 'p1_drugB.parquet']],
+                ['kinase_inhibitor', ['p1_drugA.parquet']],
             ]
+        }
+    }
+
+    test("createGroupChannels: always_include partitions join every group in their subgroup") {
+
+        when {
+            params {
+                edge_well_filter = 'off'
+            }
+            workflow {
+                """
+                def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
+                    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:], group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
+                def drugB = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
+                    grouping_column: 'Metadata_treatment', group: 'drugB', subgroup_values: [:], group_id: 'treatment=drugB', group_tag: 'cell__by_treatment__treatment=drugB']
+                input[0] = Channel.of(
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA'], ['p1_drugA.parquet']],
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'DMSO'], ['p1_DMSO.parquet']],
+                    [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugB'], ['p2_drugB.parquet']],
+                    [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'DMSO'], ['p2_DMSO.parquet']],
+                )
+                input[1] = Channel.value([
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drugA', project: 'demo']: [[drugA, 3]],
+                        [Metadata_treatment: 'drugB', project: 'demo']: [[drugB, 3]],
+                        [Metadata_treatment: 'DMSO', project: 'demo']: [[drugA, 3], [drugB, 3]],
+                    ],
+                ])
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+            def stable = workflow.out.result
+                .collect { group_meta, _metas, parquets -> [group_meta.group, group_meta.plate_ids.sort(), parquets.sort()] }
+                .sort { result -> result[0] }
+            assert stable == [
+                ['drugA', ['p1', 'p1', 'p2'], ['p1_DMSO.parquet', 'p1_drugA.parquet', 'p2_DMSO.parquet']],
+                ['drugB', ['p1', 'p2', 'p2'], ['p1_DMSO.parquet', 'p2_DMSO.parquet', 'p2_drugB.parquet']],
+            ]
+        }
+    }
+
+    test("createGroupChannels: a partition in no group emits nothing") {
+
+        when {
+            params {
+                edge_well_filter = 'off'
+            }
+            workflow {
+                """
+                def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
+                    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:], group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
+                input[0] = Channel.of(
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA'], ['p1_drugA.parquet']],
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'excluded_drug'], ['p1_excluded.parquet']],
+                )
+                input[1] = Channel.value([
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drugA', project: 'demo']: [[drugA, 1]],
+                        [Metadata_treatment: 'excluded_drug', project: 'demo']: [],
+                    ],
+                ])
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+            def stable = workflow.out.result
+                .collect { group_meta, _metas, parquets -> [group_meta.group, parquets] }
+            assert stable == [
+                ['drugA', ['p1_drugA.parquet']],
+            ]
+        }
+    }
+
+    test("createGroupChannels: edge_well_filter 'both' keeps edge variants in separate groups") {
+
+        when {
+            params {
+                edge_well_filter = 'both'
+            }
+            workflow {
+                """
+                def all_cells = [project: 'demo', aggregate_level: 'cell', grouping_name: 'all',
+                    grouping_column: null, group: 'all_values', subgroup_values: [:], group_id: 'all', group_tag: 'cell__all']
+                input[0] = Channel.of(
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', edge_wells_included: true], ['p1_edges.parquet']],
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', edge_wells_included: false], ['p1_no_edges.parquet']],
+                    [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', edge_wells_included: true], ['p2_edges.parquet']],
+                    [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', edge_wells_included: false], ['p2_no_edges.parquet']],
+                )
+                input[1] = Channel.value([
+                    partition_columns: [],
+                    cell: [
+                        [project: 'demo']: [[all_cells, 2]],
+                    ],
+                ])
+                """
+            }
+        }
+
+        then {
+            assert workflow.success
+            def stable = workflow.out.result
+                .collect { group_meta, _metas, parquets -> [group_meta.edge_wells_included, group_meta.group_id, parquets.sort()] }
+                .sort { result -> result[0].toString() }
+            assert stable == [
+                [false, 'all', ['p1_no_edges.parquet', 'p2_no_edges.parquet']],
+                [true, 'all', ['p1_edges.parquet', 'p2_edges.parquet']],
+            ]
+        }
+    }
+
+    test("createGroupChannels: a partition missing from the lookup is an error") {
+
+        when {
+            params {
+                edge_well_filter = 'off'
+            }
+            workflow {
+                """
+                def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
+                    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:], group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
+                input[0] = Channel.of(
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugZ'], ['p1.parquet']],
+                )
+                input[1] = Channel.value([
+                    partition_columns: ['Metadata_treatment'],
+                    cell: [
+                        [Metadata_treatment: 'drugA', project: 'demo']: [[drugA, 1]],
+                    ],
+                ])
+                """
+            }
+        }
+
+        then {
+            assert workflow.failed
+            assert (workflow.stdout + workflow.stderr).any { line -> line.contains("no analysis groups lookup entry for cell partition") }
         }
     }
 }
