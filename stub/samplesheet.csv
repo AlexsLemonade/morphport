@@ -1,3 +1,3 @@
-plate,project,source,batch,plate_dir,platemaps_dir,platemap_file,cytotable_preset
-plate_001,test-project,test,test_batch,stub/test-project/test/workspace/backend/test_batch/plate_001,stub/test-project/test/workspace/metadata/platemaps,,cellprofiler_sqlite
-plate_002,test-project,test,test_batch,stub/test-project/test/workspace/backend/test_batch/plate_002,,stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap/platemap_002.txt,skip
+plate,project,source,batch,plate_dir,parquet_path,platemaps_dir,platemap_file,cytotable_preset
+plate_001,test-project,test,test_batch,stub/test-project/test/workspace/backend/test_batch/plate_001,,stub/test-project/test/workspace/metadata/platemaps,,cellprofiler_sqlite
+plate_002,test-project,test,test_batch,,stub/test-project/test/workspace/backend/test_batch/plate_002/*.parquet,,stub/test-project/test/workspace/metadata/platemaps/test_batch/platemap/platemap_002.txt,skip

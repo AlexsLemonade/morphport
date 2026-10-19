@@ -37,6 +37,12 @@
                 "errorMessage": "Plate directory must be a valid directory path",
                 "meta": ["plate_dir"]
             },
+            "parquet_path": {
+                "type": "string",
+                "pattern": "^\\S+\\.parquet$",
+                "errorMessage": "Parquet path must be a path or glob ending in '.parquet' and cannot contain spaces",
+                "meta": ["parquet_path"]
+            },
             "platemap_file": {
                 "type": "string",
                 "format": "file-path",
