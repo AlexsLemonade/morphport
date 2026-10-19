@@ -23,9 +23,11 @@ input:
         description: |
           Groovy Map containing plate metadata,
           e.g. [ plate_id:'plate_001', batch:'batch_1', plate_metadata_columns:['Metadata_compound','Metadata_dose'] ]
-    - parquet_file:
+    - parquet_files:
         type: file
-        description: Per-cell parquet file (e.g., from CYTOTABLE_CONVERT)
+        description: |
+          One or more per-cell parquet files for a plate (e.g., from CYTOTABLE_CONVERT).
+          Multiple files are concatenated before annotation.
         pattern: "*.parquet"
     - platemap_file:
         type: file

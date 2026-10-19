@@ -11,7 +11,7 @@ process PYCYTOMINER_ANNOTATE {
     }
 
     input:
-    tuple val(meta), path(parquet_file), path(platemap_file)
+    tuple val(meta), path(parquet_files, arity: '1..*', stageAs: 'input_parquet/part*.parquet'), path(platemap_file)
     val(platemap_well_column)
 
     output:

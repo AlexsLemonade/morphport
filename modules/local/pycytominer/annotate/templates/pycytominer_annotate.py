@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Nextflow template script to annotate a per-plate parquet file with platemap metadata using pycytominer.
+If the plate is split across multiple parquet files, they are concatenated before annotation.
 The platemap is expected to be a comma-delimited (.csv) or tab-delimited (.tsv or .txt) file
 with a column matching the well identifier in the parquet metadata (e.g. Metadata_Well).
 The delimiter is chosen by file extension, matching readPlatemap in the create_analysis_groups subworkflow.
@@ -36,7 +37,8 @@ def main():
     # capture input variables from Nextflow
     platemap_file = "${platemap_file}"
     platemap_well_column = "${platemap_well_column}"
-    parquet_file = "${parquet_file}"
+    # directory where Nextflow stages the input parquet file(s) (stageAs in main.nf)
+    parquet_dir = "input_parquet"
     plate_id = "${meta.plate_id}"
     task_process = "${task.process}"
     # merge the metadata column list during import from Nextflow to make them a string
@@ -84,7 +86,8 @@ def main():
     platemap_df = platemap_df.astype("string[pyarrow]")
 
     # Read with pyarrow so null values are preserved through pycytominer.
-    profiles_df = pd.read_parquet(parquet_file, dtype_backend="pyarrow")
+    # Reading the directory combines split parquet files into a single table.
+    profiles_df = pd.read_parquet(parquet_dir, dtype_backend="pyarrow")
 
     try:
         annotated_df = pycytominer.annotate(
