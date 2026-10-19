@@ -44,17 +44,18 @@ workflow MORPHPORT {
     ch_analysis_groups = CREATE_ANALYSIS_GROUPS.out.analysis_groups
 
     ch_validated = CREATE_ANALYSIS_GROUPS.out.samplesheet
-        .map { meta -> [meta + [aggregate_level: 'cell'], file(meta.plate_dir)] }
-        .branch { it ->
-            skip_cytotable: it[0].cytotable_preset == 'skip'
+        .map { meta -> meta + [aggregate_level: 'cell'] }
+        .branch { meta ->
+            skip_cytotable: meta.cytotable_preset == 'skip'
             convert: true
         }
 
-    ch_parquet = ch_validated.skip_cytotable.map { meta, plate_dir ->
-        [meta, file("${plate_dir}/*.parquet")[0]]
+    // when skipping CytoTable, use the existing parquet file(s) at parquet_path (may be a glob for split files)
+    ch_parquet = ch_validated.skip_cytotable.map { meta ->
+        [meta, files(meta.parquet_path)]
     }
 
-    CYTOTABLE_CONVERT(ch_validated.convert)
+    CYTOTABLE_CONVERT(ch_validated.convert.map { meta -> [meta, file(meta.sqlite_path)] })
     ch_parquet = ch_parquet.mix(CYTOTABLE_CONVERT.out.parquet)
 
     // annotate cells with metadata from the platemap

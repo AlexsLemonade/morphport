@@ -11,13 +11,13 @@ nextflow_pipeline {
         when {
             params {
                 outdir = "$outputDir"
-                // Rewrite stub/samplesheet.csv's plate_dir/platemaps_dir/platemap_file columns
+                // Rewrite stub/samplesheet.csv's sqlite_path/parquet_path/platemaps_dir/platemap_file columns
                 // to absolute paths: nf-test runs pipeline tests in an isolated launch directory,
                 // so the samplesheet's paths (relative to the repo root) would not otherwise resolve.
                 def stub_dir = new File("$projectDir/stub")
                 def rows = new File(stub_dir, 'samplesheet.csv').readLines()
                 def header = rows[0].split(',') as List
-                def path_cols = ['plate_dir', 'platemaps_dir', 'platemap_file']
+                def path_cols = ['sqlite_path', 'parquet_path', 'platemaps_dir', 'platemap_file']
                 def rewritten = [rows[0]] + rows[1..-1].collect { line ->
                     def vals = line.split(',', -1)
                     header.eachWithIndex { col, i ->
