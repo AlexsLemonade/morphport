@@ -43,8 +43,8 @@ output:
   - samplesheet:
       type: channel
       description: |
-        Channel of validated metadata maps, one per plate, with plate_dir and
-        platemap_file resolved and added to each map
+        Channel of validated metadata maps, one per plate, with sqlite_path
+        (unless cytotable_preset is 'skip') and platemap_file resolved and added to each map
   - versions:
       type: channel
       description: Channel of software versions
