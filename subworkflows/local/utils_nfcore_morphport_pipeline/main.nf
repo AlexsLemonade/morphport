@@ -171,35 +171,39 @@ def validateInputSamplesheet(metas) {
     def errors = []
 
     def validated_metas = metas.collect { meta ->
-        // resolve plate_dir for CPG projects that omit it in the samplesheet
-        def plate_dir = meta.plate_dir
-        if (!plate_dir) {
-            if (meta.project =~ /^cpg\d{4}/) {
-                plate_dir = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/backend/${meta.batch}/${meta.plate_id}"
+        def sqlite_path = meta.sqlite_path
+        if (meta.cytotable_preset == "skip") {
+            if (sqlite_path) {
+                log.warn("Plate '${meta.plate_id}': 'sqlite_path' is ignored because cytotable_preset is 'skip'")
             }
-            else {
-                errors << ("Plate '${meta.plate_id}': project '${meta.project}'" +
-                    " does not match the expected CPG format (e.g. cpg0016-jump)." +
-                    " Provide 'plate_dir' explicitly in the samplesheet.")
+            // skip cytotable conversion and read profiles from parquet_path (a path or glob for split files).
+            // There is no default: CPG profiles live at workspace/profiles/<batch>_<plate_layout>/<plate>/,
+            // and the plate layout is not in the samplesheet (it could be looked up in barcode_platemap.csv).
+            if (!meta.parquet_path) {
+                errors << ("Plate '${meta.plate_id}': cytotable_preset is 'skip'," +
+                    " so 'parquet_path' must be provided in the samplesheet.")
+            }
+            else if (!files(meta.parquet_path).any { f -> f.exists() }) {
+                errors << "No parquet file found for plate '${meta.plate_id}' at ${meta.parquet_path}"
             }
         }
-        // check that plate directories contain the expected files
-        if (plate_dir) {
-            if (meta.cytotable_preset.contains("sqlite")) {
-                def sqlite_files = file("${plate_dir}/*.sqlite")
-                if (sqlite_files.isEmpty()) {
-                    errors << "No sqlite file found for plate '${meta.plate_id}' at ${plate_dir}"
+        else {
+            if (meta.parquet_path) {
+                log.warn("Plate '${meta.plate_id}': 'parquet_path' is ignored because cytotable_preset is '${meta.cytotable_preset}'")
+            }
+            // resolve sqlite_path for CPG projects that omit it in the samplesheet
+            if (!sqlite_path) {
+                if (meta.project =~ /^cpg\d{4}/) {
+                    sqlite_path = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/backend/${meta.batch}/${meta.plate_id}/${meta.plate_id}.sqlite"
+                }
+                else {
+                    errors << ("Plate '${meta.plate_id}': project '${meta.project}'" +
+                        " does not match the expected CPG format (e.g. cpg0016-jump)." +
+                        " Provide 'sqlite_path' explicitly in the samplesheet.")
                 }
             }
-            else if (meta.cytotable_preset == "skip") {
-                // skip cytotable conversion, but check that we have one parquet file for later steps
-                def parquet_files = file("${plate_dir}/*.parquet")
-                if (parquet_files.isEmpty()) {
-                    errors << "No parquet file found for plate '${meta.plate_id}' at ${plate_dir}"
-                }
-                else if (parquet_files.size() > 1) {
-                    errors << "Multiple parquet files found for plate '${meta.plate_id}' at ${plate_dir}: ${parquet_files.collect { f -> f.name }.join(', ')}"
-                }
+            if (sqlite_path && !file(sqlite_path).exists()) {
+                errors << "No sqlite file found for plate '${meta.plate_id}' at ${sqlite_path}"
             }
         }
 
@@ -230,7 +234,7 @@ def validateInputSamplesheet(metas) {
 
         // update and return
         // (CREATE_ANALYSIS_GROUPS adds plate_metadata_columns from the platemap)
-        meta + [plate_dir: plate_dir, platemap_file: platemap_path]
+        meta + [sqlite_path: sqlite_path, platemap_file: platemap_path]
     }
 
     if (errors) {

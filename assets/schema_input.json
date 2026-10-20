@@ -31,11 +31,18 @@
                 "errorMessage": "Batch name must be provided and cannot contain spaces",
                 "meta": ["batch"]
             },
-            "plate_dir": {
+            "sqlite_path": {
                 "type": "string",
-                "format": "directory-path",
-                "errorMessage": "Plate directory must be a valid directory path",
-                "meta": ["plate_dir"]
+                "format": "file-path",
+                "pattern": "^[^\\s*?]+\\.sqlite$",
+                "errorMessage": "SQLite path must be a single file path ending in '.sqlite' and cannot contain spaces or wildcards",
+                "meta": ["sqlite_path"]
+            },
+            "parquet_path": {
+                "type": "string",
+                "pattern": "^\\S+\\.parquet$",
+                "errorMessage": "Parquet path must be a path or glob ending in '.parquet' and cannot contain spaces",
+                "meta": ["parquet_path"]
             },
             "platemap_file": {
                 "type": "string",

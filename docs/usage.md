@@ -50,6 +50,13 @@ TREATMENT_REP3,AEG588A6_S6_L004_R1_001.fastq.gz,
 
 An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
 
+### Plate-level metadata
+
+The samplesheet only identifies each plate and its input files; any other columns are ignored.
+Following CPG conventions (as we understand them) additional metadata should be included as a column in the platemap, even if every well on a plate has the same value.
+Plates that share a layout but differ in such a value (for example, the same layout imaged at 24 and 48 hours) need separate platemap files.
+All platemap columns are added to the annotated profiles as `Metadata_`-prefixed columns and can be used in the [analysis groups file](analysis_groups_format.md).
+
 ## Running the pipeline
 
 The typical command for running the pipeline is as follows:
