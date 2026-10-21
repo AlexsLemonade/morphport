@@ -1,0 +1,23 @@
+# Analysis groups for the synthetic test data; see docs/analysis_groups_format.md for the format.
+# Platemap columns: cell_line, seeding_density, condition, time_point
+default:
+  # Each cell line across all seeding densities and time points
+  - name: cell_line
+    grouping_column: cell_line
+    groups: one_per_value
+cell:
+  # The U2-OS anchor cell line, present on every plate
+  - name: u2os_anchor
+    grouping_column: time_point
+    filter:
+      cell_line: [U2-OS]
+    groups: all_values
+well:
+  # All cell lines together
+  - name: all_cell_lines
+    grouping_column: cell_line
+    groups: all_values
+  # Each time point across all cell lines
+  - name: time_point
+    grouping_column: time_point
+    groups: one_per_value
