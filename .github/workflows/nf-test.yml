@@ -90,6 +90,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      # synthetic test profiles are not tracked by git (see tests/data/README.md)
+      - name: Generate test data
+        run: uv run scripts/generate_test_data.py
+
       - name: Run nf-test
         id: run_nf_test
         uses: ./.github/actions/nf-test
