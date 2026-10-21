@@ -182,6 +182,11 @@ def main() -> None:
     rng = np.random.default_rng(args.seed)
     for sample in samples:
         plate_id = sample["plate"]
+        # each plate's profiles are written to a single file, so parquet_path cannot be a glob
+        if any(c in sample["parquet_path"] for c in "*?["):
+            raise ValueError(
+                f"parquet_path for plate {plate_id} must be a single file, not a glob: {sample['parquet_path']}"
+            )
         wells = read_wells(find_platemap(sample))
         profiles = simulate_plate(plate_id, wells, rng)
         parquet_path = args.output_dir / sample["parquet_path"]

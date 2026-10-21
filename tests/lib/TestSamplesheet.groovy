@@ -7,9 +7,10 @@ class TestSamplesheet {
     static final List<String> PATH_COLUMNS = ['sqlite_path', 'parquet_path', 'platemaps_dir', 'platemap_file']
 
     //
-    // Write a copy of a samplesheet to out_dir with its path columns made absolute, and return the copy's path.
+    // Write a copy of a samplesheet to out_dir with its relative path columns made absolute, and return the copy's path.
     // Samplesheet paths are relative to the repo root (the usual launch directory),
     // but nf-test runs pipeline tests in an isolated launch directory, where they would not otherwise resolve.
+    // Absolute paths and URIs (e.g. s3://) are left unchanged.
     //
     static String withAbsolutePaths(String samplesheet, String project_dir, String out_dir) {
         def rows = new File(samplesheet).readLines()
@@ -17,7 +18,7 @@ class TestSamplesheet {
         def rewritten = [rows[0]] + rows[1..-1].collect { line ->
             def vals = line.split(',', -1)
             header.eachWithIndex { col, i ->
-                if (col in PATH_COLUMNS && vals[i]) {
+                if (col in PATH_COLUMNS && vals[i] && !new File(vals[i]).isAbsolute() && !(vals[i] =~ /^[A-Za-z][\w+.-]*:\/\//)) {
                     vals[i] = new File(project_dir, vals[i]).path
                 }
             }
