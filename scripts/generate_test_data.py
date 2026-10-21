@@ -4,7 +4,7 @@
 # dependencies = [
 #     "numpy==2.3.3",
 #     "pandas==2.3.3",
-#     "pyarrow==21.0.0",
+#     "pyarrow==22.0.0",
 # ]
 # ///
 """
