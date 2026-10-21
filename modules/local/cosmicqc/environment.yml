@@ -10,5 +10,5 @@ dependencies:
   - libxcb
   - pip
   - pip:
-      - cosmicqc==1.0.2
+      - cosmicqc==1.1.2
       - tabulate
