@@ -26,11 +26,11 @@ To change the test data, edit the samplesheet and platemaps, then rerun the scri
 
 ## Running the pipeline
 
+The `test` profile uses this samplesheet and analysis groups file.
 From the repository root:
 
 ```bash
-nextflow run . -profile docker \
-    --input tests/data/samplesheet.csv \
-    --analysis_groups_file tests/data/analysis_groups.yml \
-    --outdir results/test-data
+nextflow run . -profile test,docker --outdir results/test-data
 ```
+
+The `-profile test` nf-test in `tests/default.nf.test` also runs the pipeline on these data.
