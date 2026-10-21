@@ -4,6 +4,33 @@ nextflow_pipeline {
     script "../main.nf"
     tag "pipeline"
 
+    test("-profile test") {
+
+        when {
+            params {
+                outdir = "$outputDir"
+                // synthetic data from scripts/generate_test_data.py (see tests/data/README.md)
+                input = TestSamplesheet.withAbsolutePaths("$projectDir/tests/data/samplesheet.csv", "$projectDir", "$launchDir")
+            }
+        }
+
+        then {
+            // stable_path: All files + folders in ${params.outdir}/ with a stable path (including file name)
+            // File contents are not snapshotted: numeric results (normalization, embeddings, clustering)
+            // can vary slightly across platforms and container engines.
+            def stable_path = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            assert workflow.success
+            assertAll(
+                { assert snapshot(
+                    // pipeline versions.yml file from which Nextflow version is removed because we test pipelines on multiple Nextflow versions
+                    removeNextflowVersion("$outputDir/pipeline_info/morphport_software_versions.yml"),
+                    // All stable path name, with a relative path
+                    stable_path
+                ).match() }
+            )
+        }
+    }
+
     test("-profile test -stub") {
 
         options "-stub"
@@ -11,25 +38,7 @@ nextflow_pipeline {
         when {
             params {
                 outdir = "$outputDir"
-                // Rewrite stub/samplesheet.csv's sqlite_path/parquet_path/platemaps_dir/platemap_file columns
-                // to absolute paths: nf-test runs pipeline tests in an isolated launch directory,
-                // so the samplesheet's paths (relative to the repo root) would not otherwise resolve.
-                def stub_dir = new File("$projectDir/stub")
-                def rows = new File(stub_dir, 'samplesheet.csv').readLines()
-                def header = rows[0].split(',') as List
-                def path_cols = ['sqlite_path', 'parquet_path', 'platemaps_dir', 'platemap_file']
-                def rewritten = [rows[0]] + rows[1..-1].collect { line ->
-                    def vals = line.split(',', -1)
-                    header.eachWithIndex { col, i ->
-                        if (col in path_cols && vals[i]) {
-                            vals[i] = new File(stub_dir.parentFile, vals[i]).path
-                        }
-                    }
-                    vals.join(',')
-                }
-                def tmp_csv = new File(File.createTempDir('nf-test-samplesheet-'), 'samplesheet.csv')
-                tmp_csv.text = rewritten.join('\n') + '\n'
-                input = tmp_csv.path
+                input = TestSamplesheet.withAbsolutePaths("$projectDir/stub/samplesheet.csv", "$projectDir", "$launchDir")
                 analysis_groups_file = "$projectDir/stub/analysis_groups.yml"
             }
         }

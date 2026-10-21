@@ -129,6 +129,10 @@ def main():
     validate_filter_conditions(filter_conditions, filter_settings_file)
 
     df = pd.read_parquet(parquet_file)
+    # cosmicqc returns outliers as a CytoDataFrame, which scans text columns for image file names;
+    # that scan fails on pandas string dtypes (e.g. string[pyarrow] columns from annotation)
+    # when a condition finds no outliers, so use plain object strings
+    df = df.astype({col: object for col in df.select_dtypes(include="string").columns})
 
     # check for required metadata columns and include any optional ones that are present
     missing_metadata = set(REQUIRED_METADATA) - set(df.columns)
