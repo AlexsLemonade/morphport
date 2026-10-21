@@ -1,10 +1,14 @@
 # Analysis groups for the synthetic test data; see docs/analysis_groups_format.md for the format.
 # Platemap columns: cell_line, seeding_density, condition, time_point
+# Groupings are kept few (each runs the full analysis), while covering each form of `groups`.
 default:
-  # Each cell line across all seeding densities and time points
-  - name: cell_line
+  # The neuroblastoma cell lines, with the U2-OS anchor cell line
+  - name: neuroblastoma
     grouping_column: cell_line
-    groups: one_per_value
+    groups:
+      neuroblastoma: [IMR32, KP-N-YN, NB-1]
+    always_include: [U2-OS]
+    excluded: [DAOY, SJSA-1, SK-N-MC]
 cell:
   # The U2-OS anchor cell line, present on every plate
   - name: u2os_anchor
