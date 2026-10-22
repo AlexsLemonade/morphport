@@ -31,6 +31,12 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
   NXF_VER=25.10.4 nf-test test
   ```
 
+- `nf-test.config` only applies the `test` profile, so tests that run real processes (e.g. the `-profile test` pipeline test) need a software environment.
+  Use conda for local testing by adding `--profile +conda` (with conda on `PATH`), e.g. `nf-test test tests/default.nf.test --profile +conda`.
+  Keep the conda cache (`NXF_CONDA_CACHEDIR`) on local disk rather than a host-mounted path.
+- Conda resolves newer package builds than the pinned containers, so with conda the pipeline snapshot will differ in software versions.
+  Check that the run succeeds and only versions differ; do NOT update snapshots from conda runs.
+  The human updates snapshots by running the full tests with Docker.
 - If config parsing fails because the remote nf-core institutional config cannot be fetched, prefix the commands with `NXF_OFFLINE=true`.
 - If outputs change intentionally, update snapshots with `nf-test test --update-snapshot` and point out the snapshot changes for review.
 - For quick Python checks of template logic, use a throwaway uv environment rather than installing packages, e.g. `uv run --no-project --with pandas --with pyarrow python script.py`.
