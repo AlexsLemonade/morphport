@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
+name: "CREATE_ANALYSIS_GROUPS"
+description: |
+  Parse and validate the analysis groups file against the platemaps of every plate,
+  add the platemap columns to each plate's meta, and build the lookup used to route
+  condition partitions to analysis groups. See docs/analysis_groups_format.md for the file format.
+keywords:
+  - analysis groups
+  - platemap
+  - validation
+  - partition
+# no modules or subworkflows: this subworkflow is implemented with Groovy functions only
+components: []
+input:
+  - ch_samplesheet:
+      type: channel
+      description: Channel of validated samplesheet metadata maps, one per plate
+  - groups_file:
+      type: string
+      description: Path to the analysis groups file (null for a single group per level)
+  - platemap_well_column:
+      type: string
+      description: Name of the well column in the platemaps (excluded from plate_metadata_columns)
+output:
+  - samplesheet:
+      type: channel
+      description: |
+        Channel of metadata maps, one per plate, with plate_metadata_columns added.
+        Emitted only once the analysis groups pass validation.
+  - analysis_groups:
+      type: channel
+      description: |
+        Value channel with the analysis groups lookup from buildAnalysisGroups:
+        partition_columns and, for each of cell and well level, partition key to a list of
+        [group_meta, expected group size]
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
