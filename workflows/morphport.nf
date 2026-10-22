@@ -200,6 +200,18 @@ workflow MORPHPORT {
     )
 
     //
+    // Log warnings sent to the 'warnings' topic by any process.
+    // Each entry is [task.process, identifier (e.g. plate_id), file with one warning per line].
+    //
+    channel.topic("warnings")
+        .subscribe { process, id, warnings_file ->
+            def process_name = process[process.lastIndexOf(':') + 1..-1]
+            warnings_file.readLines().each { line ->
+                log.warn "${process_name} (${id}): ${line}"
+            }
+        }
+
+    //
     // Collate and save software versions
     //
     def topic_versions = channel.topic("versions")

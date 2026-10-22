@@ -46,6 +46,21 @@ output:
           type: file
           description: Annotated per-cell parquet with platemap-derived Metadata_* columns merged in
           pattern: "*_annotated.parquet"
+  - warnings:
+      - task.process:
+          type: string
+          description: Name of the process that produced the warnings
+      - meta.plate_id:
+          type: string
+          description: Plate identifier the warnings apply to
+      - "*_metadata_warnings.txt":
+          type: file
+          description: |
+            Optional text file with warnings about duplicated metadata columns, one per line
+            (conflicting values, coalesced columns, or identical values under different names).
+            Only created when there is something to report.
+            Also sent to the `warnings` topic channel.
+          pattern: "*_metadata_warnings.txt"
   - versions:
       - versions.yml:
           type: file
