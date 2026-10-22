@@ -4,68 +4,110 @@
 
 ## Introduction
 
-<!-- TODO nf-core: Add documentation about anything specific to running your pipeline. For general topics, please point to (and add to) the main nf-core website. -->
+`AlexsLemonade/morphport` processes Cell Painting profiles for the Pediatric Cancer Cell Morphology Atlas (PCCMA) portal.
+Each plate's CellProfiler output is converted to parquet if needed, annotated with platemap metadata, quality filtered, aggregated, and normalized.
+Plates are then split by experimental condition and combined into analysis groups for feature selection, embedding (PCA and UMAP), and hierarchical clustering.
+
+We expect most input data to come from the [Cell Painting Gallery](https://github.com/broadinstitute/cellpainting-gallery) (CPG), a public AWS S3 bucket (`s3://cellpainting-gallery`) of Cell Painting datasets.
+The pipeline follows CPG directory conventions, so for CPG data the samplesheet often only needs to identify each plate, and the pipeline will find the input files itself.
+The important exception is that this does not yet work for parquet input files, as the conventions around the locations of such input files are not yet solidified.
+Data stored elsewhere can also be used by providing explicit file paths in the samplesheet.
 
 ## Samplesheet input
 
-You will need to create a samplesheet with information about the samples you would like to analyse before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row as shown in the examples below.
+You will need to create a samplesheet with information about the plates you would like to process.
+Use this parameter to specify its location.
+It has to be a comma-separated file with a header row, with one row per plate, as shown in the examples below.
 
 ```bash
 --input '[path to samplesheet file]'
 ```
 
-### Multiple runs of the same sample
+### Plates on the Cell Painting Gallery
 
-The `sample` identifiers have to be the same when you have re-sequenced the same sample more than once e.g. to increase sequencing depth. The pipeline will concatenate the raw reads before performing any downstream analysis. Below is an example for the same sample sequenced across 3 lanes:
+For data on the Cell Painting Gallery, the `plate`, `project`, `source`, and `batch` columns are enough to locate each plate's files.
+These values correspond to components of the CPG directory structure:
+
+```text
+s3://cellpainting-gallery/<project>/<source>/workspace/backend/<batch>/<plate>/<plate>.sqlite
+s3://cellpainting-gallery/<project>/<source>/workspace/metadata/platemaps/<batch>/barcode_platemap.csv
+s3://cellpainting-gallery/<project>/<source>/workspace/metadata/platemaps/<batch>/platemap/<platemap name>.txt
+```
+
+When `sqlite_path` is not provided and the project name follows the CPG format (e.g., `cpg0016-jump`), the pipeline reads the plate's CellProfiler SQLite file from the `backend` path above.
+When neither `platemap_file` nor `platemaps_dir` is provided, the pipeline looks up the plate in the batch's `barcode_platemap.csv` (matching `Assay_Plate_Barcode` to `plate`) to find the name of its platemap, then reads that platemap from the `platemap` directory.
+
+A samplesheet for CPG plates may look something like the one below:
 
 ```csv title="samplesheet.csv"
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-CONTROL_REP1,AEG588A1_S1_L003_R1_001.fastq.gz,AEG588A1_S1_L003_R2_001.fastq.gz
-CONTROL_REP1,AEG588A1_S1_L004_R1_001.fastq.gz,AEG588A1_S1_L004_R2_001.fastq.gz
+plate,project,source,batch
+2024_02_02_B8A1R2_P3T2,cpg0020-varchamp,broad,2024_02_06_Batch_8
+2024_05_17_RC4_Ben_P05,cpg0026-lacoste_haghighi-rare-diseases,broad,2024_05_06_ResponseToReviewers
+2024_04_16_RC4_Xexp_FS_P06_R2,cpg0026-lacoste_haghighi-rare-diseases,broad,2024_05_06_ResponseToReviewers
 ```
+
+The Cell Painting Gallery is public, but reading from it requires either AWS credentials or anonymous S3 access; see [Accessing the Cell Painting Gallery](#accessing-the-cell-painting-gallery).
 
 ### Full samplesheet
 
-The pipeline will auto-detect whether a sample is single- or paired-end using the information provided in the samplesheet. The samplesheet can have as many columns as you desire, however, there is a strict requirement for the first 3 columns to match those defined in the table below.
+The samplesheet can include the optional columns below to point to files that are not on the Cell Painting Gallery, to override the default CPG locations, or to start from existing parquet profiles.
+Any columns not in the table below are ignored.
 
-A final samplesheet file consisting of both single- and paired-end data may look something like the one below. This is for 6 samples, where `TREATMENT_REP3` has been sequenced twice.
+| Column             | Required | Description                                                                                                                                                                                                                                           |
+| ------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plate`            | Yes      | Plate ID (assay plate barcode). Cannot contain spaces.                                                                                                                                                                                                |
+| `project`          | Yes      | Project name. For CPG data this is the CPG dataset name (e.g., `cpg0016-jump`). Cannot contain spaces.                                                                                                                                                |
+| `source`           | Yes      | Data source within the project (e.g., `broad`). Cannot contain spaces.                                                                                                                                                                                |
+| `batch`            | Yes      | Batch name. Cannot contain spaces.                                                                                                                                                                                                                    |
+| `sqlite_path`      | No       | Path to the plate's CellProfiler SQLite file, ending in `.sqlite`. Defaults to the CPG location for CPG projects. Ignored when `cytotable_preset` is `skip`.                                                                                          |
+| `parquet_path`     | No       | Path or glob (for profiles split across files) to existing parquet profiles, ending in `.parquet`. Required when `cytotable_preset` is `skip`, and ignored otherwise.                                                                                 |
+| `platemap_file`    | No       | Path to the plate's platemap file. Takes precedence over `platemaps_dir`.                                                                                                                                                                             |
+| `platemaps_dir`    | No       | Path to a directory laid out like a CPG `metadata/platemaps` directory, used to look up the platemap as described [above](#plates-on-the-cell-painting-gallery). Defaults to the CPG location for CPG projects.                                       |
+| `cytotable_preset` | No       | CytoTable preset used to convert the SQLite file to parquet: `cellprofiler_sqlite`, `cellprofiler_sqlite_cpg0016_jump` (default), or `cellprofiler_sqlite_pycytominer`. Use `skip` to skip conversion and read existing profiles from `parquet_path`. |
+
+Projects whose names do not follow the CPG format (`cpgNNNN-...`) must provide `sqlite_path` (or `parquet_path`) and one of `platemap_file` or `platemaps_dir`.
+For example, a samplesheet mixing CPG data with local parquet profiles might look like this:
 
 ```csv title="samplesheet.csv"
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
-CONTROL_REP2,AEG588A2_S2_L002_R1_001.fastq.gz,AEG588A2_S2_L002_R2_001.fastq.gz
-CONTROL_REP3,AEG588A3_S3_L002_R1_001.fastq.gz,AEG588A3_S3_L002_R2_001.fastq.gz
-TREATMENT_REP1,AEG588A4_S4_L003_R1_001.fastq.gz,
-TREATMENT_REP2,AEG588A5_S5_L003_R1_001.fastq.gz,
-TREATMENT_REP3,AEG588A6_S6_L003_R1_001.fastq.gz,
-TREATMENT_REP3,AEG588A6_S6_L004_R1_001.fastq.gz,
+plate,project,source,batch,parquet_path,platemaps_dir,cytotable_preset
+2024_02_02_B8A1R2_P3T2,cpg0020-varchamp,broad,2024_02_06_Batch_8,,,
+MP00000001,my-project,my-lab,Round_1,/data/profiles/MP00000001.parquet,/data/metadata/platemaps,skip
 ```
-
-| Column    | Description                                                                                                                                                                            |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sample`  | Custom sample name. This entry will be identical for multiple sequencing libraries/runs from the same sample. Spaces in sample names are automatically converted to underscores (`_`). |
-| `fastq_1` | Full path to FastQ file for Illumina short reads 1. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
-| `fastq_2` | Full path to FastQ file for Illumina short reads 2. File has to be gzipped and have the extension ".fastq.gz" or ".fq.gz".                                                             |
 
 An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
 
 ### Plate-level metadata
 
 The samplesheet only identifies each plate and its input files; any other columns are ignored.
-Following CPG conventions (as we understand them) additional metadata should be included as a column in the platemap, even if every well on a plate has the same value.
-Plates that share a layout but differ in such a value (for example, the same layout imaged at 24 and 48 hours) need separate platemap files.
+Following CPG conventions, any additional metadata should be included as a column in the platemap, even if every well on a plate has the same value.
 All platemap columns are added to the annotated profiles as `Metadata_`-prefixed columns and can be used in the [analysis groups file](analysis_groups_format.md).
+
+## Analysis groups
+
+After per-plate processing, profiles are split by experimental condition and combined into analysis groups for feature selection, embeddings, and clustering.
+Groups are defined in a YAML (or JSON) file passed with `--analysis_groups_file`, using platemap metadata columns.
+If no analysis groups file is given, each level (`cell` and `well`) gets a single group containing all of a project's data.
+
+```bash
+--analysis_groups_file '[path to analysis groups file]'
+```
+
+See the [analysis groups file format](analysis_groups_format.md) documentation for details, and [`assets/analysis_groups_example.yaml`](../assets/analysis_groups_example.yaml) for an example.
 
 ## Running the pipeline
 
 The typical command for running the pipeline is as follows:
 
 ```bash
-nextflow run AlexsLemonade/morphport --input ./samplesheet.csv --outdir ./results  -profile docker
+nextflow run AlexsLemonade/morphport \
+  --input ./samplesheet.csv \
+  --analysis_groups_file ./analysis_groups.yaml \
+  --outdir ./results \
+  -profile docker
 ```
 
-This will launch the pipeline with the `docker` configuration profile. See below for more information about profiles.
+This will launch the pipeline with the `docker` configuration profile.
+See below for more information about profiles.
 
 Note that the pipeline will create the following files in your working directory:
 
@@ -75,6 +117,9 @@ work                # Directory containing the nextflow working files
 .nextflow_log       # Log file from Nextflow
 # Other nextflow hidden files, eg. history of pipeline runs and old logs.
 ```
+
+Because input files on the Cell Painting Gallery are read from S3, runs with many plates will transfer a substantial amount of data.
+Running the pipeline in AWS (in `us-east-1`, the same region as the Cell Painting Gallery) will generally be much faster than running it locally.
 
 If you wish to repeatedly use the same parameters for multiple runs, rather than specifying each flag in the command, you can specify these in a params file.
 
@@ -93,15 +138,16 @@ with:
 
 ```yaml title="params.yaml"
 input: './samplesheet.csv'
+analysis_groups_file: './analysis_groups.yaml'
 outdir: './results/'
 <...>
 ```
 
-You can also generate such `YAML`/`JSON` files via [nf-core/launch](https://nf-co.re/launch).
-
 ### Updating the pipeline
 
-When you run the above command, Nextflow automatically pulls the pipeline code from GitHub and stores it as a cached version. When running the pipeline after this, it will always use the cached version if available - even if the pipeline has been updated since. To make sure that you're running the latest version of the pipeline, make sure that you regularly update the cached version of the pipeline:
+When you run the above command, Nextflow automatically pulls the pipeline code from GitHub and stores it as a cached version.
+When running the pipeline after this, it will always use the cached version if available - even if the pipeline has been updated since.
+To make sure that you're running the latest version of the pipeline, make sure that you regularly update the cached version of the pipeline:
 
 ```bash
 nextflow pull AlexsLemonade/morphport
@@ -109,16 +155,23 @@ nextflow pull AlexsLemonade/morphport
 
 ### Reproducibility
 
-It is a good idea to specify the pipeline version when running the pipeline on your data. This ensures that a specific version of the pipeline code and software are used when you run your pipeline. If you keep using the same tag, you'll be running the same version of the pipeline, even if there have been changes to the code since.
+It is a good idea to specify the pipeline version when running the pipeline on your data.
+This ensures that a specific version of the pipeline code and software are used when you run your pipeline.
+If you keep using the same tag, you'll be running the same version of the pipeline, even if there have been changes to the code since.
 
-First, go to the [AlexsLemonade/morphport releases page](https://github.com/AlexsLemonade/morphport/releases) and find the latest pipeline version - numeric only (eg. `1.3.1`). Then specify this when running the pipeline with `-r` (one hyphen) - eg. `-r 1.3.1`. Of course, you can switch to another version by changing the number after the `-r` flag.
+First, go to the [AlexsLemonade/morphport releases page](https://github.com/AlexsLemonade/morphport/releases) and find the latest pipeline version - numeric only (eg. `1.3.1`).
+Then specify this when running the pipeline with `-r` (one hyphen) - eg. `-r 1.3.1`.
+Of course, you can switch to another version by changing the number after the `-r` flag.
 
 This version number will be logged in reports when you run the pipeline, so that you'll know what you used when you look back in the future.
 
-To further assist in reproducibility, you can use share and reuse [parameter files](#running-the-pipeline) to repeat pipeline runs with the same settings without having to write out a command with every single parameter.
+Stochastic steps (such as PCA and UMAP) use a fixed seed, set with `--random_seed`, so repeated runs with the same inputs and parameters should give the same results.
+
+To further assist in reproducibility, you can share and reuse [parameter files](#running-the-pipeline) to repeat pipeline runs with the same settings without having to write out a command with every single parameter.
+Because Cell Painting Gallery paths are public, samplesheets that refer only to CPG data can be shared and reused as-is.
 
 > [!TIP]
-> If you wish to share such profile (such as upload as supplementary material for academic publications), make sure to NOT include cluster specific paths to files, nor institutional specific profiles.
+> If you wish to share such a params file (such as uploading it as supplementary material for academic publications), make sure to NOT include cluster specific paths to files, nor institutional specific profiles.
 
 ## Core Nextflow arguments
 
@@ -127,23 +180,28 @@ To further assist in reproducibility, you can use share and reuse [parameter fil
 
 ### `-profile`
 
-Use this parameter to choose a configuration profile. Profiles can give configuration presets for different compute environments.
+Use this parameter to choose a configuration profile.
+Profiles can give configuration presets for different compute environments.
 
 Several generic profiles are bundled with the pipeline which instruct the pipeline to use software packaged using different methods (Docker, Singularity, Podman, Shifter, Charliecloud, Apptainer, Conda) - see below.
 
 > [!IMPORTANT]
 > We highly recommend the use of Docker or Singularity containers for full pipeline reproducibility, however when this is not possible, Conda is also supported.
 
-The pipeline also dynamically loads configurations from [https://github.com/nf-core/configs](https://github.com/nf-core/configs) when it runs, making multiple config profiles for various institutional clusters available at run time. For more information and to check if your system is supported, please see the [nf-core/configs documentation](https://github.com/nf-core/configs#documentation).
+The pipeline also dynamically loads configurations from [https://github.com/nf-core/configs](https://github.com/nf-core/configs) when it runs, making multiple config profiles for various institutional clusters available at run time.
+For more information and to check if your system is supported, please see the [nf-core/configs documentation](https://github.com/nf-core/configs#documentation).
 
 Note that multiple profiles can be loaded, for example: `-profile test,docker` - the order of arguments is important!
 They are loaded in sequence, so later profiles can overwrite earlier profiles.
 
-If `-profile` is not specified, the pipeline will run locally and expect all software to be installed and available on the `PATH`. This is _not_ recommended, since it can lead to different results on different machines dependent on the computer environment.
+If `-profile` is not specified, the pipeline will run locally and expect all software to be installed and available on the `PATH`.
+This is _not_ recommended, since it can lead to different results on different machines dependent on the computer environment.
 
 - `test`
-  - A profile with a complete configuration for automated testing
-  - Includes links to test data so needs no other parameters
+  - A profile with a complete configuration for automated testing, using synthetic data in `tests/data/`
+  - The test parquet files are not tracked by git and must be generated first (see [`tests/data/README.md`](../tests/data/README.md))
+- `stub`
+  - A profile for running the pipeline with `-stub`, which creates placeholder outputs to check the workflow logic without processing real data
 - `docker`
   - A generic configuration profile to be used with [Docker](https://docker.com/)
 - `singularity`
@@ -161,49 +219,85 @@ If `-profile` is not specified, the pipeline will run locally and expect all sof
 - `conda`
   - A generic configuration profile to be used with [Conda](https://conda.io/docs/). Please only use Conda as a last resort i.e. when it's not possible to run the pipeline with Docker, Singularity, Podman, Shifter, Charliecloud, or Apptainer.
 
+The pipeline also includes profiles for the Data Lab's own infrastructure (`alsf_batch`, `alsf_testing`, and `alsf_prod`), which run the pipeline on AWS Batch.
+These profiles require access to Data Lab AWS resources and are not intended for general use.
+
 ### `-resume`
 
-Specify this when restarting a pipeline. Nextflow will use cached results from any pipeline steps where the inputs are the same, continuing from where it got to previously. For input to be considered the same, not only the names must be identical but the files' contents as well. For more info about this parameter, see [this blog post](https://www.nextflow.io/blog/2019/demystifying-nextflow-resume.html).
+Specify this when restarting a pipeline.
+Nextflow will use cached results from any pipeline steps where the inputs are the same, continuing from where it got to previously.
+For input to be considered the same, not only the names must be identical but the files' contents as well.
+For more info about this parameter, see [this blog post](https://www.nextflow.io/blog/2019/demystifying-nextflow-resume.html).
 
-You can also supply a run name to resume a specific run: `-resume [run-name]`. Use the `nextflow log` command to show previous run names.
+You can also supply a run name to resume a specific run: `-resume [run-name]`.
+Use the `nextflow log` command to show previous run names.
 
 ### `-c`
 
-Specify the path to a specific config file (this is a core Nextflow command). See the [nf-core website documentation](https://nf-co.re/usage/configuration) for more information.
+Specify the path to a specific config file (this is a core Nextflow command).
+See the [nf-core website documentation](https://nf-co.re/usage/configuration) for more information.
 
 ## Custom configuration
 
+### Accessing the Cell Painting Gallery
+
+The Cell Painting Gallery bucket is public, but Nextflow will by default try to use AWS credentials to read from S3.
+If you have AWS credentials configured, they will be used to read CPG data and no further configuration is needed.
+
+If you do not have AWS credentials, you can enable anonymous S3 access with a custom config file passed with `-c`.
+For example:
+
+```groovy title="cpg.config"
+aws {
+    client.anonymous = true
+    region           = 'us-east-1'
+}
+```
+
+```bash
+nextflow run AlexsLemonade/morphport -profile docker -params-file params.yaml -c cpg.config
+```
+
+Note that anonymous access applies to all S3 requests, so it cannot be used if your output or work directory is in a private S3 bucket.
+
 ### Resource requests
 
-Whilst the default requirements set within the pipeline will hopefully work for most people and with most input data, you may find that you want to customise the compute resources that the pipeline requests. Each step in the pipeline has a default set of requirements for number of CPUs, memory and time. For most of the pipeline steps, if the job exits with any of the error codes specified [here](https://github.com/nf-core/rnaseq/blob/4c27ef5610c87db00c3c5a3eed10b1d161abf575/conf/base.config#L18) it will automatically be resubmitted with higher resources request (2 x original, then 3 x original). If it still fails after the third attempt then the pipeline execution is stopped.
+Whilst the default requirements set within the pipeline will hopefully work for most people and with most input data, you may find that you want to customise the compute resources that the pipeline requests.
+Each step in the pipeline has a default set of requirements for number of CPUs, memory and time.
+For most of the pipeline steps, if the job exits with any of the error codes specified [here](../conf/base.config) it will automatically be resubmitted once with a higher resource request (2 x original).
+If it still fails after the second attempt then the pipeline execution is stopped.
+
+Cell-level steps on plates with many cells, and analysis groups that combine many plates, may need more memory than the defaults.
 
 To change the resource requests, please see the [max resources](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#set-max-resources) and [customise process resources](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#customize-process-resources) section of the nf-core website.
 
 ### Custom Containers
 
-In some cases, you may wish to change the container or conda environment used by a pipeline steps for a particular tool. By default, nf-core pipelines use containers and software from the [biocontainers](https://biocontainers.pro/) or [bioconda](https://bioconda.github.io/) projects. However, in some cases the pipeline specified version maybe out of date.
+In some cases, you may wish to change the container or conda environment used by a pipeline step.
+By default, this pipeline uses containers built with [Seqera Containers](https://seqera.io/containers/) from the conda environment files included with each module.
 
 To use a different container from the default container or conda environment specified in a pipeline, please see the [updating tool versions](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#update-tool-versions) section of the nf-core website.
 
 ### Custom Tool Arguments
 
-A pipeline might not always support every possible argument or option of a particular tool used in pipeline. Fortunately, nf-core pipelines provide some freedom to users to insert additional parameters that the pipeline does not include by default.
+Many options for the tools used in this pipeline (CytoTable, coSMicQC, pycytominer, and the embedding and clustering steps) are exposed as pipeline parameters; see the parameter documentation for details.
+For example, quality control thresholds can be changed by providing a JSON file of coSMicQC filter settings with `--cosmicqc_filter_file` (the default is [`assets/cosmicqc_filter_settings.json`](../assets/cosmicqc_filter_settings.json)).
 
 To learn how to provide additional arguments to a particular tool of the pipeline, please see the [customising tool arguments](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#modifying-tool-arguments) section of the nf-core website.
 
 ### nf-core/configs
 
-In most cases, you will only need to create a custom config as a one-off but if you and others within your organisation are likely to be running nf-core pipelines regularly and need to use the same settings regularly it may be a good idea to request that your custom config file is uploaded to the `nf-core/configs` git repository. Before you do this please can you test that the config file works with your pipeline of choice using the `-c` parameter. You can then create a pull request to the `nf-core/configs` repository with the addition of your config file, associated documentation file (see examples in [`nf-core/configs/docs`](https://github.com/nf-core/configs/tree/master/docs)), and amending [`nfcore_custom.config`](https://github.com/nf-core/configs/blob/master/nfcore_custom.config) to include your custom profile.
+If you are running the pipeline on an institutional cluster, a config profile for your institution may already be available from [nf-core/configs](https://github.com/nf-core/configs); see the [nf-core/configs documentation](https://github.com/nf-core/configs#documentation) for details.
 
 See the main [Nextflow documentation](https://www.nextflow.io/docs/latest/config.html) for more information about creating your own configuration files.
 
-If you have any questions or issues please send us a message on [Slack](https://nf-co.re/join/slack) on the [`#configs` channel](https://nfcore.slack.com/channels/configs).
-
 ## Running in the background
 
-Nextflow handles job submissions and supervises the running jobs. The Nextflow process must run until the pipeline is finished.
+Nextflow handles job submissions and supervises the running jobs.
+The Nextflow process must run until the pipeline is finished.
 
-The Nextflow `-bg` flag launches Nextflow in the background, detached from your terminal so that the workflow does not stop if you log out of your session. The logs are saved to a file.
+The Nextflow `-bg` flag launches Nextflow in the background, detached from your terminal so that the workflow does not stop if you log out of your session.
+The logs are saved to a file.
 
 Alternatively, you can use `screen` / `tmux` or similar tool to create a detached session which you can log back into at a later time.
 Some HPC setups also allow you to run nextflow within a cluster job submitted your job scheduler (from where it submits more jobs).
