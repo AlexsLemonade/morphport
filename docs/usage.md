@@ -53,17 +53,18 @@ The Cell Painting Gallery is public, but reading from it requires either AWS cre
 The samplesheet can include the optional columns below to point to files that are not on the Cell Painting Gallery, to override the default CPG locations, or to start from existing parquet profiles.
 Any columns not in the table below are ignored.
 
-| Column             | Required | Description                                                                                                                                                                                                                                           |
-| ------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `plate`            | Yes      | Plate ID (assay plate barcode). Cannot contain spaces.                                                                                                                                                                                                |
-| `project`          | Yes      | Project name. For CPG data this is the CPG dataset name (e.g., `cpg0016-jump`). Cannot contain spaces.                                                                                                                                                |
-| `source`           | Yes      | Data source within the project (e.g., `broad`). Cannot contain spaces.                                                                                                                                                                                |
-| `batch`            | Yes      | Batch name. Cannot contain spaces.                                                                                                                                                                                                                    |
-| `sqlite_path`      | No       | Path to the plate's CellProfiler SQLite file, ending in `.sqlite`. Defaults to the CPG location for CPG projects. Ignored when `cytotable_preset` is `skip`.                                                                                          |
-| `parquet_path`     | No       | Path or glob (for profiles split across files) to existing parquet profiles, ending in `.parquet`. Required when `cytotable_preset` is `skip`, and ignored otherwise.                                                                                 |
-| `platemap_file`    | No       | Path to the plate's platemap file. Takes precedence over `platemaps_dir`.                                                                                                                                                                             |
-| `platemaps_dir`    | No       | Path to a directory laid out like a CPG `metadata/platemaps` directory, used to look up the platemap as described [above](#plates-on-the-cell-painting-gallery). Defaults to the CPG location for CPG projects.                                       |
-| `cytotable_preset` | No       | CytoTable preset used to convert the SQLite file to parquet: `cellprofiler_sqlite`, `cellprofiler_sqlite_cpg0016_jump` (default), or `cellprofiler_sqlite_pycytominer`. Use `skip` to skip conversion and read existing profiles from `parquet_path`. |
+<!-- prettier-ignore -->
+| Column             | Required | Description
+| ------------------ | -------- | --------------
+| `plate`            | Yes      | Plate ID (assay plate barcode). Cannot contain spaces.
+| `project`          | Yes      | Project name. For CPG data this is the CPG dataset name (e.g., `cpg0016-jump`). Cannot contain spaces.
+| `source`           | Yes      | Data source within the project (e.g., `broad`). Cannot contain spaces.
+| `batch`            | Yes      | Batch name. Cannot contain spaces.
+| `sqlite_path`      | No       | Path to the plate's CellProfiler SQLite file, ending in `.sqlite`. Defaults to the CPG location for CPG projects. Ignored when `cytotable_preset` is `skip`.
+| `parquet_path`     | No       | Path or glob (for profiles split across files) to existing parquet profiles, ending in `.parquet`. Required when `cytotable_preset` is `skip`, and ignored otherwise.
+| `platemap_file`    | No       | Path to the plate's platemap file. Takes precedence over `platemaps_dir`.
+| `platemaps_dir`    | No       | Path to a directory laid out like a CPG `metadata/platemaps` directory, used to look up the platemap as described [above](#plates-on-the-cell-painting-gallery). Defaults to the CPG location for CPG projects.
+| `cytotable_preset` | No       | CytoTable preset used to convert the SQLite file to parquet: `cellprofiler_sqlite`, `cellprofiler_sqlite_cpg0016_jump` (default), or `cellprofiler_sqlite_pycytominer`. Use `skip` to skip conversion and read existing profiles from `parquet_path`.
 
 Projects whose names do not follow the CPG format (`cpgNNNN-...`) must provide `sqlite_path` (or `parquet_path`) and one of `platemap_file` or `platemaps_dir`.
 For example, a samplesheet mixing CPG data with local parquet profiles might look like this:
