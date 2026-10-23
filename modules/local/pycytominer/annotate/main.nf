@@ -16,6 +16,7 @@ process PYCYTOMINER_ANNOTATE {
 
     output:
     tuple val(meta), path("*_annotated.parquet", arity: 1), emit: result
+    tuple val(task.process), val(meta.plate_id), path("*_metadata_warnings.txt"), emit: warnings, optional: true, topic: warnings
     path "versions.yml", emit: versions, topic: versions
 
     script:

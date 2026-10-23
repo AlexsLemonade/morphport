@@ -18,6 +18,29 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - If you are unsure whether an action is allowed, ask rather than proceeding.
 - Keep changes small and incremental. Prefer multiple small steps over one large batch of changes.
 
+## Testing
+
+- After finishing a set of edits, stop and describe the changes; do NOT run the full nf-test suite until the human says to.
+  Quick, targeted checks (e.g. running a template helper on a small synthetic DataFrame) are fine once testing is approved.
+- Pipeline tests use nf-test, with tests in `tests/` (e.g. `tests/default.nf.test` and its snapshot).
+- The synthetic test profiles are not tracked by git; generate them first with `uv run scripts/generate_test_data.py` (see `tests/data/README.md`).
+- Run the tests with both the default Nextflow version and the version pinned in CI (`.github/workflows/nf-test.yml`, currently 25.10.4):
+
+  ```bash
+  nf-test test
+  NXF_VER=25.10.4 nf-test test
+  ```
+
+- `nf-test.config` only applies the `test` profile, so tests that run real processes (e.g. the `-profile test` pipeline test) need a software environment.
+  Use conda for local testing by adding `--profile +conda` (with conda on `PATH`), e.g. `nf-test test tests/default.nf.test --profile +conda`.
+  Keep the conda cache (`NXF_CONDA_CACHEDIR`) on local disk rather than a host-mounted path.
+- Conda resolves newer package builds than the pinned containers, so with conda the pipeline snapshot will differ in software versions.
+  Check that the run succeeds and only versions differ; do NOT update snapshots from conda runs.
+  The human updates snapshots by running the full tests with Docker.
+- If config parsing fails because the remote nf-core institutional config cannot be fetched, prefix the commands with `NXF_OFFLINE=true`.
+- If outputs change intentionally, update snapshots with `nf-test test --update-snapshot` and point out the snapshot changes for review.
+- For quick Python checks of template logic, use a throwaway uv environment rather than installing packages, e.g. `uv run --no-project --with pandas --with pyarrow python script.py`.
+
 ## Formatting guidelines
 
 ### Markdown and text files
