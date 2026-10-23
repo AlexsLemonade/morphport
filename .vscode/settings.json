@@ -5,5 +5,7 @@
     "[nextflow-config]": {
         "editor.formatOnSave": true
     },
-    "nextflow.files.exclude": [".git", ".nf-test", "work", ".pixi"]
+    "nextflow.files.exclude": [".git", ".nf-test", "work", ".pixi"],
+    // Render nf-core website admonitions nicely in markdown previews
+    "markdown.styles": ["https://nf-co.re/vscode_markdown.css"]
 }
