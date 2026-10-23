@@ -3,50 +3,50 @@
         "content": [
             {
                 "COMPUTE_EMBEDDINGS": {
-                    "python": "3.13.13",
-                    "polars": "1.40.1",
                     "numpy": "2.4.5",
+                    "polars": "1.40.1",
+                    "python": "3.13.13",
                     "scikit-learn": "1.8.0",
                     "umap-learn": "0.5.12"
                 },
                 "COSMICQC_FILTER": {
-                    "python": "3.13.16",
                     "cosmicqc": "1.1.2",
-                    "pandas": "2.3.3"
+                    "pandas": "2.3.3",
+                    "python": "3.13.16"
                 },
                 "HIERARCHICAL_CLUSTERING": {
-                    "python": "3.13.14",
-                    "polars": "1.42.1",
                     "numpy": "2.5.1",
+                    "polars": "1.42.1",
+                    "python": "3.13.14",
                     "scipy": "1.18.0"
                 },
                 "PARTITION_CONDITIONS": {
-                    "python": "3.13.13",
-                    "duckdb": "1.5.2"
+                    "duckdb": "1.5.2",
+                    "python": "3.13.13"
                 },
                 "PYCYTOMINER_AGGREGATE": {
-                    "python": "3.13.13",
-                    "pycytominer": "1.4.0",
                     "pandas": "2.3.3",
-                    "pyarrow": "24.0.0"
+                    "pyarrow": "24.0.0",
+                    "pycytominer": "1.4.0",
+                    "python": "3.13.13"
                 },
                 "PYCYTOMINER_ANNOTATE": {
-                    "python": "3.13.13",
-                    "pycytominer": "1.4.0",
                     "pandas": "2.3.3",
-                    "pyarrow": "24.0.0"
+                    "pyarrow": "24.0.0",
+                    "pycytominer": "1.4.0",
+                    "python": "3.13.13"
                 },
                 "PYCYTOMINER_FEATURE_SELECT": {
-                    "python": "3.13.13",
-                    "pycytominer": "1.4.0",
                     "pandas": "2.3.3",
-                    "pyarrow": "24.0.0"
+                    "pyarrow": "24.0.0",
+                    "pycytominer": "1.4.0",
+                    "python": "3.13.13"
                 },
                 "PYCYTOMINER_NORMALIZE": {
-                    "python": "3.13.13",
-                    "pycytominer": "1.4.0",
                     "pandas": "2.3.3",
-                    "pyarrow": "24.0.0"
+                    "pyarrow": "24.0.0",
+                    "pycytominer": "1.4.0",
+                    "python": "3.13.13"
                 },
                 "Workflow": {
                     "AlexsLemonade/morphport": "v0.1.0dev"
@@ -248,10 +248,10 @@
                 "test-project/well/edge_wells_included/pycytominer/well_MP00000006.parquet"
             ]
         ],
-        "timestamp": "2026-10-21T13:46:21.361493",
+        "timestamp": "2026-10-23T10:46:24.978573",
         "meta": {
             "nf-test": "0.9.5",
-            "nextflow": "25.10.4"
+            "nextflow": "26.04.7"
         }
     },
     "-profile test -stub": {
