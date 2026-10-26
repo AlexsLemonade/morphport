@@ -62,7 +62,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 - [coSMicQC](#cosmicqc) - Remove edge wells and outlier cells
 - [Aggregation](#aggregation) - Summarize single-cell profiles to well-level profiles
 - [Normalization](#normalization) - Normalize profiles within each plate
-- [Condition partitioning](#condition-partitioning) - Split plates by experimental condition (optional output)
+- [Plate partitioning](#plate-partitioning) - Split plates by experimental condition (optional output)
 - [Feature selection](#feature-selection) - Select informative features for each analysis group
 - [Embeddings](#embeddings) - Compute PCA and UMAP embeddings for each analysis group
 - [Hierarchical clustering](#hierarchical-clustering) - Cluster the samples within each analysis group
