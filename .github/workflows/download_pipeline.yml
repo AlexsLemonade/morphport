@@ -98,6 +98,15 @@ jobs:
           echo "Initial container image count: $image_count"
           echo "IMAGE_COUNT_INITIAL=$image_count" >> "$GITHUB_OUTPUT"
 
+      # synthetic test profiles are not tracked by git (see tests/data/README.md),
+      # and samplesheet paths are relative to the launch directory (the checked-out repo),
+      # so generate them there before running the downloaded pipeline
+      - name: Setup uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Generate test data
+        run: uv run scripts/generate_test_data.py
+
       - name: Run the downloaded pipeline (stub)
         id: stub_run_pipeline
         continue-on-error: true
