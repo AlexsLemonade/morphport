@@ -49,7 +49,7 @@
                     "python": "3.13.13"
                 },
                 "Workflow": {
-                    "AlexsLemonade/morphport": "v0.1.0dev"
+                    "AlexsLemonade/morphport": "v"
                 }
             },
             [
