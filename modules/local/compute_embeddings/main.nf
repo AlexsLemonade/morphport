@@ -5,8 +5,8 @@ process COMPUTE_EMBEDDINGS {
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_polars_numpy_scikit-learn_umap-learn:c494cfb880b7d300'
-            : 'community.wave.seqera.io/library/python_polars_numpy_scikit-learn_umap-learn:6c9c9e0c1f5c856e'
+            ? 'oras://community.wave.seqera.io/library/python_ca-certificates_polars_numpy_pruned:3c1071edcf64d707'
+            : 'community.wave.seqera.io/library/python_ca-certificates_polars_numpy_pruned:00040f01e2f6537f'
     }
 
     input:
