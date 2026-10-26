@@ -49,7 +49,7 @@
                     "python": "3.13.13"
                 },
                 "Workflow": {
-                    "AlexsLemonade/morphport": "v"
+                    "AlexsLemonade/morphport": "v0.1.0"
                 }
             },
             [
@@ -251,7 +251,7 @@
                 "test-project/well/pycytominer/edge_wells_included/well_MP00000006.parquet"
             ]
         ],
-        "timestamp": "2026-10-23T13:53:28.672237",
+        "timestamp": "2026-10-26T13:44:13.174078",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.7"
@@ -288,7 +288,7 @@
                     "stub": "x.y.z"
                 },
                 "Workflow": {
-                    "AlexsLemonade/morphport": "v0.1.0dev"
+                    "AlexsLemonade/morphport": "v0.1.0"
                 }
             },
             [
@@ -457,7 +457,7 @@
                 "well_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e"
             ]
         ],
-        "timestamp": "2026-10-23T13:53:40.369697",
+        "timestamp": "2026-10-26T13:44:24.938507",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.7"
