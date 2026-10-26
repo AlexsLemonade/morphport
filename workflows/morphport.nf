@@ -200,16 +200,26 @@ workflow MORPHPORT {
     )
 
     //
-    // Log warnings sent to the 'warnings' topic by any process.
+    // Log warnings sent to the 'warnings' topic by any process,
+    // and save them to a single file in pipeline_info (only written if there are any warnings).
     // Each entry is [task.process, identifier (e.g. plate_id), file with one warning per line].
     //
-    channel.topic("warnings")
-        .subscribe { process, id, warnings_file ->
+    def ch_warnings = channel.topic("warnings")
+        .flatMap { process, id, warnings_file ->
             def process_name = process[process.lastIndexOf(':') + 1..-1]
-            warnings_file.readLines().each { line ->
-                log.warn "${process_name} (${id}): ${line}"
-            }
+            warnings_file.readLines()
+                .findAll { line -> line.trim() }
+                .collect { line -> "${process_name} (${id}): ${line}" }
         }
+
+    ch_warnings.subscribe { warning -> log.warn(warning) }
+
+    ch_warnings.collectFile(
+        storeDir: "${params.outdir}/pipeline_info",
+        name: "morphport_warnings_${params.trace_report_suffix}.txt",
+        sort: true,
+        newLine: true,
+    )
 
     //
     // Collate and save software versions
