@@ -3,53 +3,53 @@
         "content": [
             {
                 "COMPUTE_EMBEDDINGS": {
-                    "numpy": "2.4.5",
-                    "polars": "1.40.1",
-                    "python": "3.13.13",
-                    "scikit-learn": "1.8.0",
+                    "numpy": "2.5.4",
+                    "polars": "1.44.2",
+                    "python": "3.13.18",
+                    "scikit-learn": "1.9.1",
                     "umap-learn": "0.5.12"
                 },
                 "COSMICQC_FILTER": {
                     "cosmicqc": "1.1.2",
                     "pandas": "2.3.3",
-                    "python": "3.13.16"
+                    "python": "3.13.18"
                 },
                 "HIERARCHICAL_CLUSTERING": {
-                    "numpy": "2.5.1",
-                    "polars": "1.42.1",
-                    "python": "3.13.14",
-                    "scipy": "1.18.0"
+                    "numpy": "2.5.4",
+                    "polars": "1.44.2",
+                    "python": "3.13.18",
+                    "scipy": "1.18.1"
                 },
                 "PARTITION_CONDITIONS": {
-                    "duckdb": "1.5.2",
-                    "python": "3.13.13"
+                    "duckdb": "1.5.6",
+                    "python": "3.13.18"
                 },
                 "PYCYTOMINER_AGGREGATE": {
                     "pandas": "2.3.3",
-                    "pyarrow": "24.0.0",
+                    "pyarrow": "25.0.0",
                     "pycytominer": "1.4.0",
-                    "python": "3.13.13"
+                    "python": "3.13.18"
                 },
                 "PYCYTOMINER_ANNOTATE": {
                     "pandas": "2.3.3",
-                    "pyarrow": "24.0.0",
+                    "pyarrow": "25.0.0",
                     "pycytominer": "1.4.0",
-                    "python": "3.13.13"
+                    "python": "3.13.18"
                 },
                 "PYCYTOMINER_FEATURE_SELECT": {
                     "pandas": "2.3.3",
-                    "pyarrow": "24.0.0",
+                    "pyarrow": "25.0.0",
                     "pycytominer": "1.4.0",
-                    "python": "3.13.13"
+                    "python": "3.13.18"
                 },
                 "PYCYTOMINER_NORMALIZE": {
                     "pandas": "2.3.3",
-                    "pyarrow": "24.0.0",
+                    "pyarrow": "25.0.0",
                     "pycytominer": "1.4.0",
-                    "python": "3.13.13"
+                    "python": "3.13.18"
                 },
                 "Workflow": {
-                    "AlexsLemonade/morphport": "v0.1.0dev"
+                    "AlexsLemonade/morphport": "v0.1.0"
                 }
             },
             [
@@ -251,7 +251,7 @@
                 "test-project/well/pycytominer/edge_wells_included/well_MP00000006.parquet"
             ]
         ],
-        "timestamp": "2026-10-23T13:53:28.672237",
+        "timestamp": "2026-10-26T15:11:31.102383",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.7"
@@ -288,7 +288,7 @@
                     "stub": "x.y.z"
                 },
                 "Workflow": {
-                    "AlexsLemonade/morphport": "v0.1.0dev"
+                    "AlexsLemonade/morphport": "v0.1.0"
                 }
             },
             [
@@ -457,7 +457,7 @@
                 "well_plate_002.parquet:md5,d41d8cd98f00b204e9800998ecf8427e"
             ]
         ],
-        "timestamp": "2026-10-23T13:53:40.369697",
+        "timestamp": "2026-10-26T13:44:24.938507",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.04.7"

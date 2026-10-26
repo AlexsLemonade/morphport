@@ -3,6 +3,7 @@ channels:
   - bioconda
 dependencies:
   - python=3.13
+  - ca-certificates>=2026.10.23
   # system libraries needed by the opencv-python wheel (a cytodataframe dependency) to import cosmicqc;
   # these are present in most container images, but not on minimal systems using conda environments
   - libgl
