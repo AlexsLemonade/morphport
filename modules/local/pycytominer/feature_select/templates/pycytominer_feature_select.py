@@ -173,7 +173,9 @@ def apply_per_channel_correlation_threshold(
 
 def main():
     parquet_dir = "input_parquet"
-    group_tag = "${group_tag}"
+    # raw string so JSON escapes in metadata values survive
+    group_meta = json.loads(r"""${meta_json}""")
+    group_tag = group_meta["group_tag"]
     operations = [op.strip() for op in "${operations}".split(",")]
     na_cutoff = float("${na_cutoff}")
     corr_threshold = float("${corr_threshold}")
@@ -297,11 +299,13 @@ def main():
         for name in selected_feature_cols:
             f.write(f"{name}\\n")
 
-    grouping_info = json.loads("""${grouping_info}""")
     summary = {
         "group_tag": group_tag,
-        "aggregate_level": grouping_info["aggregate_level"],
-        "grouping_values": grouping_info["grouping_values"],
+        "aggregate_level": group_meta["aggregate_level"],
+        "grouping_name": group_meta["grouping_name"],
+        "grouping_column": group_meta["grouping_column"],
+        "group": group_meta["group"],
+        "subgroup_values": group_meta["subgroup_values"],
         "operations_requested": operations,
         "operations_applied": effective_ops,
         "per_channel_correlation": do_per_channel,

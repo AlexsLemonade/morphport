@@ -8,10 +8,15 @@ testing*
 *.pyc
 null/
 .lineage/
+.nf-test/
+.nf-test.log
 
 # keep updates to .gitignore below to prevent linting error
-.nf-test
-.nf-test.log
+.nf-test-*.nf
 stub/results/
+# synthetic test data from scripts/generate_test_data.py:
+# track the small metadata files, but not the profiles (to be hosted externally)
+!tests/data/
+tests/data/**/*.parquet
 
 .claude/settings.local.json

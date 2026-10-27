@@ -62,7 +62,7 @@
                     "type": "string",
                     "format": "file-path",
                     "description": "Path to a YAML (or JSON) file specifying how partitions should be grouped for downstream analysis.",
-                    "help_text": "The file should contain a mapping with 'cell' and/or 'well' keys, each holding a list of groupings. Each grouping is a string naming a condition column (with or without the 'Metadata_' prefix); use a comma-separated string to group on multiple columns. An optional 'default' key supplies groupings that are added to every level's groupings (de-duplicated). If the file is not provided, both levels collapse to a single empty grouping, meaning the pipeline skips partitioning entirely and treats all plates as one group per level. The partition columns used by the partition step are the union of every grouping column.\n\nExample (YAML):\ndefault:\n  - treatment\ncell:\n  - gene_allele\n  - treatment,gene_allele"
+                    "help_text": "Defines named groupings of the platemap metadata, at the cell and/or well level. If not provided, all plates in a project are analyzed as a single group per level. See docs/analysis_groups_format.md for the file format and assets/analysis_groups_example.yaml for an example."
                 },
                 "random_seed": {
                     "type": "integer",
@@ -87,7 +87,7 @@
                     "type": "string",
                     "default": "both",
                     "description": "Whether to exclude wells on the border of the plate before coSMicQC filtering. Use 'off' to keep all wells, 'on' to drop edge wells, or 'both' to carry both edge-included and edge-excluded datasets through the rest of the pipeline.",
-                    "help_text": "This filter assumes that all wells in a plate are filled with media, and will exclude only the plate edges. If there are empty wells on the plate, this filtering may not be sufficient.\nIn 'both' mode, results are published separately under 'edge_wells_included' and 'edge_wells_excluded' subdirectories and downstream analysis groups are kept separate for each variant.",
+                    "help_text": "This filter assumes that all wells in a plate are filled with media, and will exclude only the plate edges. If there are empty wells on the plate, this filtering may not be sufficient.\nResults from edge well filtering onward are published in an 'edge_wells_included' ('off') or 'edge_wells_excluded' ('on') subdirectory of each step's output directory. In 'both' mode, both subdirectories are created and downstream analysis groups are kept separate for each variant.",
                     "enum": ["on", "off", "both"]
                 }
             }
@@ -358,7 +358,7 @@
                 },
                 "trace_report_suffix": {
                     "type": "string",
-                    "fa_icon": "far calendar",
+                    "fa_icon": "far fa-calendar",
                     "description": "Suffix to add to the trace report filename. Default is the date and time in the format yyyy-MM-dd_HH-mm-ss.",
                     "hidden": true
                 },

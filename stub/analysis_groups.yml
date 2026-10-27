@@ -1,4 +1,10 @@
+# Analysis groups for stub runs; see docs/analysis_groups_format.md for the format.
+# The stub platemaps don't have these columns, so every plate gets the value '_Absent_'.
 default:
-  - stub_condition
+  - name: stub_condition
+    grouping_column: stub_condition
+    groups: one_per_value
 cell:
-  - stub_target
+  - name: stub_target
+    grouping_column: stub_target
+    groups: one_per_value

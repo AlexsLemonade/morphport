@@ -3,9 +3,9 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.1.0 - [date]
+## v0.1.0 - [2026-10-27]
 
-Initial release of AlexsLemonade/morphport, created with the [nf-core](https://nf-co.re/) template.
+Initial release of `AlexsLemonade/morphport`, created with the [nf-core](https://nf-co.re/) template.
 
 ### `Added`
 
@@ -21,6 +21,8 @@ The pipeline takes per-plate CellProfiler outputs through conversion, quality co
 - `PYCYTOMINER_FEATURE_SELECT`: performs feature selection across configurable criteria.
 - `COMPUTE_EMBEDDINGS`: computes PCA and UMAP embeddings.
 - `HIERARCHICAL_CLUSTERING`: performs hierarchical clustering on the resulting embeddings.
+
+Analyses performed after partitioning (feature selection, embeddings, clustering, etc.) are run on groups of experimental conditions defined by an analysis groups file (`--analysis_groups_file`); see `docs/analysis_groups_format.md`.
 
 ### `Fixed`
 

@@ -3,6 +3,7 @@ channels:
   - bioconda
 dependencies:
   - python=3.13
-  - polars
+  - ca-certificates>=2026.10.23
+  - polars<2
   - numpy
   - scipy>=1.11

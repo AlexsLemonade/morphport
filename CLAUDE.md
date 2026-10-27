@@ -6,9 +6,9 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 
 ## Rules
 
-- Do NOT run `git commit`, `git push`, or any other git write commands. The human will handle all git operations.
+- Do NOT run `git commit`, `git push`, or any other git write commands. The human will handle all git operations. You may run `git` read commands, as well as read commands using `gh` to read issues, pull requests, and comments on GitHub.
 - Do NOT create, read, or modify `.env` files or any file containing credentials, tokens, or secrets.
-- Do NOT make network requests to external services (no `curl`, `wget`, API calls, etc.). However, you may use WebSearch and WebFetch tools to retrieve documentation or code examples relevant to the task at hand.
+- Do NOT make network requests to external services without explicit authorization (no `curl`, `wget`, API calls, etc.). However, you may use WebSearch and WebFetch tools to retrieve documentation or code examples relevant to the task at hand.
 - Do NOT install system-level packages or modify system configuration.
 - Do NOT access or reference any data that is not already present in this repository.
 
@@ -17,6 +17,29 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - When you have made changes, stop and describe what you changed and why so the human can review.
 - If you are unsure whether an action is allowed, ask rather than proceeding.
 - Keep changes small and incremental. Prefer multiple small steps over one large batch of changes.
+
+## Testing
+
+- After finishing a set of edits, stop and describe the changes; do NOT run the full nf-test suite until the human says to.
+  Quick, targeted checks (e.g. running a template helper on a small synthetic DataFrame) are fine once testing is approved.
+- Pipeline tests use nf-test, with tests in `tests/` (e.g. `tests/default.nf.test` and its snapshot).
+- The synthetic test profiles are not tracked by git; generate them first with `uv run scripts/generate_test_data.py` (see `tests/data/README.md`).
+- Run the tests with both the default Nextflow version and the version pinned in CI (`.github/workflows/nf-test.yml`, currently 25.10.4):
+
+  ```bash
+  nf-test test
+  NXF_VER=25.10.4 nf-test test
+  ```
+
+- `nf-test.config` only applies the `test` profile, so tests that run real processes (e.g. the `-profile test` pipeline test) need a software environment.
+  Use conda for local testing by adding `--profile +conda` (with conda on `PATH`), e.g. `nf-test test tests/default.nf.test --profile +conda`.
+  Keep the conda cache (`NXF_CONDA_CACHEDIR`) on local disk rather than a host-mounted path.
+- Conda resolves newer package builds than the pinned containers, so with conda the pipeline snapshot will differ in software versions.
+  Check that the run succeeds and only versions differ; do NOT update snapshots from conda runs.
+  The human updates snapshots by running the full tests with Docker.
+- If config parsing fails because the remote nf-core institutional config cannot be fetched, prefix the commands with `NXF_OFFLINE=true`.
+- If outputs change intentionally, update snapshots with `nf-test test --update-snapshot` and point out the snapshot changes for review.
+- For quick Python checks of template logic, use a throwaway uv environment rather than installing packages, e.g. `uv run --no-project --with pandas --with pyarrow python script.py`.
 
 ## Formatting guidelines
 

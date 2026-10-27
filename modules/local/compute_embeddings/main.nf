@@ -1,14 +1,12 @@
-include { groupTag; groupingInfoJson } from '../../../lib/morphport_utils.nf'
-
 process COMPUTE_EMBEDDINGS {
-    tag "${group_tag}"
+    tag "${meta.group_tag}"
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_polars_numpy_scikit-learn_umap-learn:c494cfb880b7d300'
-            : 'community.wave.seqera.io/library/python_polars_numpy_scikit-learn_umap-learn:6c9c9e0c1f5c856e'
+            ? 'oras://community.wave.seqera.io/library/python_ca-certificates_polars_numpy_pruned:3c1071edcf64d707'
+            : 'community.wave.seqera.io/library/python_ca-certificates_polars_numpy_pruned:00040f01e2f6537f'
     }
 
     input:
@@ -21,19 +19,17 @@ process COMPUTE_EMBEDDINGS {
     val(min_rows)
 
     output:
-    tuple val(meta), path("embeddings_${group_tag}.parquet"), path("embeddings_summary_${group_tag}.json"), emit: result
+    tuple val(meta), path("embeddings_${meta.group_tag}.parquet"), path("embeddings_summary_${meta.group_tag}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    group_tag = groupTag(meta)
-    grouping_info = groupingInfoJson(meta, [plate_ids: meta.plate_ids])
+    meta_json = groovy.json.JsonOutput.toJson(meta)
     template 'compute_embeddings.py'
 
     stub:
-    group_tag = groupTag(meta)
     """
-    touch embeddings_${group_tag}.parquet
-    cat <<-END_JSON > embeddings_summary_${group_tag}.json
+    touch embeddings_${meta.group_tag}.parquet
+    cat <<-END_JSON > embeddings_summary_${meta.group_tag}.json
     {
         "aggregate_level": "${meta.aggregate_level}",
         "stub": true

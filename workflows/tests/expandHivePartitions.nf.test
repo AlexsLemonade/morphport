@@ -18,11 +18,15 @@ nextflow_function {
                 new File(base, 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugB').mkdirs()
                 new File(base, 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugB/plate2.parquet').text = ''
                 new File(base, 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugB/plate3.parquet').text = ''
-                // empty directory with no parquet files: must not produce a result entry
-                new File(base, 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugC').mkdirs()
+                def manifest = new File(File.createTempDir('manifest-'), 'partitions.json')
+                manifest.text = groovy.json.JsonOutput.toJson([
+                    [path: 'Metadata_gene_allele=_NA_/Metadata_treatment=drugA', values: [Metadata_gene_allele: '_NA_', Metadata_treatment: 'drugA']],
+                    [path: 'Metadata_gene_allele=BRCA1/Metadata_treatment=drugB', values: [Metadata_gene_allele: 'BRCA1', Metadata_treatment: 'drugB']],
+                ])
 
                 input[0] = [id: 'plate1', project: 'demo']
                 input[1] = file(base)
+                input[2] = file(manifest)
                 """
             }
         }
@@ -32,35 +36,41 @@ nextflow_function {
             def stable = function.result
                 .collect { meta, parquets -> [meta, parquets.collect { parquet -> new File(parquet.toString()).name }.sort()] }
                 .sort { entry -> entry[0].toString() }
-            assertAll(
-                { assert stable.size() == 2 },
-                { assert stable == [
-                    [
-                        [id: 'plate1', project: 'demo', Metadata_gene_allele: 'BRCA1', Metadata_treatment: 'drugB'],
-                        ['plate2.parquet', 'plate3.parquet'],
-                    ],
-                    [
-                        [id: 'plate1', project: 'demo', Metadata_gene_allele: '_NA_', Metadata_treatment: 'drugA'],
-                        ['plate1.parquet'],
-                    ],
-                ] },
-            )
+            assert stable == [
+                [
+                    [id: 'plate1', project: 'demo', Metadata_gene_allele: 'BRCA1', Metadata_treatment: 'drugB'],
+                    ['plate2.parquet', 'plate3.parquet'],
+                ],
+                [
+                    [id: 'plate1', project: 'demo', Metadata_gene_allele: '_NA_', Metadata_treatment: 'drugA'],
+                    ['plate1.parquet'],
+                ],
+            ]
         }
     }
 
-    test("expandHivePartitions: single-level partition") {
+    test("expandHivePartitions: values come from the manifest, not the escaped directory names") {
 
         function "expandHivePartitions"
 
         when {
             function {
                 """
+                // DuckDB percent-encodes partition values in directory names
                 def base = File.createTempDir('hive-')
-                new File(base, 'Metadata_treatment=drugA').mkdirs()
-                new File(base, 'Metadata_treatment=drugA/plate1.parquet').text = ''
+                new File(base, 'Metadata_treatment=drug%20A%2FB').mkdirs()
+                new File(base, 'Metadata_treatment=drug%20A%2FB/plate1.parquet').text = ''
+                new File(base, 'Metadata_treatment=50%25').mkdirs()
+                new File(base, 'Metadata_treatment=50%25/plate1.parquet').text = ''
+                def manifest = new File(File.createTempDir('manifest-'), 'partitions.json')
+                manifest.text = groovy.json.JsonOutput.toJson([
+                    [path: 'Metadata_treatment=drug%20A%2FB', values: [Metadata_treatment: 'drug A/B']],
+                    [path: 'Metadata_treatment=50%25', values: [Metadata_treatment: '50%']],
+                ])
 
                 input[0] = [id: 'plate1', project: 'demo']
                 input[1] = file(base)
+                input[2] = file(manifest)
                 """
             }
         }
@@ -69,16 +79,21 @@ nextflow_function {
             assert function.success
             def stable = function.result
                 .collect { meta, parquets -> [meta, parquets.collect { parquet -> new File(parquet.toString()).name }.sort()] }
+                .sort { entry -> entry[0].toString() }
             assert stable == [
                 [
-                    [id: 'plate1', project: 'demo', Metadata_treatment: 'drugA'],
+                    [id: 'plate1', project: 'demo', Metadata_treatment: '50%'],
+                    ['plate1.parquet'],
+                ],
+                [
+                    [id: 'plate1', project: 'demo', Metadata_treatment: 'drug A/B'],
                     ['plate1.parquet'],
                 ],
             ]
         }
     }
 
-    test("expandHivePartitions: no partitions with parquet files") {
+    test("expandHivePartitions: manifest entries without parquet files are skipped") {
 
         function "expandHivePartitions"
 
@@ -87,9 +102,14 @@ nextflow_function {
                 """
                 def base = File.createTempDir('hive-')
                 new File(base, 'Metadata_treatment=drugA').mkdirs()
+                def manifest = new File(File.createTempDir('manifest-'), 'partitions.json')
+                manifest.text = groovy.json.JsonOutput.toJson([
+                    [path: 'Metadata_treatment=drugA', values: [Metadata_treatment: 'drugA']],
+                ])
 
                 input[0] = [id: 'plate1', project: 'demo']
                 input[1] = file(base)
+                input[2] = file(manifest)
                 """
             }
         }

@@ -25,7 +25,7 @@ def write_versions(task_process: str):
 
 def main():
     # capture input variables from the Nextflow workflow
-    plate_dir = "${plate_dir}"
+    sqlite_file = "${sqlite_file}"
     plate_id = "${meta.plate_id}"
     cytotable_preset = "${meta.cytotable_preset}"
     task_cpus = int("${task.cpus}")
@@ -56,7 +56,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as parsl_run_dir:
         cytotable.convert(
-            source_path=plate_dir,
+            source_path=sqlite_file,
             dest_path=f"{plate_id}.parquet",
             dest_datatype="parquet",
             preset=cytotable_preset,

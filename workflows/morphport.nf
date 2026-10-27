@@ -15,6 +15,8 @@ include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normal
 include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
 include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clustering'
+include { CREATE_ANALYSIS_GROUPS     } from '../subworkflows/local/create_analysis_groups'
+include { partitionKey               } from '../subworkflows/local/create_analysis_groups'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -24,24 +26,36 @@ include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clust
 
 workflow MORPHPORT {
     take:
-    ch_samplesheet     // channel: samplesheet read in from --input
-    ch_analysis_groups // value:   nested map of analysis groups → sub-combo → expected size
+    ch_samplesheet       // channel: samplesheet read in from --input
+    analysis_groups_file // string: path to the analysis groups file (null for a single group per level)
     outdir
 
     main:
 
-    ch_validated = ch_samplesheet
-        .map { meta -> [meta + [aggregate_level: 'cell'], file(meta.plate_dir)] }
-        .branch { it ->
-            skip_cytotable: it[0].cytotable_preset == 'skip'
+    // Parse the analysis groups file, check the groups against every plate's platemap
+    // and build the analysis groups lookup (see CREATE_ANALYSIS_GROUPS).
+    // Downstream steps use the samplesheet emitted by CREATE_ANALYSIS_GROUPS rather than ch_samplesheet
+    // so no process starts until the checks pass; it also adds the partition columns to plate_metadata_columns.
+    CREATE_ANALYSIS_GROUPS(
+        ch_samplesheet,
+        analysis_groups_file,
+        params.platemap_well_column,
+    )
+    ch_analysis_groups = CREATE_ANALYSIS_GROUPS.out.analysis_groups
+
+    ch_validated = CREATE_ANALYSIS_GROUPS.out.samplesheet
+        .map { meta -> meta + [aggregate_level: 'cell'] }
+        .branch { meta ->
+            skip_cytotable: meta.cytotable_preset == 'skip'
             convert: true
         }
 
-    ch_parquet = ch_validated.skip_cytotable.map { meta, plate_dir ->
-        [meta, file("${plate_dir}/*.parquet")[0]]
+    // when skipping CytoTable, use the existing parquet file(s) at parquet_path (may be a glob for split files)
+    ch_parquet = ch_validated.skip_cytotable.map { meta ->
+        [meta, files(meta.parquet_path)]
     }
 
-    CYTOTABLE_CONVERT(ch_validated.convert)
+    CYTOTABLE_CONVERT(ch_validated.convert.map { meta -> [meta, file(meta.sqlite_path)] })
     ch_parquet = ch_parquet.mix(CYTOTABLE_CONVERT.out.parquet)
 
     // annotate cells with metadata from the platemap
@@ -121,22 +135,24 @@ workflow MORPHPORT {
     // we separate them out again later using the aggregate_level metadata.
     // The analysis_groups value channel carries the partition column set;
     // branch on it so PARTITION_CONDITIONS only runs when there is something to partition.
+    // Only the partition columns are passed on, so edits to the rest of the lookup
+    // (group names, membership) don't invalidate cached partitioning tasks on -resume.
     // Note that because ch_analysis_groups is a value channel,
     // all values in ch_normalized will take the same branch path
     ch_prepartition = ch_normalized
-        .combine(ch_analysis_groups)
-        .branch { _meta, _parquet, groups ->
-            partition: groups.partition_columns.size() > 0
+        .combine(ch_analysis_groups.map { groups -> [groups.partition_columns] })
+        .branch { _meta, _parquet, partition_columns ->
+            partition: partition_columns.size() > 0
             skip:      true
         }
 
     PARTITION_CONDITIONS(ch_prepartition.partition)
     ch_partitioned = PARTITION_CONDITIONS.out.partitions
         // expand each Hive directory into one tuple per partition with the conditions
-        // parsed from the directory name added to meta
-        .flatMap { meta, partition_dir -> expandHivePartitions(meta, partition_dir) }
+        // from the partition manifest added to meta
+        .flatMap { meta, partition_dir, manifest -> expandHivePartitions(meta, partition_dir, manifest) }
         // the skip branch wasn't partitioned, so just pass the files through with the original meta
-        .mix(ch_prepartition.skip.map { meta, parquet, _groups -> [meta, [parquet] as List] })
+        .mix(ch_prepartition.skip.map { meta, parquet, _partition_columns -> [meta, [parquet] as List] })
 
     ch_grouped = createGroupChannels(ch_partitioned, ch_analysis_groups)
 
@@ -163,7 +179,7 @@ workflow MORPHPORT {
         }
 
     ch_feature_selected.empty.subscribe { meta, _plate_metas, _parquets, _features ->
-        log.warn "Skipping COMPUTE_EMBEDDINGS for ${meta.aggregate_level} group ${meta.grouping_columns?.collect { col -> "${col}=${meta[col]}" }?.join(', ') ?: 'all'}: no features selected upstream."
+        log.warn "Skipping COMPUTE_EMBEDDINGS for group ${meta.group_tag}: no features selected upstream."
     }
 
     COMPUTE_EMBEDDINGS(
@@ -181,6 +197,28 @@ workflow MORPHPORT {
         params.clustering_linkage_method,
         params.clustering_distance_metric,
         params.clustering_max_samples,
+    )
+
+    //
+    // Log warnings sent to the 'warnings' topic by any process,
+    // and save them to a single file in pipeline_info (only written if there are any warnings).
+    // Each entry is [task.process, identifier (e.g. plate_id), file with one warning per line].
+    //
+    def ch_warnings = channel.topic("warnings")
+        .flatMap { process, id, warnings_file ->
+            def process_name = process[process.lastIndexOf(':') + 1..-1]
+            warnings_file.readLines()
+                .findAll { line -> line.trim() }
+                .collect { line -> "${process_name} (${id}): ${line}" }
+        }
+
+    ch_warnings.subscribe { warning -> log.warn(warning) }
+
+    ch_warnings.collectFile(
+        storeDir: "${params.outdir}/pipeline_info",
+        name: "morphport_warnings_${params.trace_report_suffix}.txt",
+        sort: true,
+        newLine: true,
     )
 
     //
@@ -223,73 +261,52 @@ workflow MORPHPORT {
 */
 
 //
-// Given a Hive partition directory, recursively find all parquet files and extract the partition
-// conditions from the directory structure, returning a list of tuples of the form:
+// Given a Hive partition directory and the manifest written alongside it by PARTITION_CONDITIONS,
+// find the parquet files in each partition, returning a list of tuples of the form:
 //   [meta + partition_conditions, list_of_parquet_files]
-
-def expandHivePartitions(meta, partition_dir) {
-    def results = []
-    partition_dir.eachDirRecurse { dir ->
-        def parquets = dir.listFiles()?.findAll { f -> f.name.endsWith('.parquet') } ?: []
-        if (parquets) {
-            def rel = partition_dir.relativize(dir)
-            // iterate over the relative path segments to build a map of conditions,
-            // e.g. ['Metadata_gene_allele=_NA_', 'Metadata_treatment=drugA'] -> [Metadata_gene_allele: '_NA_', Metadata_treatment: 'drugA']
-            def conditions = rel
-                .collect { segment ->
-                    def parts = segment.toString().split('=', 2)
-                    [(parts[0]): parts[1]]
-                }
-                .sum([:])
-            // merge list of maps into a single map
-            results << [meta + conditions, parquets]
+// The partition conditions come from the manifest rather than the directory names, because
+// DuckDB percent-encodes values in directory names (e.g. 'drug A' → 'drug%20A').
+// Each manifest entry has the form:
+//   [path: 'Metadata_treatment=drug%20A', values: [Metadata_treatment: 'drug A']]
+//
+def expandHivePartitions(meta, partition_dir, manifest_file) {
+    def manifest = new groovy.json.JsonSlurper().parse(manifest_file) as List
+    return manifest
+        .collect { partition ->
+            def dir = partition_dir.resolve(partition['path'] as String)
+            def parquets = dir.listFiles()?.findAll { f -> f.name.endsWith('.parquet') } ?: []
+            [meta + (partition['values'] as Map), parquets]
         }
-    }
-    return results
+        .findAll { _conditions, parquets -> parquets }
 }
 
 //
-// Build a channel of all condition groupings across aggregate levels.
-// Each tuple from ch_partitioned is fanned out into one tuple per matching grouping
-// (those whose aggregate_level matches the partition's level), keyed by groupKey(..., size)
-// so groupTuple can release each group as soon as size items have arrived.
+// Build a channel of all analysis groups across aggregate levels.
+// Each tuple from ch_partitioned is looked up in the analysis groups (see buildAnalysisGroups)
+// by its aggregate level and partition key (partition column values plus project), and fanned
+// out into one tuple per group it belongs to, keyed by groupKey(group_meta, size) so groupTuple
+// can release each group as soon as size items have arrived.
+// A partition that belongs to no group at its level (filtered out or excluded) emits nothing.
 //
 def createGroupChannels(ch_partitioned, ch_analysis_groups) {
     def ch_grouping = ch_partitioned
-        // add full map to each ch_partitioned tuple
+        // add the analysis groups lookup to each ch_partitioned tuple
         .combine(ch_analysis_groups)
-        // for each partition tuple, find the matching grouping(s) based on aggregate level and add the group key info
         .flatMap { meta, parquets, groups ->
             def agg_level = meta.aggregate_level
-            // look up the groupings for this aggregate level
-            //if not present, an empty list (no grouping)
-            def level_data = groups[agg_level] ?: [:]
-            // for each set of grouping values, create a tuple keyed by groupKey(..., size)
-            // with the grouping columns and values in the meta
-            level_data.collect { grouping_cols, grouping_value_sizes ->
-                // get the values of the grouping columns for this partition by subsetting the
-                // partition conditions from the meta.
-                // Add project so analysis groups stay separated by project
-                def grouping_value = meta.subMap(grouping_cols + ['project'])
-                def key_data  = grouping_value + [
-                    aggregate_level  : agg_level,
-                    grouping_columns : grouping_cols,
-                ]
-                // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate
-                // groups; deliberately excluded from grouping_value so the expected-size lookup
-                // below stays keyed on the original grouping values for both variants.
-                if (params.edge_well_filter == 'both') {
-                    key_data = key_data + [edge_wells_included: meta.edge_wells_included]
-                }
-                // Look up the expected size for this grouping
-                // A missing predicted size means the partition's grouping values weren't seen in any
-                // platemap during init
-                // Warn and set the expected value to max so emission happens at end with remainder: true.
-                def expected_size = grouping_value_sizes.get(grouping_value, Integer.MAX_VALUE)
-                if (expected_size == Integer.MAX_VALUE) {
-                    log.warn "morphport: no predicted size for ${agg_level} grouping ${grouping_cols} grouping_value ${grouping_value}"
-                }
-
+            def partition_key = partitionKey(meta, groups.partition_columns)
+            def level_groups = groups[agg_level] ?: [:]
+            // every partition value comes from a platemap (or samplesheet) read during
+            // initialisation, so a partition missing from the lookup is a pipeline bug
+            if (!level_groups.containsKey(partition_key)) {
+                error("Internal error: no analysis groups lookup entry for ${agg_level} partition ${partition_key} (plate '${meta.plate_id}')")
+            }
+            level_groups[partition_key].collect { group_meta, expected_size ->
+                // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate groups.
+                // Each variant gets every partition, so the expected size is the same for both.
+                def key_data = params.edge_well_filter == 'both'
+                    ? group_meta + [edge_wells_included: meta.edge_wells_included]
+                    : group_meta
                 [groupKey(key_data, expected_size), meta, parquets]
             }
         }

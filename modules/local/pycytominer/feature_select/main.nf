@@ -1,15 +1,13 @@
-include { groupTag; groupingInfoJson } from '../../../../lib/morphport_utils.nf'
-
 process PYCYTOMINER_FEATURE_SELECT {
-    tag "${group_tag}"
+    tag "${meta.group_tag}"
     label 'process_low'
     label 'publish_skip_parquet'
 
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_pandas_pyarrow_pip_pycytominer:7f48ab6b722820f9'
-            : 'community.wave.seqera.io/library/python_pandas_pyarrow_pip_pycytominer:db10e902a4043cb1'
+            ? 'oras://community.wave.seqera.io/library/python_ca-certificates_pandas_pyarrow_pruned:77fbd4b29f56c6c0'
+            : 'community.wave.seqera.io/library/python_ca-certificates_pandas_pyarrow_pruned:d60b17a9b7cc60c9'
     }
 
     input:
@@ -30,8 +28,8 @@ process PYCYTOMINER_FEATURE_SELECT {
     // Pass the original staged parquets through alongside a text file of selected feature
     // names; downstream steps filter columns on read rather than consuming a rewritten parquet.
     // includeInputs lets Nextflow re-emit the staged inputs as outputs of this process.
-    tuple val(meta), val(plate_metas), path("input_parquet/*.parquet", includeInputs: true), path("features_${group_tag}.txt"), emit: result
-    path "feature_select_summary_${group_tag}.json", emit: summary
+    tuple val(meta), val(plate_metas), path("input_parquet/*.parquet", includeInputs: true), path("features_${meta.group_tag}.txt"), emit: result
+    path "feature_select_summary_${meta.group_tag}.json", emit: summary
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -39,17 +37,15 @@ process PYCYTOMINER_FEATURE_SELECT {
     def ops_list = operations.tokenize(',').collect { it.trim() }
     assert ops_list.every { it in allowed_ops }
         : "PYCYTOMINER_FEATURE_SELECT: operations must be a comma-separated subset of ${allowed_ops}, got '${operations}'"
-    group_tag = groupTag(meta)
-    grouping_info = groupingInfoJson(meta, [aggregate_level: meta.aggregate_level])
+    meta_json = groovy.json.JsonOutput.toJson(meta)
     template 'pycytominer_feature_select.py'
 
     stub:
-    group_tag = groupTag(meta)
     """
     # Write a placeholder feature so downstream filters that drop empty
     # feature lists (e.g. COMPUTE_EMBEDDINGS) still see this group during stub runs.
-    echo "Cells_stub_feature" > features_${group_tag}.txt
-    cat <<-END_JSON > feature_select_summary_${group_tag}.json
+    echo "Cells_stub_feature" > features_${meta.group_tag}.txt
+    cat <<-END_JSON > feature_select_summary_${meta.group_tag}.json
     {
         "aggregate_level": "${meta.aggregate_level}",
         "stub": true

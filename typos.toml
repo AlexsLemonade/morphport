@@ -2,3 +2,8 @@
 
 [default.extend-words]
 OME = "OME"
+
+[files]
+extend-exclude = [
+    ".nextflow*",
+]

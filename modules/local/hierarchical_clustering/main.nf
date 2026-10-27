@@ -1,15 +1,13 @@
-include { groupTag; groupingInfoJson } from '../../../lib/morphport_utils.nf'
-
 // Computes hierarchical clustering of the samples within one analysis group.
 process HIERARCHICAL_CLUSTERING {
-    tag "${group_tag}"
+    tag "${meta.group_tag}"
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_polars_numpy_scipy:64a657f6279a8116'
-            : 'community.wave.seqera.io/library/python_polars_numpy_scipy:8ff74785ccdd6b8d'
+            ? 'oras://community.wave.seqera.io/library/python_ca-certificates_polars_numpy_scipy:8dd70f24b9f42bab'
+            : 'community.wave.seqera.io/library/python_ca-certificates_polars_numpy_scipy:bd4e20565a2da4a1'
     }
 
     input:
@@ -19,20 +17,20 @@ process HIERARCHICAL_CLUSTERING {
     val(max_samples)
 
     output:
-    tuple val(meta), path("clustering_${group_tag}.json"), emit: result
+    tuple val(meta), path("clustering_linkage_${meta.group_tag}.parquet"), path("clustering_leaves_${meta.group_tag}.parquet"), path("clustering_summary_${meta.group_tag}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    group_tag = groupTag(meta)
-    grouping_info = groupingInfoJson(meta, [plate_ids: meta.plate_ids])
+    meta_json = groovy.json.JsonOutput.toJson(meta)
     template 'hierarchical_clustering.py'
 
     stub:
-    group_tag = groupTag(meta)
     """
-    cat <<-END_JSON > clustering_${group_tag}.json
+    touch clustering_linkage_${meta.group_tag}.parquet
+    touch clustering_leaves_${meta.group_tag}.parquet
+    cat <<-END_JSON > clustering_summary_${meta.group_tag}.json
     {
-        "group_tag": "${group_tag}",
+        "group_tag": "${meta.group_tag}",
         "aggregate_level": "${meta.aggregate_level}",
         "stub": true
     }
