@@ -28,7 +28,7 @@ lint:
   multiqc_config: false
   pipeline_name_conventions: false
   readme: false
-nf_core_version: 4.2.0
+nf_core_version: 4.2.1
 repository_type: pipeline
 template:
   author: Joshua A. Shapiro
@@ -44,4 +44,4 @@ template:
     - multiqc
     - fastqc
     - gpu
-  version: 0.1.0dev
+  version: 0.1.0
