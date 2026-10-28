@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### `Added`
 
+- `HIERARCHICAL_CLUSTERING_FEATURES`: clusters the selected features within each analysis group, using the feature-selected profiles of all samples in the group.
+  Outputs are written to `hierarchical_clustering/` as `clustering_features_linkage_*.parquet`, `clustering_features_leaves_*.parquet`, and `clustering_features_summary_*.json`.
+  The linkage method and distance metric are set with the new `--clustering_features_linkage_method` and `--clustering_features_distance_metric` parameters.
+
+### `Changed`
+
+- `HIERARCHICAL_CLUSTERING` is renamed to `HIERARCHICAL_CLUSTERING_SAMPLES`, and its outputs are renamed to `clustering_samples_linkage_*.parquet`, `clustering_samples_leaves_*.parquet`, and `clustering_samples_summary_*.json`, to distinguish them from the feature clustering outputs.
+- `--clustering_linkage_method` and `--clustering_distance_metric` are renamed to `--clustering_samples_linkage_method` and `--clustering_samples_distance_metric`.
+
 ### `Fixed`
 
 ### `Dependencies`

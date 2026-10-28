@@ -65,7 +65,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 - [Plate partitioning](#plate-partitioning) - Split plates by experimental condition (optional output)
 - [Feature selection](#feature-selection) - Select informative features for each analysis group
 - [Embeddings](#embeddings) - Compute PCA and UMAP embeddings for each analysis group
-- [Hierarchical clustering](#hierarchical-clustering) - Cluster the samples within each analysis group
+- [Hierarchical clustering](#hierarchical-clustering) - Cluster the samples and features within each analysis group
 - [Pipeline information](#pipeline-information) - Report metrics generated during the workflow execution
 
 ### CytoTable
@@ -196,16 +196,26 @@ If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parq
 <summary>Output files</summary>
 
 - `<project>/<level>/hierarchical_clustering/edge_wells_*/`
-  - `clustering_linkage_<group_tag>.parquet`: The [scipy linkage matrix](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html), one row per merge, with columns `left`, `right`, `distance`, and `n_members`.
+  - `clustering_samples_linkage_<group_tag>.parquet`: The [scipy linkage matrix](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html), one row per merge, with columns `left`, `right`, `distance`, and `n_members`.
     Following scipy, leaves are numbered `0` to `n-1`, and the node created by row `i` is numbered `n + i`.
     The tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.
-  - `clustering_leaves_<group_tag>.parquet`: One row per leaf (sample), with columns `leaf_id` (the row number in the embeddings file and linkage matrix), `leaf_order` (position in the dendrogram), `label`, and the grouping, subgroup, and sample identifier metadata columns.
-  - `clustering_summary_<group_tag>.json`: Clustering summary for the group, including the group definition, linkage method, distance metric, and number of samples.
+  - `clustering_samples_leaves_<group_tag>.parquet`: One row per leaf (sample), with columns `leaf_id` (the row number in the embeddings file and linkage matrix), `leaf_order` (position in the dendrogram), `label`, and the grouping, subgroup, and sample identifier metadata columns.
+  - `clustering_samples_summary_<group_tag>.json`: Sample clustering summary for the group, including the group definition, linkage method, distance metric, and number of samples.
+  - `clustering_features_linkage_<group_tag>.parquet`: The scipy linkage matrix for the selected features, in the same format as the sample linkage matrix.
+  - `clustering_features_leaves_<group_tag>.parquet`: One row per leaf (feature), with columns `leaf_id` (the row number in the linkage matrix), `leaf_order` (position in the dendrogram), and `label` (the feature name).
+  - `clustering_features_summary_<group_tag>.json`: Feature clustering summary for the group, including the group definition, linkage method, distance metric, NaN filtering counts, and number of samples and features.
 
 </details>
 
-Samples in each group are clustered on their principal components using the linkage method and distance metric set by `--clustering_linkage_method` and `--clustering_distance_metric`.
+Samples in each group are clustered on their principal components using the linkage method and distance metric set by `--clustering_samples_linkage_method` and `--clustering_samples_distance_metric`.
 Groups are skipped if they were skipped by the embedding step, have fewer than 2 samples, or have more than `--clustering_max_samples` samples.
+
+The selected features in each group are clustered separately, using the feature-selected profiles of all samples in the group, with the linkage method and distance metric set by `--clustering_features_linkage_method` and `--clustering_features_distance_metric`.
+Features are not scaled before clustering.
+As in the embedding step, rows with a fraction of missing feature values above `--embedding_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
+Constant features should already be removed by feature selection; as a backup, any features that are constant across the remaining samples are excluded.
+Feature clustering is run for all groups, including cell-level groups, unless fewer than 2 samples or 2 features remain after filtering.
+
 For skipped groups, the parquet files are empty, and the summary has `skipped: true` and a `skip_reason`.
 
 ### Pipeline information
