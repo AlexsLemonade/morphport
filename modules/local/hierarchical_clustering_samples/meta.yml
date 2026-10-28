@@ -1,4 +1,4 @@
-name: hierarchical_clustering
+name: hierarchical_clustering_samples
 description: |
   Computes hierarchical clustering of the samples within an analysis group.
   Reads the PCA embeddings for the group, clusters the PC1..PCk columns, and
@@ -64,7 +64,7 @@ output:
       - meta:
           type: map
           description: Group key map (unchanged from input).
-      - "clustering_linkage_*.parquet":
+      - "clustering_samples_linkage_*.parquet":
           type: file
           description: |
             scipy linkage matrix with one row per merge and columns
@@ -72,21 +72,21 @@ output:
             Leaf ids are 0..n-1 and the node created by row i is n + i.
             The tree can be rebuilt with scipy.cluster.hierarchy.to_tree().
             Empty (zero rows) for skipped groups.
-          pattern: "clustering_linkage_*.parquet"
-      - "clustering_leaves_*.parquet":
+          pattern: "clustering_samples_linkage_*.parquet"
+      - "clustering_samples_leaves_*.parquet":
           type: file
           description: |
             One row per leaf with columns leaf_id, leaf_order (position in the
             dendrogram), label, and the grouping column, subgroup columns, and
             identifying metadata columns present in the embeddings parquet.
             Empty (zero rows) for skipped groups.
-          pattern: "clustering_leaves_*.parquet"
-      - "clustering_summary_*.json":
+          pattern: "clustering_samples_leaves_*.parquet"
+      - "clustering_samples_summary_*.json":
           type: file
           description: |
             Summary JSON with group identity, method, metric, and n_samples.
             Skipped groups contain skipped=true and skip_reason.
-          pattern: "clustering_summary_*.json"
+          pattern: "clustering_samples_summary_*.json"
   - versions:
       - versions.yml:
           type: file

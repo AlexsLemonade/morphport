@@ -1,5 +1,5 @@
 // Computes hierarchical clustering of the samples within one analysis group.
-process HIERARCHICAL_CLUSTERING {
+process HIERARCHICAL_CLUSTERING_SAMPLES {
     tag "${meta.group_tag}"
     label 'process_single'
 
@@ -17,18 +17,18 @@ process HIERARCHICAL_CLUSTERING {
     val(max_samples)
 
     output:
-    tuple val(meta), path("clustering_linkage_${meta.group_tag}.parquet"), path("clustering_leaves_${meta.group_tag}.parquet"), path("clustering_summary_${meta.group_tag}.json"), emit: result
+    tuple val(meta), path("clustering_samples_linkage_${meta.group_tag}.parquet"), path("clustering_samples_leaves_${meta.group_tag}.parquet"), path("clustering_samples_summary_${meta.group_tag}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
     meta_json = groovy.json.JsonOutput.toJson(meta)
-    template 'hierarchical_clustering.py'
+    template 'hierarchical_clustering_samples.py'
 
     stub:
     """
-    touch clustering_linkage_${meta.group_tag}.parquet
-    touch clustering_leaves_${meta.group_tag}.parquet
-    cat <<-END_JSON > clustering_summary_${meta.group_tag}.json
+    touch clustering_samples_linkage_${meta.group_tag}.parquet
+    touch clustering_samples_leaves_${meta.group_tag}.parquet
+    cat <<-END_JSON > clustering_samples_summary_${meta.group_tag}.json
     {
         "group_tag": "${meta.group_tag}",
         "aggregate_level": "${meta.aggregate_level}",

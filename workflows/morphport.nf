@@ -9,14 +9,15 @@ include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morp
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
 include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
-include { PYCYTOMINER_ANNOTATE       } from '../modules/local/pycytominer/annotate'
-include { PYCYTOMINER_AGGREGATE      } from '../modules/local/pycytominer/aggregate'
-include { PYCYTOMINER_NORMALIZE      } from '../modules/local/pycytominer/normalize'
-include { PYCYTOMINER_FEATURE_SELECT } from '../modules/local/pycytominer/feature_select'
-include { COMPUTE_EMBEDDINGS         } from '../modules/local/compute_embeddings'
-include { HIERARCHICAL_CLUSTERING    } from '../modules/local/hierarchical_clustering'
-include { CREATE_ANALYSIS_GROUPS     } from '../subworkflows/local/create_analysis_groups'
-include { partitionKey               } from '../subworkflows/local/create_analysis_groups'
+include { PYCYTOMINER_ANNOTATE             } from '../modules/local/pycytominer/annotate'
+include { PYCYTOMINER_AGGREGATE            } from '../modules/local/pycytominer/aggregate'
+include { PYCYTOMINER_NORMALIZE            } from '../modules/local/pycytominer/normalize'
+include { PYCYTOMINER_FEATURE_SELECT       } from '../modules/local/pycytominer/feature_select'
+include { COMPUTE_EMBEDDINGS               } from '../modules/local/compute_embeddings'
+include { HIERARCHICAL_CLUSTERING_SAMPLES  } from '../modules/local/hierarchical_clustering_samples'
+include { HIERARCHICAL_CLUSTERING_FEATURES } from '../modules/local/hierarchical_clustering_features'
+include { CREATE_ANALYSIS_GROUPS           } from '../subworkflows/local/create_analysis_groups'
+include { partitionKey                     } from '../subworkflows/local/create_analysis_groups'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -179,7 +180,7 @@ workflow MORPHPORT {
         }
 
     ch_feature_selected.empty.subscribe { meta, _plate_metas, _parquets, _features ->
-        log.warn "Skipping COMPUTE_EMBEDDINGS for group ${meta.group_tag}: no features selected upstream."
+        log.warn "Skipping COMPUTE_EMBEDDINGS and HIERARCHICAL_CLUSTERING_FEATURES for group ${meta.group_tag}: no features selected upstream."
     }
 
     COMPUTE_EMBEDDINGS(
@@ -192,11 +193,19 @@ workflow MORPHPORT {
         params.embedding_min_rows,
     )
 
-    HIERARCHICAL_CLUSTERING(
+    HIERARCHICAL_CLUSTERING_SAMPLES(
         COMPUTE_EMBEDDINGS.out.result,
-        params.clustering_linkage_method,
-        params.clustering_distance_metric,
+        params.clustering_samples_linkage_method,
+        params.clustering_samples_distance_metric,
         params.clustering_max_samples,
+    )
+
+    // cluster the selected features from the full feature-selected matrix
+    HIERARCHICAL_CLUSTERING_FEATURES(
+        ch_feature_selected.has_features,
+        params.clustering_features_linkage_method,
+        params.clustering_features_distance_metric,
+        params.embedding_max_nan_fraction,
     )
 
     //

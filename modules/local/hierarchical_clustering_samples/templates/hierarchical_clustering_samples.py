@@ -7,13 +7,13 @@ Reads the PCA embeddings parquet written upstream by compute_embeddings,
 selects the PC1..PCk columns, and runs scipy's hierarchical/agglomerative
 clustering on them. Writes three files:
 
-- clustering_linkage_{group_tag}.parquet: the scipy linkage matrix, one row per
+- clustering_samples_linkage_{group_tag}.parquet: the scipy linkage matrix, one row per
   merge, with columns left, right, distance, n_members.
   Following scipy, leaf ids are 0..n-1 and the node created by row i is n + i.
   The full tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.
-- clustering_leaves_{group_tag}.parquet: one row per leaf, with columns leaf_id,
+- clustering_samples_leaves_{group_tag}.parquet: one row per leaf, with columns leaf_id,
   leaf_order (position in the dendrogram), label, and identifying metadata.
-- clustering_summary_{group_tag}.json: clustering parameters and skip status.
+- clustering_samples_summary_{group_tag}.json: clustering parameters and skip status.
 """
 
 import json
@@ -141,9 +141,9 @@ def main():
     distance_metric = "${distance_metric}"
     max_samples = int("${max_samples}")
     task_process = "${task.process}"
-    linkage_parquet = f"clustering_linkage_{group_tag}.parquet"
-    leaves_parquet = f"clustering_leaves_{group_tag}.parquet"
-    clustering_summary_json = f"clustering_summary_{group_tag}.json"
+    linkage_parquet = f"clustering_samples_linkage_{group_tag}.parquet"
+    leaves_parquet = f"clustering_samples_leaves_{group_tag}.parquet"
+    clustering_summary_json = f"clustering_samples_summary_{group_tag}.json"
 
     validate_clustering_params(linkage_method, distance_metric, max_samples)
     # written up front so skipped groups report versions too
