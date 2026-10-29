@@ -7,3 +7,4 @@ dependencies:
   - polars<2
   - numpy
   - scipy>=1.11
+  - fastcluster>=1.2.6
