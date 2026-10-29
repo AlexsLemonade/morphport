@@ -208,8 +208,9 @@ If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parq
 </details>
 
 Samples in each group are clustered with Ward linkage, using [fastcluster](https://danifold.net/fastcluster.html)'s memory-saving algorithm so that large cell-level groups can be clustered without computing all pairwise distances at once.
-By default, samples are clustered on their selected features; set `--clustering_samples_input pcs` to cluster on their principal components instead, which is faster for large groups.
-The distance metric is set by `--clustering_samples_distance_metric`.
+By default, samples are clustered on their principal components; set `--clustering_samples_input features` to cluster on their selected features instead, which is slower for large groups since clustering time grows with the number of columns.
+The distance metric is set by `--clustering_samples_distance_metric` (default `cosine`).
+The `correlation` metric (Pearson correlation between sample profiles) is recommended only when clustering features, since centering a sample's principal component scores is not meaningful.
 Because Ward linkage requires euclidean distances, the `correlation` metric is implemented by centering each sample and scaling it to unit length, and `cosine` by scaling each sample to unit length.
 For these metrics, the merge distances in the linkage matrix are on the euclidean scale of the transformed samples, where the squared distance between two samples is `2 * (1 - r)` for correlation (or cosine similarity) `r`.
 As in the embedding step, rows with a fraction of missing values above `--sample_max_nan_fraction` are dropped, and remaining missing values are filled with 0.

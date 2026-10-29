@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `HIERARCHICAL_CLUSTERING` is renamed to `HIERARCHICAL_CLUSTERING_SAMPLES`, and its outputs are renamed to `clustering_samples_linkage_*.parquet`, `clustering_samples_leaves_*.parquet`, and `clustering_samples_summary_*.json`, to distinguish them from the feature clustering outputs.
 - `--clustering_linkage_method` and `--clustering_distance_metric` are renamed to `--clustering_samples_linkage_method` and `--clustering_samples_distance_metric`.
 - `HIERARCHICAL_CLUSTERING_SAMPLES` now always uses Ward linkage via fastcluster's memory-saving `linkage_vector`, to support clustering large cell-level groups.
-  Samples are clustered on their selected features by default; the new `--clustering_samples_input pcs` option clusters on the principal components instead.
-  `--clustering_samples_linkage_method` is removed, and `--clustering_samples_distance_metric` now accepts `correlation` (default), `cosine`, or `euclidean`.
+  Samples are clustered on their principal components by default; the new `--clustering_samples_input features` option clusters on the selected features instead.
+  `--clustering_samples_linkage_method` is removed, and `--clustering_samples_distance_metric` now accepts `cosine` (default), `correlation`, or `euclidean`.
+  The default `--clustering_max_samples` is raised from 5000 to 200000.
 - `--embedding_max_nan_fraction` is renamed to `--sample_max_nan_fraction`, since it is shared by the embedding and clustering steps.
 
 ### `Fixed`
