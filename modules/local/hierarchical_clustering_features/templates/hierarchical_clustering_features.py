@@ -215,7 +215,7 @@ def main():
     keep_mask = nan_per_row <= max_nan_fraction * len(feature_cols)
     n_rows_dropped = int((~keep_mask).sum())
     n_rows_nan_filled = int(((nan_per_row > 0) & keep_mask).sum())
-    feature_mat = np.nan_to_num(feature_mat[keep_mask], nan=0.0)
+    feature_mat = np.nan_to_num(feature_mat[keep_mask], copy=False, nan=0.0)
 
     n_samples = feature_mat.shape[0]
     summary.update(
