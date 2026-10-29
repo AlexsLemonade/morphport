@@ -92,7 +92,7 @@ def write_skipped(
 ):
     """
     Write empty linkage and leaves parquet files and a JSON summary for a group
-    that was skipped because it could not be clustered.
+    that was skipped due to being too small or other reasons.
     """
     pl.DataFrame(schema=LINKAGE_SCHEMA).write_parquet(linkage_parquet)
     pl.DataFrame(schema=LEAVES_SCHEMA).write_parquet(leaves_parquet)
@@ -163,13 +163,16 @@ def main():
     # written up front so skipped groups report versions too
     write_versions(task_process)
 
+    grouping_column = group_meta["grouping_column"]
+    subgroup_values = group_meta["subgroup_values"]
+
     summary = {
         "group_tag": group_tag,
         "aggregate_level": group_meta["aggregate_level"],
         "grouping_name": group_meta["grouping_name"],
-        "grouping_column": group_meta["grouping_column"],
+        "grouping_column": grouping_column,
         "group": group_meta["group"],
-        "subgroup_values": group_meta["subgroup_values"],
+        "subgroup_values": subgroup_values,
         "method": linkage_method,
         "metric": distance_metric,
         "max_nan_fraction": max_nan_fraction,
@@ -267,10 +270,11 @@ def main():
     # ---- Write leaves table --------------------------------------------------
     # leaf ids are the column indices of the clustered feature matrix, matching
     # scipy's numbering; leaf_order is each leaf's position in the dendrogram
+    leaf_order = np.argsort(leaves_list(linkage_matrix))
     leaves_df = pl.DataFrame(
         {
             "leaf_id": np.arange(n_features),
-            "leaf_order": np.argsort(leaves_list(linkage_matrix)),
+            "leaf_order": leaf_order,
             "label": feature_cols,
         },
         schema=LEAVES_SCHEMA,
