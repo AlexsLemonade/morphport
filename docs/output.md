@@ -186,7 +186,7 @@ Groups with no selected features are skipped by later steps, with a warning in t
 </details>
 
 PCA is computed on the selected features, and UMAP is then computed from the principal components.
-Rows with a fraction of missing feature values greater than `--embedding_max_nan_fraction` are dropped; remaining missing values are set to 0.
+Rows with a fraction of missing feature values greater than `--sample_max_nan_fraction` are dropped; remaining missing values are set to 0.
 The number of principal components and UMAP neighbors are reduced if the group is too small for the requested values; the summary records the values used.
 If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parquet file contains only metadata columns, and the summary has `skipped: true` and a `skip_reason`.
 
@@ -199,20 +199,25 @@ If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parq
   - `clustering_samples_linkage_<group_tag>.parquet`: The [scipy linkage matrix](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html), one row per merge, with columns `left`, `right`, `distance`, and `n_members`.
     Following scipy, leaves are numbered `0` to `n-1`, and the node created by row `i` is numbered `n + i`.
     The tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.
-  - `clustering_samples_leaves_<group_tag>.parquet`: One row per leaf (sample), with columns `leaf_id` (the row number in the embeddings file and linkage matrix), `leaf_order` (position in the dendrogram), `label`, and the grouping, subgroup, and sample identifier metadata columns.
-  - `clustering_samples_summary_<group_tag>.json`: Sample clustering summary for the group, including the group definition, linkage method, distance metric, and number of samples.
+  - `clustering_samples_leaves_<group_tag>.parquet`: One row per leaf (sample), with columns `leaf_id` (the row number in the clustered matrix, after dropping rows with missing values), `leaf_order` (position in the dendrogram), `label`, and the grouping, subgroup, and sample identifier metadata columns.
+  - `clustering_samples_summary_<group_tag>.json`: Sample clustering summary for the group, including the group definition, clustering input, linkage method, distance metric, NaN filtering counts, and number of samples.
   - `clustering_features_linkage_<group_tag>.parquet`: The scipy linkage matrix for the selected features, in the same format as the sample linkage matrix.
   - `clustering_features_leaves_<group_tag>.parquet`: One row per leaf (feature), with columns `leaf_id` (the row number in the linkage matrix), `leaf_order` (position in the dendrogram), and `label` (the feature name).
   - `clustering_features_summary_<group_tag>.json`: Feature clustering summary for the group, including the group definition, linkage method, distance metric, NaN filtering counts, and number of samples and features.
 
 </details>
 
-Samples in each group are clustered on their principal components using the linkage method and distance metric set by `--clustering_samples_linkage_method` and `--clustering_samples_distance_metric`.
-Groups are skipped if they were skipped by the embedding step, have fewer than 2 samples, or have more than `--clustering_max_samples` samples.
+Samples in each group are clustered with Ward linkage, using [fastcluster](https://danifold.net/fastcluster.html)'s memory-saving algorithm so that large cell-level groups can be clustered without computing all pairwise distances at once.
+By default, samples are clustered on their selected features; set `--clustering_samples_input pcs` to cluster on their principal components instead, which is faster for large groups.
+The distance metric is set by `--clustering_samples_distance_metric`.
+Because Ward linkage requires euclidean distances, the `correlation` metric is implemented by centering each sample and scaling it to unit length, and `cosine` by scaling each sample to unit length.
+For these metrics, the merge distances in the linkage matrix are on the euclidean scale of the transformed samples, where the squared distance between two samples is `2 * (1 - r)` for correlation (or cosine similarity) `r`.
+As in the embedding step, rows with a fraction of missing values above `--sample_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
+Groups are skipped if they were skipped by the embedding step (when clustering principal components), have fewer than 2 samples, or have more than `--clustering_max_samples` samples.
 
 The selected features in each group are clustered separately, using the feature-selected profiles of all samples in the group, with the linkage method and distance metric set by `--clustering_features_linkage_method` and `--clustering_features_distance_metric`.
 Features are not scaled before clustering.
-As in the embedding step, rows with a fraction of missing feature values above `--embedding_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
+As in the embedding step, rows with a fraction of missing feature values above `--sample_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
 Constant features should already be removed by feature selection; as a backup, any features that are constant across the remaining samples are excluded.
 Feature clustering is run for all groups, including cell-level groups, unless fewer than 2 samples or 2 features remain after filtering.
 

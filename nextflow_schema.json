@@ -212,12 +212,12 @@
                     "minimum": 0.0,
                     "description": "UMAP min_dist parameter."
                 },
-                "embedding_max_nan_fraction": {
+                "sample_max_nan_fraction": {
                     "type": "number",
                     "default": 0.0,
                     "minimum": 0.0,
                     "maximum": 1.0,
-                    "description": "Per-row NaN tolerance as a fraction of feature columns. Rows above the threshold are dropped; surviving rows have NaNs filled with 0. Default 0.0 drops any row with a NaN."
+                    "description": "Per-sample (row) NaN tolerance as a fraction of feature columns, used by the embedding and clustering steps so they use the same samples. Samples above the threshold are dropped; remaining samples have NaNs filled with 0. Default 0.0 drops any sample with a NaN."
                 },
                 "embedding_min_rows": {
                     "type": "integer",
@@ -230,19 +230,19 @@
         "clustering": {
             "title": "Clustering",
             "type": "object",
-            "description": "Parameters controlling hierarchical clustering computed per analysis group: samples are clustered on their PCA embeddings, and features on the feature-selected profiles.",
+            "description": "Parameters controlling hierarchical clustering computed per analysis group: samples are clustered with Ward linkage on the feature-selected profiles or their PCA embeddings, and features on the feature-selected profiles.",
             "properties": {
-                "clustering_samples_linkage_method": {
+                "clustering_samples_input": {
                     "type": "string",
-                    "default": "average",
-                    "description": "Linkage method for sample clustering, passed to scipy.cluster.hierarchy.linkage. Note: 'ward' requires clustering_samples_distance_metric to be 'euclidean'.",
-                    "enum": ["single", "complete", "average", "weighted", "ward"]
+                    "default": "features",
+                    "description": "Input for sample clustering: 'features' clusters the feature-selected profiles, 'pcs' clusters the principal components from the embedding step (faster for large groups).",
+                    "enum": ["features", "pcs"]
                 },
                 "clustering_samples_distance_metric": {
                     "type": "string",
                     "default": "correlation",
-                    "description": "Distance metric for sample clustering, passed to scipy.cluster.hierarchy.linkage. Note: clustering_samples_linkage_method 'ward' requires 'euclidean'.",
-                    "enum": ["euclidean", "correlation", "cosine", "cityblock"]
+                    "description": "Distance metric for sample clustering, which always uses Ward linkage. 'correlation' and 'cosine' are implemented by centering (correlation only) and scaling each sample to unit length before Ward/euclidean clustering.",
+                    "enum": ["correlation", "cosine", "euclidean"]
                 },
                 "clustering_max_samples": {
                     "type": "integer",
