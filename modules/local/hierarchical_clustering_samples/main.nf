@@ -9,8 +9,8 @@ process HIERARCHICAL_CLUSTERING_SAMPLES {
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_ca-certificates_polars_numpy_scipy:8dd70f24b9f42bab'
-            : 'community.wave.seqera.io/library/python_ca-certificates_polars_numpy_scipy:bd4e20565a2da4a1'
+            ? 'oras://community.wave.seqera.io/library/python_ca-certificates_polars_numpy_pruned:37e21eba9ffdfe41'
+            : 'community.wave.seqera.io/library/python_ca-certificates_polars_numpy_pruned:3dba9d48ad2ca006'
     }
 
     input:
