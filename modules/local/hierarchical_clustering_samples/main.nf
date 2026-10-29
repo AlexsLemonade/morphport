@@ -3,6 +3,8 @@
 process HIERARCHICAL_CLUSTERING_SAMPLES {
     tag "${meta.group_tag}"
     label 'process_single'
+    // clustering is single-threaded, but can take hours for large groups
+    label 'process_long'
 
     conda "${moduleDir}/environment.yml"
     container {

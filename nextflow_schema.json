@@ -234,21 +234,21 @@
             "properties": {
                 "clustering_samples_input": {
                     "type": "string",
-                    "default": "features",
-                    "description": "Input for sample clustering: 'features' clusters the feature-selected profiles, 'pcs' clusters the principal components from the embedding step (faster for large groups).",
-                    "enum": ["features", "pcs"]
+                    "default": "pcs",
+                    "description": "Input for sample clustering: 'pcs' clusters the principal components from the embedding step, 'features' clusters the feature-selected profiles (slower for large groups, as clustering time grows with the number of columns).",
+                    "enum": ["pcs", "features"]
                 },
                 "clustering_samples_distance_metric": {
                     "type": "string",
-                    "default": "correlation",
-                    "description": "Distance metric for sample clustering, which always uses Ward linkage. 'correlation' and 'cosine' are implemented by centering (correlation only) and scaling each sample to unit length before Ward/euclidean clustering.",
-                    "enum": ["correlation", "cosine", "euclidean"]
+                    "default": "cosine",
+                    "description": "Distance metric for sample clustering, which always uses Ward linkage. 'cosine' and 'correlation' are implemented by scaling each sample to unit length (after centering it, for correlation) before Ward/euclidean clustering. 'correlation' is recommended only with clustering_samples_input 'features', since centering a sample's PC scores is not meaningful.",
+                    "enum": ["cosine", "correlation", "euclidean"]
                 },
                 "clustering_max_samples": {
                     "type": "integer",
-                    "default": 5000,
+                    "default": 200000,
                     "minimum": 2,
-                    "description": "Maximum number of samples to cluster. Groups with more rows than this (common for cell-level groups) are skipped rather than clustered, and the output JSON records skipped=true."
+                    "description": "Maximum number of samples to cluster. Clustering time grows with the square of the number of samples (and linearly with the number of features or PCs clustered), so groups with more rows than this are skipped rather than clustered, and the output JSON records skipped=true."
                 },
                 "clustering_features_linkage_method": {
                     "type": "string",
