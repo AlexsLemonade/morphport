@@ -123,11 +123,13 @@ def main():
     features_file = pathlib.Path("${features_file}")
     # raw string so JSON escapes in metadata values survive
     group_meta = json.loads(r"""${meta_json}""")
-    group_tag = group_meta["group_tag"]
     linkage_method = "${linkage_method}"
     distance_metric = "${distance_metric}"
     max_nan_fraction = float("${max_nan_fraction}")
     task_process = "${task.process}"
+    
+    # define output files
+    group_tag = group_meta["group_tag"]
     linkage_parquet = f"clustering_features_linkage_{group_tag}.parquet"
     leaves_parquet = f"clustering_features_leaves_{group_tag}.parquet"
     clustering_summary_json = f"clustering_features_summary_{group_tag}.json"
@@ -136,16 +138,13 @@ def main():
     # written up front so skipped groups report versions too
     write_versions(task_process)
 
-    grouping_column = group_meta["grouping_column"]
-    subgroup_values = group_meta["subgroup_values"]
-
     summary = {
         "group_tag": group_tag,
         "aggregate_level": group_meta["aggregate_level"],
         "grouping_name": group_meta["grouping_name"],
-        "grouping_column": grouping_column,
+        "grouping_column": group_meta["grouping_column"],
         "group": group_meta["group"],
-        "subgroup_values": subgroup_values,
+        "subgroup_values": group_meta["subgroup_values"],
         "method": linkage_method,
         "metric": distance_metric,
         "max_nan_fraction": max_nan_fraction,
