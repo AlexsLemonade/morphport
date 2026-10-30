@@ -34,7 +34,6 @@ from importlib.metadata import version
 import numpy as np
 import polars as pl
 from scipy.cluster.hierarchy import leaves_list, linkage
-from scipy.spatial.distance import squareform
 
 # Schemas for the output parquet files, used to write empty files for skipped groups
 LINKAGE_SCHEMA = {
@@ -116,32 +115,6 @@ def linkage_to_df(linkage_matrix: np.ndarray) -> pl.DataFrame:
         },
         schema=LINKAGE_SCHEMA,
     )
-
-
-def feature_distances(mat: np.ndarray, distance_metric: str) -> np.ndarray | None:
-    """
-    Compute condensed pairwise distances between the columns (features) of mat
-    from their Gram matrix.
-
-    A single matrix product is much faster than scipy's pdist when there are
-    many rows (e.g. cell-level groups). Returns None for metrics that can't be
-    computed this way, so the caller can fall back to pdist.
-    """
-    if distance_metric == "correlation":
-        mat = mat - mat.mean(axis=0)
-    elif distance_metric not in ("cosine", "euclidean"):
-        return None
-    gram = mat.T @ mat
-    sq_norms = np.diag(gram)
-    if distance_metric == "euclidean":
-        sq_dist = sq_norms[:, None] + sq_norms[None, :] - 2 * gram
-        # clip small negative values from floating point error
-        dist = np.sqrt(np.clip(sq_dist, 0, None))
-    else:
-        norms = np.sqrt(sq_norms)
-        dist = np.clip(1 - gram / np.outer(norms, norms), 0, 2)
-    np.fill_diagonal(dist, 0)
-    return squareform(dist, checks=False)
 
 
 def main():
@@ -257,14 +230,10 @@ def main():
         return
 
     # ---- Cluster -------------------------------------------------------------
-    # use precomputed distances where possible, falling back to scipy's pdist
-    distances = feature_distances(feature_mat, distance_metric)
-    if distances is not None:
-        linkage_matrix = linkage(distances, method=linkage_method)
-    else:
-        linkage_matrix = linkage(
-            feature_mat.T, method=linkage_method, metric=distance_metric
-        )
+    # cluster the columns (features) by transposing the matrix
+    linkage_matrix = linkage(
+        feature_mat.T, method=linkage_method, metric=distance_metric
+    )
     linkage_to_df(linkage_matrix).write_parquet(linkage_parquet)
 
     # ---- Write leaves table --------------------------------------------------
