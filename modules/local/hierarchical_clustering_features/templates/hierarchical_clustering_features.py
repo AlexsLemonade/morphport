@@ -111,7 +111,7 @@ def main():
     distance_metric = "${distance_metric}"
     max_nan_fraction = float("${max_nan_fraction}")
     task_process = "${task.process}"
-    
+
     # define output files
     group_tag = group_meta["group_tag"]
     linkage_parquet = f"clustering_features_linkage_{group_tag}.parquet"
