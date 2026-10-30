@@ -40,9 +40,11 @@ flowchart TD
     subgraph per_group ["Per analysis group"]
         FEATURE_SELECT[PYCYTOMINER_FEATURE_SELECT\nSelect informative features]
         EMBEDDINGS[COMPUTE_EMBEDDINGS\nPCA + UMAP]
-        CLUSTERING[HIERARCHICAL_CLUSTERING\nCluster samples by PCA]
+        CLUSTERING[HIERARCHICAL_CLUSTERING_SAMPLES\nCluster samples by PCA]
+        CLUSTER_FEATURES[HIERARCHICAL_CLUSTERING_FEATURES\nCluster features]
         FEATURE_SELECT --> EMBEDDINGS
         EMBEDDINGS --> CLUSTERING
+        FEATURE_SELECT --> CLUSTER_FEATURES
     end
 
     style per_plate fill:#dbeafe,stroke:#93c5fd,rx:10,ry:10

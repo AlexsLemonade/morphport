@@ -7,13 +7,13 @@ Reads the PCA embeddings parquet written upstream by compute_embeddings,
 selects the PC1..PCk columns, and runs scipy's hierarchical/agglomerative
 clustering on them. Writes three files:
 
-- clustering_linkage_{group_tag}.parquet: the scipy linkage matrix, one row per
+- clustering_samples_linkage_{group_tag}.parquet: the scipy linkage matrix, one row per
   merge, with columns left, right, distance, n_members.
   Following scipy, leaf ids are 0..n-1 and the node created by row i is n + i.
   The full tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.
-- clustering_leaves_{group_tag}.parquet: one row per leaf, with columns leaf_id,
+- clustering_samples_leaves_{group_tag}.parquet: one row per leaf, with columns leaf_id,
   leaf_order (position in the dendrogram), label, and identifying metadata.
-- clustering_summary_{group_tag}.json: clustering parameters and skip status.
+- clustering_samples_summary_{group_tag}.json: clustering parameters and skip status.
 """
 
 import json
@@ -114,22 +114,6 @@ def build_leaf_label(row: dict) -> str:
     return "_".join(parts) if parts else str(row["__row_id__"])
 
 
-def linkage_to_df(linkage_matrix: np.ndarray) -> pl.DataFrame:
-    """
-    Convert a scipy linkage matrix to a dataframe, casting the child ids and
-    counts to integers.
-    """
-    return pl.DataFrame(
-        {
-            "left": linkage_matrix[:, 0],
-            "right": linkage_matrix[:, 1],
-            "distance": linkage_matrix[:, 2],
-            "n_members": linkage_matrix[:, 3],
-        },
-        schema=LINKAGE_SCHEMA,
-    )
-
-
 def main():
     # ---- Capture Nextflow variables ----------------------------------------
     embeddings_parquet = "${embeddings_parquet}"
@@ -141,9 +125,9 @@ def main():
     distance_metric = "${distance_metric}"
     max_samples = int("${max_samples}")
     task_process = "${task.process}"
-    linkage_parquet = f"clustering_linkage_{group_tag}.parquet"
-    leaves_parquet = f"clustering_leaves_{group_tag}.parquet"
-    clustering_summary_json = f"clustering_summary_{group_tag}.json"
+    linkage_parquet = f"clustering_samples_linkage_{group_tag}.parquet"
+    leaves_parquet = f"clustering_samples_leaves_{group_tag}.parquet"
+    clustering_summary_json = f"clustering_samples_summary_{group_tag}.json"
 
     validate_clustering_params(linkage_method, distance_metric, max_samples)
     # written up front so skipped groups report versions too
@@ -234,7 +218,17 @@ def main():
     # ---- Cluster -------------------------------------------------------------
     pcs = df.select(pc_cols).to_numpy()
     linkage_matrix = linkage(pcs, method=linkage_method, metric=distance_metric)
-    linkage_to_df(linkage_matrix).write_parquet(linkage_parquet)
+
+    linkage_df = pl.DataFrame(
+        {
+            "left": linkage_matrix[:, 0],
+            "right": linkage_matrix[:, 1],
+            "distance": linkage_matrix[:, 2],
+            "n_members": linkage_matrix[:, 3],
+        },
+        schema=LINKAGE_SCHEMA,
+    )
+    linkage_df.write_parquet(linkage_parquet)
 
     # ---- Write leaves table --------------------------------------------------
     # leaf ids are the row indices of the embeddings parquet, matching scipy's

@@ -1,0 +1,112 @@
+name: hierarchical_clustering_features
+description: |
+  Computes hierarchical clustering of the features within an analysis group.
+  Reads the feature-selected parquets for the group, restricted to the selected
+  features, and clusters the columns of the feature matrix.
+  Writes the scipy linkage matrix and a table of leaf labels as parquet files,
+  along with a JSON summary of the clustering.
+keywords:
+  - cell painting
+  - hierarchical clustering
+  - dendrogram
+
+tools:
+  - scipy:
+      description: Scientific computing library used here for hierarchical/agglomerative clustering.
+      homepage: https://scipy.org
+      documentation: https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+  - polars:
+      description: Fast multi-threaded DataFrame library used for parquet IO.
+      homepage: https://pola.rs
+      documentation: https://docs.pola.rs
+      licence: ["MIT"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Group meta map from createGroupChannels, e.g.,
+          [ project:'cpg0016', aggregate_level:'cell', grouping_name:'treatment',
+            grouping_column:'Metadata_treatment', group:'drugA', subgroup_values:[:],
+            group_id:'treatment=drugA',
+            group_tag:'cell__treatment__treatment=drugA', plate_ids:['plate_001','plate_002'] ]
+    - plate_metas:
+        type: list
+        description: List of per-plate meta maps for the parquets in this group (unused).
+    - parquets:
+        type: file
+        description: |
+          Parquet files for the group, staged into input_parquet/, from
+          pycytominer_feature_select (passed through unchanged).
+        pattern: "*.parquet"
+    - features_file:
+        type: file
+        description: Text file of selected feature names, one per line, from pycytominer_feature_select.
+        pattern: "features_*.txt"
+  - - linkage_method:
+        type: string
+        description: |
+          Linkage method passed to scipy.cluster.hierarchy.linkage.
+          One of: single, complete, average, weighted, ward.
+          Note: ward requires distance_metric to be euclidean.
+  - - distance_metric:
+        type: string
+        description: |
+          Distance metric passed to scipy.cluster.hierarchy.linkage.
+          One of: euclidean, correlation, cosine, cityblock.
+  - - max_nan_fraction:
+        type: number
+        description: |
+          Per-row NaN tolerance as a fraction of feature columns (the pipeline
+          passes embedding_max_nan_fraction, so clustering and embeddings use the
+          same rows). Rows above the threshold are dropped; surviving rows have
+          NaNs filled with 0.
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Group key map (unchanged from input).
+      - "clustering_features_linkage_*.parquet":
+          type: file
+          description: |
+            scipy linkage matrix for the features, with one row per merge and
+            columns left, right, distance, n_members.
+            Leaf ids are 0..n-1 and the node created by row i is n + i.
+            The tree can be rebuilt with scipy.cluster.hierarchy.to_tree().
+            Empty (zero rows) if the group was skipped.
+          pattern: "clustering_features_linkage_*.parquet"
+      - "clustering_features_leaves_*.parquet":
+          type: file
+          description: |
+            One row per clustered feature with columns leaf_id, leaf_order
+            (position in the dendrogram), and label (the feature name).
+            Any constant features (normally already removed by feature
+            selection) are excluded.
+            Empty (zero rows) if the group was skipped.
+          pattern: "clustering_features_leaves_*.parquet"
+      - "clustering_features_summary_*.json":
+          type: file
+          description: |
+            Summary JSON with group identity, method, metric, NaN filtering
+            counts, n_samples, and n_features.
+            skipped records whether the group was skipped, with skip_reason
+            giving the reason when it was.
+          pattern: "clustering_features_summary_*.json"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module.
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"

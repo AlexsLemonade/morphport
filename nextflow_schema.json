@@ -230,18 +230,18 @@
         "clustering": {
             "title": "Clustering",
             "type": "object",
-            "description": "Parameters controlling hierarchical clustering computed per analysis group from PCA embeddings.",
+            "description": "Parameters controlling hierarchical clustering computed per analysis group: samples are clustered on their PCA embeddings, and features on the feature-selected profiles.",
             "properties": {
-                "clustering_linkage_method": {
+                "clustering_samples_linkage_method": {
                     "type": "string",
                     "default": "average",
-                    "description": "Linkage method passed to scipy.cluster.hierarchy.linkage. Note: 'ward' requires clustering_distance_metric to be 'euclidean'.",
+                    "description": "Linkage method for sample clustering, passed to scipy.cluster.hierarchy.linkage. Note: 'ward' requires clustering_samples_distance_metric to be 'euclidean'.",
                     "enum": ["single", "complete", "average", "weighted", "ward"]
                 },
-                "clustering_distance_metric": {
+                "clustering_samples_distance_metric": {
                     "type": "string",
                     "default": "correlation",
-                    "description": "Distance metric passed to scipy.cluster.hierarchy.linkage. Note: clustering_linkage_method 'ward' requires 'euclidean'.",
+                    "description": "Distance metric for sample clustering, passed to scipy.cluster.hierarchy.linkage. Note: clustering_samples_linkage_method 'ward' requires 'euclidean'.",
                     "enum": ["euclidean", "correlation", "cosine", "cityblock"]
                 },
                 "clustering_max_samples": {
@@ -249,6 +249,18 @@
                     "default": 5000,
                     "minimum": 2,
                     "description": "Maximum number of samples to cluster. Groups with more rows than this (common for cell-level groups) are skipped rather than clustered, and the output JSON records skipped=true."
+                },
+                "clustering_features_linkage_method": {
+                    "type": "string",
+                    "default": "average",
+                    "description": "Linkage method for feature clustering, passed to scipy.cluster.hierarchy.linkage. Note: 'ward' requires clustering_features_distance_metric to be 'euclidean'.",
+                    "enum": ["single", "complete", "average", "weighted", "ward"]
+                },
+                "clustering_features_distance_metric": {
+                    "type": "string",
+                    "default": "correlation",
+                    "description": "Distance metric for feature clustering, passed to scipy.cluster.hierarchy.linkage. Note: clustering_features_linkage_method 'ward' requires 'euclidean'.",
+                    "enum": ["euclidean", "correlation", "cosine", "cityblock"]
                 }
             }
         },

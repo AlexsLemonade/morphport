@@ -1,0 +1,9 @@
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.13
+  - ca-certificates>=2026.10.23
+  - polars<2
+  - numpy
+  - scipy>=1.11
