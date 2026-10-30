@@ -101,22 +101,6 @@ def write_skipped(
         json.dump(summary, f, indent=2)
 
 
-def linkage_to_df(linkage_matrix: np.ndarray) -> pl.DataFrame:
-    """
-    Convert a scipy linkage matrix to a dataframe, casting the child ids and
-    counts to integers.
-    """
-    return pl.DataFrame(
-        {
-            "left": linkage_matrix[:, 0],
-            "right": linkage_matrix[:, 1],
-            "distance": linkage_matrix[:, 2],
-            "n_members": linkage_matrix[:, 3],
-        },
-        schema=LINKAGE_SCHEMA,
-    )
-
-
 def main():
     # ---- Capture Nextflow variables ----------------------------------------
     parquet_dir = pathlib.Path("input_parquet")
@@ -234,7 +218,17 @@ def main():
     linkage_matrix = linkage(
         feature_mat.T, method=linkage_method, metric=distance_metric
     )
-    linkage_to_df(linkage_matrix).write_parquet(linkage_parquet)
+
+    linkage_df = pl.DataFrame(
+        {
+            "left": linkage_matrix[:, 0],
+            "right": linkage_matrix[:, 1],
+            "distance": linkage_matrix[:, 2],
+            "n_members": linkage_matrix[:, 3],
+        },
+        schema=LINKAGE_SCHEMA,
+    )
+    linkage_df.write_parquet(linkage_parquet)
 
     # ---- Write leaves table --------------------------------------------------
     # leaf ids are the column indices of the clustered feature matrix, matching
