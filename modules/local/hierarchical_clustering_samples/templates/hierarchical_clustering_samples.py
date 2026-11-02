@@ -304,22 +304,18 @@ def main():
         return
 
     # ---- Load the matrix -----------------------------------------------------
-    # Cast in polars so numpy export needs no further dtype conversion, and export
-    # in C order, as required by linkage_vector.
-    input_df = input_lf.select(
-        metadata_cols + [pl.col(c).cast(pl.Float64) for c in cluster_cols]
-    ).collect()
+    # Filter rows lazily so dropped rows are never loaded, and cast in polars so
+    # numpy export needs no further dtype conversion.
+    input_df = (
+        input_lf.filter(keep_expr)
+        .select(metadata_cols + [pl.col(c).cast(pl.Float64) for c in cluster_cols])
+        .collect()
+    )
     metadata_df = input_df.select(metadata_cols)
-    cluster_mat = input_df.select(cluster_cols).to_numpy(order="c")
+    # export in C order, as required by linkage_vector; writable for in-place edits
+    cluster_mat = input_df.select(cluster_cols).to_numpy(order="c", writable=True)
     # free the polars copy of the matrix; groups can be large
     del input_df
-    keep_mask = np.isnan(cluster_mat).sum(axis=1) <= max_nan_fraction * len(
-        cluster_cols
-    )
-    # only subset (which copies) when rows are actually dropped
-    if n_rows_dropped:
-        cluster_mat = cluster_mat[keep_mask]
-        metadata_df = metadata_df.filter(pl.Series(keep_mask))
     np.nan_to_num(cluster_mat, copy=False, nan=0.0)
 
     # ---- Build leaf labels ---------------------------------------------------

@@ -159,7 +159,7 @@ def main():
         .collect()
     )
     # Features are the items being clustered, so convert to numpy and transpose
-    feature_mat = input_df.to_numpy().T.astype(np.float64, copy=False)
+    feature_mat = input_df.to_numpy(writable=True).T.astype(np.float64, copy=False)
     # free the polars frame; groups can be large
     del input_df
     n_rows_input = feature_mat.shape[1]
