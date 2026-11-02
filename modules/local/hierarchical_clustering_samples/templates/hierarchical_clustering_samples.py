@@ -139,17 +139,20 @@ def transform_rows(mat: np.ndarray, distance_metric: str) -> tuple[np.ndarray, i
     Transform the rows of mat so that euclidean distances between them
     correspond to the requested distance metric.
 
-    Returns the transformed matrix and the number of rows with zero length
-    (e.g. constant rows for correlation), which are left as all zeros.
+    mat is modified in place (to avoid copying large matrices) and returned,
+    with the number of rows with zero length (e.g. constant rows for
+    correlation), which are left as all zeros.
     """
     if distance_metric == "euclidean":
         return mat, 0
     if distance_metric == "correlation":
-        mat = mat - mat.mean(axis=1, keepdims=True)
+        mat -= mat.mean(axis=1, keepdims=True)
     norms = np.linalg.norm(mat, axis=1, keepdims=True)
     nonzero = norms > 0
-    mat = np.divide(mat, norms, out=np.zeros_like(mat), where=nonzero)
+    # zero-length rows are already all zeros, so they are left untouched
+    np.divide(mat, norms, out=mat, where=nonzero)
     return mat, int((~nonzero).sum())
+
 
 def main():
     # ---- Capture Nextflow variables ----------------------------------------
@@ -248,26 +251,31 @@ def main():
         col for col in dict.fromkeys(metadata_cols) if col in input_columns
     ]
 
-    input_df = input_lf.select(metadata_cols + cluster_cols).collect()
-    cluster_mat = (
-        input_df.select(cluster_cols).to_numpy().astype(np.float64, copy=False)
-    )
-    n_rows_input = cluster_mat.shape[0]
-
     # ---- Handle NaN rows -----------------------------------------------------
     # Per-row NaN handling, expressed as a fraction of clustered columns
     # (matching compute_embeddings and hierarchical_clustering_features):
     #   * rows with nan_fraction > max_nan_fraction are dropped
     #   * surviving rows with any NaN have those entries filled with 0
-    nan_per_row = np.isnan(cluster_mat).sum(axis=1)
-    keep_mask = nan_per_row <= max_nan_fraction * len(cluster_cols)
-    n_rows_dropped = int((~keep_mask).sum())
-    n_rows_nan_filled = int(((nan_per_row > 0) & keep_mask).sum())
-    cluster_mat = np.nan_to_num(cluster_mat[keep_mask], nan=0.0)
-    metadata_df = input_df.select(metadata_cols).filter(pl.Series(keep_mask))
-    del input_df
-
-    n_samples = cluster_mat.shape[0]
+    # Rows are counted lazily first, so groups that will be skipped (in particular
+    # those over max_samples) are never loaded into memory.
+    # Nulls (e.g. from columns missing in some parquets) become NaN in numpy.
+    nan_per_row = pl.sum_horizontal(
+        [pl.col(c).cast(pl.Float64).is_nan().fill_null(True) for c in cluster_cols]
+    )
+    keep_expr = nan_per_row <= max_nan_fraction * len(cluster_cols)
+    row_counts = (
+        input_lf.select(
+            n_rows_input=pl.len(),
+            n_samples=keep_expr.sum(),
+            n_rows_nan_filled=(keep_expr & (nan_per_row > 0)).sum(),
+        )
+        .collect()
+        .row(0, named=True)
+    )
+    n_rows_input = row_counts["n_rows_input"]
+    n_samples = row_counts["n_samples"]
+    n_rows_dropped = n_rows_input - n_samples
+    n_rows_nan_filled = row_counts["n_rows_nan_filled"]
     summary.update(
         {
             "n_rows_input": n_rows_input,
@@ -294,6 +302,25 @@ def main():
             f"n_samples ({n_samples}) > clustering_max_samples ({max_samples})",
         )
         return
+
+    # ---- Load the matrix -----------------------------------------------------
+    # Cast in polars so numpy export needs no further dtype conversion, and export
+    # in C order, as required by linkage_vector.
+    input_df = input_lf.select(
+        metadata_cols + [pl.col(c).cast(pl.Float64) for c in cluster_cols]
+    ).collect()
+    metadata_df = input_df.select(metadata_cols)
+    cluster_mat = input_df.select(cluster_cols).to_numpy(order="c")
+    # free the polars copy of the matrix; groups can be large
+    del input_df
+    keep_mask = np.isnan(cluster_mat).sum(axis=1) <= max_nan_fraction * len(
+        cluster_cols
+    )
+    # only subset (which copies) when rows are actually dropped
+    if n_rows_dropped:
+        cluster_mat = cluster_mat[keep_mask]
+        metadata_df = metadata_df.filter(pl.Series(keep_mask))
+    np.nan_to_num(cluster_mat, copy=False, nan=0.0)
 
     # ---- Build leaf labels ---------------------------------------------------
     rows = metadata_df.to_dicts() if metadata_cols else [{} for _ in range(n_samples)]
