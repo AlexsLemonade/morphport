@@ -7,4 +7,7 @@ dependencies:
   - polars<2
   - numpy
   - scipy>=1.11
-  - fastcluster>=1.2.6
+  - pip
+  # from PyPI: conda-forge has no linux-aarch64 build of fastcluster
+  - pip:
+      - fastcluster>=1.2.6
