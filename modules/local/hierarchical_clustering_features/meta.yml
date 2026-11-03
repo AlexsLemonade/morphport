@@ -61,7 +61,7 @@ input:
         type: number
         description: |
           Per-row NaN tolerance as a fraction of feature columns (the pipeline
-          passes embedding_max_nan_fraction, so clustering and embeddings use the
+          passes sample_max_nan_fraction, so clustering and embeddings use the
           same rows). Rows above the threshold are dropped; surviving rows have
           NaNs filled with 0.
 

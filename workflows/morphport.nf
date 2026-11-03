@@ -189,14 +189,22 @@ workflow MORPHPORT {
         params.embedding_umap_neighbors,
         params.embedding_umap_min_dist,
         params.random_seed,
-        params.embedding_max_nan_fraction,
+        params.sample_max_nan_fraction,
         params.embedding_min_rows,
     )
 
+    // cluster the samples on either the feature-selected profiles or their PCs;
+    // empty lists stand in for the optional features file and embeddings summary
+    ch_clustering_samples_input = params.clustering_samples_input == 'pcs'
+        ? COMPUTE_EMBEDDINGS.out.result
+            .map { meta, embeddings_parquet, summary_json -> [meta, [embeddings_parquet], [], summary_json] }
+        : ch_feature_selected.has_features
+            .map { meta, _plate_metas, parquets, features -> [meta, parquets, features, []] }
+
     HIERARCHICAL_CLUSTERING_SAMPLES(
-        COMPUTE_EMBEDDINGS.out.result,
-        params.clustering_samples_linkage_method,
+        ch_clustering_samples_input,
         params.clustering_samples_distance_metric,
+        params.sample_max_nan_fraction,
         params.clustering_max_samples,
     )
 
@@ -205,7 +213,7 @@ workflow MORPHPORT {
         ch_feature_selected.has_features,
         params.clustering_features_linkage_method,
         params.clustering_features_distance_metric,
-        params.embedding_max_nan_fraction,
+        params.sample_max_nan_fraction,
     )
 
     //

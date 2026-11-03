@@ -1,18 +1,28 @@
 name: hierarchical_clustering_samples
 description: |
   Computes hierarchical clustering of the samples within an analysis group.
-  Reads the PCA embeddings for the group, clusters the PC1..PCk columns, and
-  writes the scipy linkage matrix and a table of leaf labels and identifying
+  Clusters either the selected features of the feature-selected profiles or the
+  PC1..PCk columns of the PCA embeddings with Ward linkage, using fastcluster's
+  memory-saving linkage_vector so that large (e.g. cell-level) groups can be
+  clustered without building a pairwise distance matrix.
+  Writes the scipy linkage matrix and a table of leaf labels and identifying
   metadata as parquet files, along with a JSON summary of the clustering.
 keywords:
   - cell painting
   - hierarchical clustering
   - dendrogram
   - pca
+  - ward
 
 tools:
+  - fastcluster:
+      description: Fast hierarchical clustering library, used here for memory-saving Ward linkage.
+      homepage: https://danifold.net/fastcluster.html
+      documentation: https://danifold.net/fastcluster.html
+      licence: ["BSD-2-Clause"]
+      identifier: ""
   - scipy:
-      description: Scientific computing library used here for hierarchical/agglomerative clustering.
+      description: Scientific computing library used here to compute the dendrogram leaf order.
       homepage: https://scipy.org
       documentation: https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html
       licence: ["BSD-3-Clause"]
@@ -33,25 +43,40 @@ input:
             grouping_column:'Metadata_treatment', group:'drugA', subgroup_values:[:],
             group_id:'treatment=drugA',
             group_tag:'cell__treatment__treatment=drugA', plate_ids:['plate_001','plate_002'] ]
-    - embeddings_parquet:
+    - parquets:
         type: file
-        description: PCA/UMAP embeddings parquet for this group, from compute_embeddings.
-        pattern: "embeddings_*.parquet"
-    - summary_json:
-        type: file
-        description: compute_embeddings summary JSON for this group; used to detect an upstream skip.
-        pattern: "embeddings_summary_*.json"
-  - - linkage_method:
-        type: string
         description: |
-          Linkage method passed to scipy.cluster.hierarchy.linkage.
-          One of: single, complete, average, weighted, ward.
-          Note: ward requires distance_metric to be euclidean.
+          Parquet files to cluster the rows of: either the feature-selected
+          profiles for this group, or the single embeddings parquet from
+          compute_embeddings.
+        pattern: "*.parquet"
+    - features_file:
+        type: file
+        description: |
+          Selected feature list (one column name per line) from
+          pycytominer_feature_select, used to cluster the feature-selected
+          profiles. Pass an empty list ([]) to cluster the PC columns instead.
+        pattern: "*.txt"
+    - embeddings_summary_json:
+        type: file
+        description: |
+          compute_embeddings summary JSON for this group, used to detect an
+          upstream skip when clustering PCs. Pass an empty list ([]) when
+          clustering the feature-selected profiles.
+        pattern: "embeddings_summary_*.json"
   - - distance_metric:
         type: string
         description: |
-          Distance metric passed to scipy.cluster.hierarchy.linkage.
-          One of: euclidean, correlation, cosine, cityblock.
+          Distance metric for Ward clustering. One of: correlation, cosine, euclidean.
+          correlation and cosine are implemented by centering (correlation only)
+          and scaling each row to unit length before Ward/euclidean clustering.
+  - - max_nan_fraction:
+        type: number
+        description: |
+          Per-row NaN tolerance as a fraction of clustered columns (the pipeline
+          passes sample_max_nan_fraction, so clustering and embeddings use the
+          same rows). Rows above the threshold are dropped; surviving rows have
+          NaNs filled with 0.
   - - max_samples:
         type: integer
         description: |
@@ -78,13 +103,15 @@ output:
           description: |
             One row per leaf with columns leaf_id, leaf_order (position in the
             dendrogram), label, and the grouping column, subgroup columns, and
-            identifying metadata columns present in the embeddings parquet.
+            identifying metadata columns present in the input parquets.
+            leaf_id is the row number in the clustered matrix (input rows after NaN filtering).
             Empty (zero rows) for skipped groups.
           pattern: "clustering_samples_leaves_*.parquet"
       - "clustering_samples_summary_*.json":
           type: file
           description: |
-            Summary JSON with group identity, method, metric, and n_samples.
+            Summary JSON with group identity, input, method, metric, NaN
+            filtering counts, and n_samples.
             Skipped groups contain skipped=true and skip_reason.
           pattern: "clustering_samples_summary_*.json"
   - versions:

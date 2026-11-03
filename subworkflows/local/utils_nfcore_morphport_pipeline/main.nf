@@ -96,11 +96,11 @@ workflow PIPELINE_INITIALISATION {
     if ('noise_removal' in feature_select_ops && !params.feature_select_noise_removal_perturb_groups) {
         error("feature_select_operations includes 'noise_removal' but feature_select_noise_removal_perturb_groups is empty. Set it to the metadata column identifying replicate groups.")
     }
-    if (params.clustering_samples_linkage_method == 'ward' && params.clustering_samples_distance_metric != 'euclidean') {
-        error("clustering_samples_linkage_method 'ward' requires clustering_samples_distance_metric 'euclidean', got '${params.clustering_samples_distance_metric}'.")
-    }
     if (params.clustering_features_linkage_method == 'ward' && params.clustering_features_distance_metric != 'euclidean') {
         error("clustering_features_linkage_method 'ward' requires clustering_features_distance_metric 'euclidean', got '${params.clustering_features_distance_metric}'.")
+    }
+    if (params.clustering_samples_input == 'pcs' && params.clustering_samples_distance_metric == 'correlation') {
+        log.warn("clustering_samples_distance_metric 'correlation' centers each sample's principal component scores, which is not meaningful; consider 'cosine' or 'euclidean', or set clustering_samples_input to 'features'.")
     }
 
     //

@@ -1,19 +1,25 @@
-// Computes hierarchical clustering of the samples within one analysis group.
+// Computes hierarchical clustering of the samples within one analysis group,
+// using either the feature-selected profiles or the PCA embeddings.
 process HIERARCHICAL_CLUSTERING_SAMPLES {
     tag "${meta.group_tag}"
     label 'process_single'
+    // clustering is single-threaded, but can take hours for large groups
+    label 'process_long'
 
     conda "${moduleDir}/environment.yml"
     container {
         workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container
-            ? 'oras://community.wave.seqera.io/library/python_ca-certificates_polars_numpy_scipy:8dd70f24b9f42bab'
-            : 'community.wave.seqera.io/library/python_ca-certificates_polars_numpy_scipy:bd4e20565a2da4a1'
+            ? 'oras://community.wave.seqera.io/library/python_ca-certificates_polars_numpy_pruned:37e21eba9ffdfe41'
+            : 'community.wave.seqera.io/library/python_ca-certificates_polars_numpy_pruned:3dba9d48ad2ca006'
     }
 
     input:
-    tuple val(meta), path(embeddings_parquet), path(summary_json)
-    val(linkage_method)
+    // features_file is the selected feature list when clustering the feature-selected profiles,
+    // or empty ([]) when clustering the PCs of an embeddings parquet;
+    // embeddings_summary_json is the compute_embeddings summary when clustering PCs, or empty ([])
+    tuple val(meta), path(parquets, stageAs: 'input_parquet/input*.parquet'), path(features_file), path(embeddings_summary_json)
     val(distance_metric)
+    val(max_nan_fraction)
     val(max_samples)
 
     output:
@@ -22,6 +28,9 @@ process HIERARCHICAL_CLUSTERING_SAMPLES {
 
     script:
     meta_json = groovy.json.JsonOutput.toJson(meta)
+    // optional inputs are empty lists when not provided
+    features_file_name = features_file ?: ''
+    embeddings_summary_name = embeddings_summary_json ?: ''
     template 'hierarchical_clustering_samples.py'
 
     stub:

@@ -143,13 +143,13 @@ def main():
         raise RuntimeError(f"Feature list {features_file} is empty.")
 
     # stageAs places all input parquets in input_parquet/ (numbered to avoid name collisions).
-    parquet_paths = list(parquet_dir.glob("*.parquet"))
+    parquet_paths = sorted(parquet_dir.glob("*.parquet"))
     if not parquet_paths:
         raise RuntimeError(f"No input parquet files found in {parquet_dir}/.")
 
     # ---- Load and concatenate input parquets -------------------------------
     # Only the feature columns are needed; sample metadata is not used.
-    feature_mat = (
+    input_df = (
         pl.concat(
             [pl.scan_parquet(p) for p in parquet_paths],
             # allow different parquets to have different columns; missing columns are filled with nulls
@@ -157,23 +157,29 @@ def main():
         )
         .select(feature_cols)
         .collect()
-        .to_numpy()
-        .astype(np.float64, copy=False)
     )
-    n_rows_input = feature_mat.shape[0]
+    # Features are the items being clustered, so convert to numpy and transpose
+    feature_mat = input_df.to_numpy(writable=True).T.astype(np.float64, copy=False)
+    # free the polars frame; groups can be large
+    del input_df
+    n_rows_input = feature_mat.shape[1]
 
     # ---- Handle NaN rows -----------------------------------------------------
     # Per-row NaN handling, expressed as a fraction of feature columns
-    # (matching compute_embeddings):
+    # (matching compute_embeddings). Input rows (samples) are the columns of
+    # feature_mat here.
     #   * rows with nan_fraction > max_nan_fraction are dropped
     #   * surviving rows with any NaN have those entries filled with 0
-    nan_per_row = np.isnan(feature_mat).sum(axis=1)
+    nan_per_row = np.isnan(feature_mat).sum(axis=0)
     keep_mask = nan_per_row <= max_nan_fraction * len(feature_cols)
     n_rows_dropped = int((~keep_mask).sum())
     n_rows_nan_filled = int(((nan_per_row > 0) & keep_mask).sum())
-    feature_mat = np.nan_to_num(feature_mat[keep_mask], copy=False, nan=0.0)
+    # only subset (which copies) when rows are actually dropped
+    if n_rows_dropped:
+        feature_mat = feature_mat[:, keep_mask]
+    np.nan_to_num(feature_mat, copy=False, nan=0.0)
 
-    n_samples = feature_mat.shape[0]
+    n_samples = feature_mat.shape[1]
     summary.update(
         {
             "n_rows_input": n_rows_input,
@@ -196,9 +202,10 @@ def main():
     # This is a backup: constant features should already have been removed by
     # feature selection (variance_threshold), but if any remain, their distances
     # to other features are undefined for some metrics (e.g. correlation)
-    variable_mask = np.ptp(feature_mat, axis=0) > 0
+    variable_mask = np.ptp(feature_mat, axis=1) > 0
     feature_cols = [f for f, keep in zip(feature_cols, variable_mask) if keep]
-    feature_mat = feature_mat[:, variable_mask]
+    if not variable_mask.all():
+        feature_mat = feature_mat[variable_mask]
     n_features = len(feature_cols)
     summary["n_features_dropped_constant"] = int((~variable_mask).sum())
     summary["n_features"] = n_features
@@ -213,10 +220,8 @@ def main():
         return
 
     # ---- Cluster -------------------------------------------------------------
-    # cluster the columns (features) by transposing the matrix
-    linkage_matrix = linkage(
-        feature_mat.T, method=linkage_method, metric=distance_metric
-    )
+    # rows of feature_mat are features, so they are clustered directly
+    linkage_matrix = linkage(feature_mat, method=linkage_method, metric=distance_metric)
 
     linkage_df = pl.DataFrame(
         {
@@ -230,7 +235,7 @@ def main():
     linkage_df.write_parquet(linkage_parquet)
 
     # ---- Write leaves table --------------------------------------------------
-    # leaf ids are the column indices of the clustered feature matrix, matching
+    # leaf ids are the row indices of the clustered feature matrix, matching
     # scipy's numbering; leaf_order is each leaf's position in the dendrogram
     leaf_order = np.argsort(leaves_list(linkage_matrix))
     leaves_df = pl.DataFrame(
