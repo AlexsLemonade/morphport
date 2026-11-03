@@ -1,0 +1,5 @@
+{
+    "group_tag": "well__by_cell_line__cell_line=U2-OS",
+    "skipped": true,
+    "skip_reason": "n_rows (8) < embedding_min_rows (10)"
+}
