@@ -56,7 +56,7 @@ nextflow_process {
                 n_features_dropped_constant: 1,
                 n_features: 4,
             ]
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 3
                 assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
                 // the last merge joins all features
@@ -64,7 +64,7 @@ nextflow_process {
                 // node ids are 0..(2n - 2), each merged once, except the root
                 assert rows.collectMany { row -> [row[0], row[1]] }.sort() == (0..<6).toList()
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 4
                 assert schema == [leaf_id: Long, leaf_order: Long, label: String]
                 assert rows.collect { row -> row[0] } == (0..<4).toList()
@@ -109,11 +109,11 @@ nextflow_process {
                 assert n_features == 4
                 assert !containsKey('skipped')
             }
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 3
                 assert rows[-1][3] == 4
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 4
                 assert rows.collect { row -> row[2] } == ['feat_a', 'feat_b', 'feat_c', 'feat_d']
             }
@@ -152,11 +152,11 @@ nextflow_process {
                 assert n_features == 4
                 assert !containsKey('skipped')
             }
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 3
                 assert rows[-1][3] == 4
             }
-            assert ParquetTools.read(leaves).rowCount == 4
+            assert path(leaves).parquet.rowCount == 4
         }
     }
 
@@ -193,8 +193,8 @@ nextflow_process {
                 assert n_samples == 10
                 assert n_features == 4
             }
-            assert ParquetTools.read(linkage).rowCount == 3
-            assert ParquetTools.read(leaves).rowCount == 4
+            assert path(linkage).parquet.rowCount == 3
+            assert path(leaves).parquet.rowCount == 4
         }
     }
 
@@ -229,11 +229,11 @@ nextflow_process {
                 assert skipped == true
                 assert skip_reason == 'n_samples (1) < 2 after NaN filtering; cannot cluster'
             }
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 0
                 assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 0
                 assert schema == [leaf_id: Long, leaf_order: Long, label: String]
             }
@@ -276,11 +276,11 @@ nextflow_process {
                 assert skipped == true
                 assert skip_reason == 'n_features (1) < 2 after dropping constant features; cannot cluster'
             }
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 0
                 assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 0
                 assert schema == [leaf_id: Long, leaf_order: Long, label: String]
             }

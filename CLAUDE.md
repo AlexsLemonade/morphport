@@ -24,7 +24,7 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
   Quick, targeted checks (e.g. running a template helper on a small synthetic DataFrame) are fine once testing is approved.
 - Pipeline tests use nf-test, with tests in `tests/` (e.g. `tests/default.nf.test` and its snapshot).
 - Module tests live in `modules/local/<module>/tests/main.nf.test`; run a single module's tests with e.g. `nf-test test modules/local/<module>/tests/main.nf.test`.
-- Check parquet outputs property by property (row count, column names, schema, specific values) with `ParquetTools.read(file)` from `tests/lib`; never snapshot parquet md5s or calculated values.
+- Check parquet outputs property by property (row count, column names, schema, specific values) with `path(file).parquet` (the nft-parquet plugin); never snapshot parquet md5s or calculated values.
   See `tests/README.md` for usage.
 - The synthetic test profiles are not tracked by git; generate them first with `uv run scripts/generate_test_data.py` (see `tests/data/README.md`).
 - Run the tests with both the default Nextflow version and the version pinned in CI (`.github/workflows/nf-test.yml`, currently 25.10.4):

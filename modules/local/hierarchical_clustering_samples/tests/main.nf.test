@@ -56,7 +56,7 @@ nextflow_process {
                 n_samples: 11,
                 n_samples_zero_length: 0,
             ]
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 10
                 assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
                 // the last merge joins all samples
@@ -64,7 +64,7 @@ nextflow_process {
                 // node ids are 0..(2n - 2), each merged once, except the root
                 assert rows.collectMany { row -> [row[0], row[1]] }.sort() == (0..<20).toList()
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 11
                 // grouping column, then subgroup columns, then the ID columns present in the input
                 assert schema == [
@@ -117,11 +117,11 @@ nextflow_process {
                 assert n_samples_zero_length == 1
                 assert !containsKey('skipped')
             }
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 10
                 assert rows[-1][3] == 11
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 11
                 // no subgroup columns
                 assert columnNames == ['leaf_id', 'leaf_order', 'label', 'Metadata_cell_line', 'Metadata_Plate', 'Metadata_Well']
@@ -160,8 +160,8 @@ nextflow_process {
                 // the constant row is not centered for cosine, so it has nonzero length
                 assert n_samples_zero_length == 0
             }
-            assert ParquetTools.read(linkage).rowCount == 10
-            assert ParquetTools.read(leaves).rowCount == 11
+            assert path(linkage).parquet.rowCount == 10
+            assert path(leaves).parquet.rowCount == 11
         }
     }
 
@@ -197,8 +197,8 @@ nextflow_process {
                 assert n_rows_nan_filled == 0
                 assert n_samples == 10
             }
-            assert ParquetTools.read(linkage).rowCount == 9
-            with(ParquetTools.read(leaves)) {
+            assert path(linkage).parquet.rowCount == 9
+            with(path(leaves).parquet) {
                 assert rowCount == 10
                 assert !rows.collect { row -> row[2] }.any { label -> label in ['P1_A05', 'P1_A06'] }
             }
@@ -240,11 +240,11 @@ nextflow_process {
                 assert n_samples == 8
                 assert !containsKey('skipped')
             }
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 7
                 assert rows[-1][3] == 8
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 8
                 assert columnNames == ['leaf_id', 'leaf_order', 'label', 'Metadata_cell_line', 'Metadata_Plate', 'Metadata_Well']
                 assert rows.collect { row -> row[2] } == [
@@ -285,11 +285,11 @@ nextflow_process {
                 assert skipped == true
                 assert skip_reason == 'upstream compute_embeddings skipped this group: n_rows (8) < embedding_min_rows (10)'
             }
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 0
                 assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 0
                 assert schema == [leaf_id: Long, leaf_order: Long, label: String]
             }
@@ -327,8 +327,8 @@ nextflow_process {
                 assert skipped == true
                 assert skip_reason == 'no PCA columns found in the embeddings parquet'
             }
-            assert ParquetTools.read(linkage).rowCount == 0
-            assert ParquetTools.read(leaves).rowCount == 0
+            assert path(linkage).parquet.rowCount == 0
+            assert path(leaves).parquet.rowCount == 0
         }
     }
 
@@ -364,11 +364,11 @@ nextflow_process {
                 assert skipped == true
                 assert skip_reason == 'n_samples (11) > clustering_max_samples (10)'
             }
-            with(ParquetTools.read(linkage)) {
+            with(path(linkage).parquet) {
                 assert rowCount == 0
                 assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
             }
-            with(ParquetTools.read(leaves)) {
+            with(path(leaves).parquet) {
                 assert rowCount == 0
                 assert schema == [leaf_id: Long, leaf_order: Long, label: String]
             }

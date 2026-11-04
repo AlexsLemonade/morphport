@@ -1,0 +1,17 @@
+[
+    {
+        "id": "nft-parquet-github",
+        "latest": "0.0.4",
+        "url": "https://github.com/incsteps/nft-parquet",
+        "github": "incsteps/nft-parquet",
+        "description": "nft-parquet releases from GitHub that are not yet in the nf-test plugin registry.",
+        "author": "Jorge Aguilera",
+        "keywords": ["parquet"],
+        "releases": [
+            {
+                "version": "0.0.4",
+                "url": "https://github.com/incsteps/nft-parquet/releases/download/0.0.4/nft-parquet-0.0.4.jar"
+            }
+        ]
+    }
+]
