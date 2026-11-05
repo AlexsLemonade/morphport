@@ -91,5 +91,5 @@ See `docs/agents/domain.md`.
 
 ### Dev environment
 
-Installing and running Nextflow, nf-test, nf-core, conda, and Java in the agent sandbox is pre-approved within the limits in `docs/agents/dev-environment.md`.
-Read it before installing anything, or when a tool fails in an environmental way (missing tool, firewall block, certificate error, architecture mismatch).
+Installing and running Nextflow, nf-test, nf-core, conda, and Java is pre-approved within the limits in `docs/agents/dev-environment.md`.
+Read it before installing anything, or when a tool fails in a way that looks environmental (missing tool, network block, certificate error, architecture mismatch).
