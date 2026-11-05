@@ -66,11 +66,6 @@ The platemap columns that any grouping uses to select or divide profiles, such a
 The combination of partition-column values (plus project) that identifies which partitions belong together across plates.
 _Avoid_: condition, combo, condition combo
 
-**Plate partition key**:
-A partition key together with the plate it comes from.
-It has no aggregate level, so each plate partition key corresponds to one per-cell and one per-well partition.
-_Avoid_: combo, condition combo
-
 ### Analysis groups
 
 **Grouping**:
