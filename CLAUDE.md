@@ -18,6 +18,36 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - If you are unsure whether an action is allowed, ask rather than proceeding.
 - Keep changes small and incremental. Prefer multiple small steps over one large batch of changes.
 
+## Approved exceptions: Nextflow toolchain
+
+This exception is pre-approved.
+When I ask you to install Nextflow, or you use an install-nextflow skill, follow the steps below without asking for confirmation, then report what you did.
+
+### Installing Nextflow, nf-core, and nf-test
+
+If `nextflow -version` already works, skip the install.
+Otherwise install Nextflow using the Nextflow agent skill that is installed.
+If Java is also needed, prompt the user to install it on their own.
+nf-core can be installed and updated locally using `uv tool install nf-core`.
+nf-test can also be installed from https://get.nf-test.com.
+
+Updates to installed tools are also allowed with approval.
+
+### Running Nextflow
+
+Network access is allowed for Nextflow's own downloads (GitHub, registry.nextflow.io, container registries) and for `nextflow run` on a pipeline I have named explicitly.
+Ask before running any pipeline I have not named.
+
+### Limits of this exception
+
+- Install only to `~/.local/bin`.
+  No sudo, no system package changes.
+- Never run the installer inside the repo.
+- Do not pipe curl into bash.
+- Do not use this exception for any other tool, package manager, or service.
+- If the install fails in a way these steps don't cover, stop and ask.
+  Do not try other install methods or download sources.
+
 ## Testing
 
 - After finishing a set of edits, stop and describe the changes; do NOT run the full nf-test suite until the human says to.
