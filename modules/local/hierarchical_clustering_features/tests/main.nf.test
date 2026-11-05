@@ -12,17 +12,24 @@ nextflow_process {
     // and a single well (P3 A01). features.txt lists feat_a..feat_d and feat_constant,
     // which is constant in every file.
 
+    // Shared group metadata, interpolated into each test's input as Groovy source text.
+    // Tests that need different values add them with `+ [key: value]`.
+    def groupMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
+        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
+        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
+    ]"""
+
     test("average linkage - correlation") {
 
         when {
             process {
                 """
                 input[0] = [
-                    [
-                        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
-                        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [Metadata_timepoint: '24h'],
-                        group_id: 'cell_line=U2-OS__timepoint=24h', group_tag: 'well__by_cell_line__cell_line=U2-OS__timepoint=24h',
-                        plate_ids: ['P1', 'P2'],
+                    ${groupMeta} + [
+                        subgroup_values: [Metadata_timepoint: '24h'],
+                        group_id: 'cell_line=U2-OS__timepoint=24h',
+                        group_tag: 'well__by_cell_line__cell_line=U2-OS__timepoint=24h',
                     ],
                     [[plate_id: 'P1'], [plate_id: 'P2']],
                     [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
@@ -83,11 +90,7 @@ nextflow_process {
             process {
                 """
                 input[0] = [
-                    [
-                        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
-                        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
-                        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
-                    ],
+                    ${groupMeta},
                     [[plate_id: 'P1'], [plate_id: 'P2']],
                     [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
@@ -126,11 +129,7 @@ nextflow_process {
             process {
                 """
                 input[0] = [
-                    [
-                        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
-                        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
-                        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
-                    ],
+                    ${groupMeta},
                     [[plate_id: 'P1'], [plate_id: 'P2']],
                     [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
@@ -166,11 +165,7 @@ nextflow_process {
             process {
                 """
                 input[0] = [
-                    [
-                        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
-                        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
-                        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
-                    ],
+                    ${groupMeta},
                     [[plate_id: 'P1'], [plate_id: 'P2']],
                     [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
@@ -204,11 +199,7 @@ nextflow_process {
             process {
                 """
                 input[0] = [
-                    [
-                        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
-                        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
-                        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P3'],
-                    ],
+                    ${groupMeta} + [plate_ids: ['P3']],
                     [[plate_id: 'P3']],
                     [file("${moduleDir}/tests/fixtures/profiles_single_well.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
@@ -247,11 +238,7 @@ nextflow_process {
                 """
                 // feat_a and feat_constant
                 input[0] = [
-                    [
-                        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
-                        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
-                        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
-                    ],
+                    ${groupMeta},
                     [[plate_id: 'P1'], [plate_id: 'P2']],
                     [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
                     file("${moduleDir}/tests/fixtures/features_one_variable.txt"),
@@ -295,11 +282,7 @@ nextflow_process {
             process {
                 """
                 input[0] = [
-                    [
-                        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
-                        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
-                        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
-                    ],
+                    ${groupMeta},
                     [[plate_id: 'P1'], [plate_id: 'P2']],
                     [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
