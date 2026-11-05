@@ -195,14 +195,14 @@ Feature selection runs on the combined data for each grouping (all partition fil
 Different groupings may yield different selected feature sets, which is intentional — the features relevant to comparing MOAs within a cell line are not necessarily the same as those relevant to comparing cell lines across a compound.
 pycytominer's `feature_select()` function will likely be used, with the specific operations (variance threshold, correlation filter, drop outliers, etc.) to be determined.
 
-We will also want to create fluorescence channel-specific feature lists, so that we can run feature selection on each channel independently.
+We will also want to create imaging channel-specific feature lists, so that we can run feature selection on each channel independently.
 
 - **Input:**
-  - A list of fluorescence channels to generate separate feature lists for (including an "all" option); this will be `combine()`d with the grouped channel to produce separate channel items for each grouping × channel combination
+  - A list of imaging channels to generate separate feature lists for (including an "all" option); this will be `combine()`d with the grouped channel to produce separate channel items for each grouping × channel combination
   - `(grouping_metadata, fluor_channel, [partition_files])` tuples from the analysis grouping step + fluoresnce list.
 - **Output:**
   - `(grouping_metadata, feature_list_file, [partition_files])` tuples — the feature list (a text file of selected column names) is added to the tuple and carried forward to downstream steps
-  - Grouping metadata will here include the fluorescence channel as well as the previous information
+  - Grouping metadata will here include the imaging channel as well as the previous information
 
 ### Create visualizations
 
@@ -212,7 +212,7 @@ It reads the partition files, filters to the selected features, and operates on 
 - **Input:**
   - `(grouping_metadata, feature_list_file, [partition_files])` tuples from feature selection
 - **Output:**
-  - Channel of `(grouping_metadata, value_matrix, umap_file, clustering_file)` tuples, one per grouping × edge-well × fluorescence-channel combination
+  - Channel of `(grouping_metadata, value_matrix, umap_file, clustering_file)` tuples, one per grouping × edge-well × imaging-channel combination
 
 ### Consensus similarity matrices
 
