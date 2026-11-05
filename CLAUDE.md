@@ -10,6 +10,12 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - Do NOT create, read, or modify `.env` files or any file containing credentials, tokens, or secrets.
 - Do NOT make network requests to external services without explicit authorization (no `curl`, `wget`, API calls, etc.). However, you may use WebSearch and WebFetch tools to retrieve documentation or code examples relevant to the task at hand.
 - Do NOT install system-level packages or modify system configuration.
+- Do NOT pipe downloaded content into a shell (no `curl ... | bash`, `wget -O- ... | sh`, or process substitution equivalents).
+  Download scripts to the scratchpad as files, read the whole script, and only then run it.
+  When reading, explicitly check for dangerous behavior: `sudo` or privilege changes, deleting or overwriting files outside the intended install location, edits to shell rc files or system configuration, reads of credentials or tokens, requests to unexpected hosts, and obfuscated or encoded code (`base64`, `eval`, long escaped strings).
+  State in your report that you checked for these, and what you found.
+  If a script cannot be read in full (for example a self-extracting installer with a binary payload), read its header and options, verify its published checksum, and say so.
+- Do NOT run `nextflow run` on a pipeline the human has not named explicitly; ask first.
 - Do NOT access or reference any data that is not already present in this repository.
 
 ## Expectations
@@ -17,36 +23,6 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - When you have made changes, stop and describe what you changed and why so the human can review.
 - If you are unsure whether an action is allowed, ask rather than proceeding.
 - Keep changes small and incremental. Prefer multiple small steps over one large batch of changes.
-
-## Approved exceptions: Nextflow toolchain
-
-This exception is pre-approved.
-When I ask you to install Nextflow, or you use an install-nextflow skill, follow the steps below without asking for confirmation, then report what you did.
-
-### Installing Nextflow, nf-core, and nf-test
-
-If `nextflow -version` already works, skip the install.
-Otherwise install Nextflow using the Nextflow agent skill that is installed.
-If Java is also needed, prompt the user to install it on their own.
-nf-core can be installed and updated locally using `uv tool install nf-core`.
-nf-test can also be installed from https://get.nf-test.com.
-
-Updates to installed tools are also allowed with approval.
-
-### Running Nextflow
-
-Network access is allowed for Nextflow's own downloads (GitHub, registry.nextflow.io, container registries) and for `nextflow run` on a pipeline I have named explicitly.
-Ask before running any pipeline I have not named.
-
-### Limits of this exception
-
-- Install only to `~/.local/bin`.
-  No sudo, no system package changes.
-- Never run the installer inside the repo.
-- Do not pipe curl into bash.
-- Do not use this exception for any other tool, package manager, or service.
-- If the install fails in a way these steps don't cover, stop and ask.
-  Do not try other install methods or download sources.
 
 ## Testing
 
@@ -112,3 +88,8 @@ See `docs/agents/triage-labels.md`.
 
 Single-context: one glossary at `docs/GLOSSARY.md`, with ADRs in `planning/decisions/` named `NNN-<slug>.md` and referred to as `Decision-NNN`.
 See `docs/agents/domain.md`.
+
+### Dev environment
+
+Installing and running Nextflow, nf-test, nf-core, conda, and Java in the agent sandbox is pre-approved within the limits in `docs/agents/dev-environment.md`.
+Read it before installing anything, or when a tool fails in an environmental way (missing tool, firewall block, certificate error, architecture mismatch).
