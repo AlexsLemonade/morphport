@@ -10,19 +10,19 @@
 """
 Generate synthetic single-cell profiles for the pipeline test data.
 
-The test data are defined by a samplesheet and the platemaps it refers to,
+The test data are defined by a sample sheet and the platemaps it refers to,
 which are tracked in the repository (by default in tests/data/).
-For each plate in the samplesheet, this script simulates cells in every well of the plate's platemap,
+For each plate in the sample sheet, this script simulates cells in every well of the plate's platemap,
 and writes a converted parquet file to the plate's parquet_path (under --output-dir if relative),
 as expected from data in the Cell Painting Gallery at the converted parquet stage (no SQLite processing).
 The parquet files are ignored by git (they hold the bulk of the data);
 a .gitkeep file is written alongside each one to keep the directory structure.
 
-Platemaps are found as in the pipeline: from the samplesheet platemap_file column, or by looking up
+Platemaps are found as in the pipeline: from the sample sheet platemap_file column, or by looking up
 the plate in <platemaps_dir>/<batch>/barcode_platemap.csv and reading
 <platemaps_dir>/<batch>/platemap/<Plate_Map_Name>.{txt,tsv,csv}.
 Only the well_position column of each platemap is used.
-Input paths in the samplesheet are relative to the current directory, as in the pipeline.
+Input paths in the sample sheet are relative to the current directory, as in the pipeline.
 
 Feature values are random, with no structure by cell line or other platemap columns.
 Feature names follow CellProfiler conventions, and include the features used by the coSMicQC filters
@@ -75,24 +75,24 @@ MISSING_FEATURE = "Cytoplasm_Correlation_Correlation_CorrAGP_CorrMito"
 MISSING_RATE = 0.2
 
 
-def find_platemap(sample: Mapping[str, str]) -> Path:
+def find_platemap(samplesheet_row: Mapping[str, str]) -> Path:
     """
-    Find the platemap file for a samplesheet row, either from platemap_file or by looking up the plate
+    Find the platemap file for a sample sheet row, either from platemap_file or by looking up the plate
     in barcode_platemap.csv under platemaps_dir.
     This mirrors resolvePlatemapFromDir in the pipeline.
     """
-    if sample.get("platemap_file"):
-        return Path(sample["platemap_file"])
-    batch_dir = Path(sample["platemaps_dir"]) / sample["batch"]
+    if samplesheet_row.get("platemap_file"):
+        return Path(samplesheet_row["platemap_file"])
+    batch_dir = Path(samplesheet_row["platemaps_dir"]) / samplesheet_row["batch"]
     barcodes = pd.read_csv(
         batch_dir / "barcode_platemap.csv", dtype=str, encoding="utf-8-sig"
     )
     match = barcodes.loc[
-        barcodes["Assay_Plate_Barcode"] == sample["plate"], "Plate_Map_Name"
+        barcodes["Assay_Plate_Barcode"] == samplesheet_row["plate"], "Plate_Map_Name"
     ]
     if len(match) != 1:
         raise ValueError(
-            f"Plate {sample['plate']} must appear exactly once in {batch_dir / 'barcode_platemap.csv'}"
+            f"Plate {samplesheet_row['plate']} must appear exactly once in {batch_dir / 'barcode_platemap.csv'}"
         )
     candidates = [
         batch_dir / "platemap" / f"{match.iloc[0]}.{ext}"
@@ -101,7 +101,7 @@ def find_platemap(sample: Mapping[str, str]) -> Path:
     found = [f for f in candidates if f.exists()]
     if len(found) != 1:
         raise ValueError(
-            f"Expected one platemap file for plate {sample['plate']}, found {len(found)}"
+            f"Expected one platemap file for plate {samplesheet_row['plate']}, found {len(found)}"
         )
     return found[0]
 
@@ -161,35 +161,35 @@ def main() -> None:
         "--samplesheet",
         type=Path,
         default=Path("tests/data/samplesheet.csv"),
-        help="Samplesheet defining the test plates (default: %(default)s)",
+        help="Sample sheet defining the test plates (default: %(default)s)",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("."),
-        help="Base directory for relative parquet_path values in the samplesheet (default: current directory)",
+        help="Base directory for relative parquet_path values in the sample sheet (default: current directory)",
     )
     parser.add_argument("--seed", type=int, default=2026, help="Random seed")
     args = parser.parse_args()
 
-    # all samplesheet values are read as strings
-    samples = cast(
+    # all sample sheet values are read as strings
+    samplesheet_rows = cast(
         list[dict[str, str]],
         pd.read_csv(args.samplesheet, dtype=str, keep_default_na=False).to_dict(
             "records"
         ),
     )
     rng = np.random.default_rng(args.seed)
-    for sample in samples:
-        plate_id = sample["plate"]
+    for samplesheet_row in samplesheet_rows:
+        plate_id = samplesheet_row["plate"]
         # each plate's profiles are written to a single file, so parquet_path cannot be a glob
-        if any(c in sample["parquet_path"] for c in "*?["):
+        if any(c in samplesheet_row["parquet_path"] for c in "*?["):
             raise ValueError(
-                f"parquet_path for plate {plate_id} must be a single file, not a glob: {sample['parquet_path']}"
+                f"parquet_path for plate {plate_id} must be a single file, not a glob: {samplesheet_row['parquet_path']}"
             )
-        wells = read_wells(find_platemap(sample))
+        wells = read_wells(find_platemap(samplesheet_row))
         profiles = simulate_plate(plate_id, wells, rng)
-        parquet_path = args.output_dir / sample["parquet_path"]
+        parquet_path = args.output_dir / samplesheet_row["parquet_path"]
         parquet_path.parent.mkdir(parents=True, exist_ok=True)
         profiles.to_parquet(parquet_path, index=False, compression="zstd")
         # the parquet files are not tracked by git, so keep the directory structure with a .gitkeep file

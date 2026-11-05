@@ -14,20 +14,20 @@
 // plate partition keys (platemap partition column values plus project and plate_id), and check
 // the analysis groups against those plate partition keys and for output tag collisions.
 // Errors abort the run here: structural errors in the file are raised by parseGroupings while
-// the workflow is being built, and the samplesheet is only emitted once the data checks pass,
+// the workflow is being built, and the sample sheet is only emitted once the data checks pass,
 // so no process is submitted with a bad groups file. Each platemap file is processed once.
 //
 workflow CREATE_ANALYSIS_GROUPS {
     take:
-    ch_samplesheet       // channel: one validated samplesheet meta per plate
+    ch_samplesheet       // channel: one validated sample sheet meta per plate
     groups_file          // string: path to the analysis groups file (null for a single group per aggregate level)
-    platemap_well_column // string: name of the well column in the platemaps (excluded from plate_metadata_columns)
+    platemap_well_column // string: name of the well column in the platemaps (excluded from platemap_columns)
 
     main:
     def parsed_groups = parseGroupings(groups_file)
     def partition_columns = groupingPartitionColumns(parsed_groups)
 
-    // the checks and group sizes need every plate at once, so collect the samplesheet into a single list
+    // the checks and group sizes need every plate at once, so collect the sample sheet into a single list
     def ch_checked = ch_samplesheet
         .toList()
         .map { metas ->
@@ -55,12 +55,12 @@ workflow CREATE_ANALYSIS_GROUPS {
             }
             // add the platemap columns so they travel with meta through the pipeline
             def updated_metas = metas.collect { meta ->
-                meta + [plate_metadata_columns: platemaps[meta.platemap_file.toString()].columns]
+                meta + [platemap_columns: platemaps[meta.platemap_file.toString()].columns]
             }
             [updated_metas, analysis_groups]
         }
 
-    // emitted only once the checks pass, with plate_metadata_columns added
+    // emitted only once the checks pass, with platemap_columns added
     def ch_metas = ch_checked.flatMap { metas, _analysis_groups -> metas }
 
     // A value channel with the analysis groups lookup used to route partitions to groups:
@@ -711,7 +711,7 @@ def missingGroupingColumns(parsed_groups, plate_partition_keys) {
 // in its platemap (platemap_partition_values, from enumeratePlatemapPartitionValues), plus project and plate_id.
 // A plate partition key is a partition key plus plate_id, without an aggregate level;
 // each one defines the cell and well partitions a plate can produce.
-// Plate-level metadata from the samplesheet (not yet supported) would be merged in here.
+// Plate-specific metadata from the sample sheet (not yet supported) would be merged in here.
 //
 def enumeratePlatePartitionKeys(meta, platemap_partition_values) {
     return platemap_partition_values
@@ -741,7 +741,7 @@ def parsePlatemapColumns(platemap_path, platemap_well_column) {
 // Each combination is a Map keyed by Metadata_-prefixed column names → row values, read the same
 // way pycytominer_annotate.py reads the platemap before partitioning (see readPlatemap), and
 //   - blank cell                                 → '_NA_'
-//   - partition column absent from this platemap → '_Absent_' (mirrors the plate_metadata_columns fill)
+//   - partition column absent from this platemap → '_Absent_' (mirrors the platemap_columns fill)
 // Keeping the encoding aligned is what lets buildAnalysisGroups predict partition keys that
 // actually match the values recorded by PARTITION_PROFILES.
 //

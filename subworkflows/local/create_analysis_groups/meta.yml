@@ -3,7 +3,7 @@ name: "CREATE_ANALYSIS_GROUPS"
 description: |
   Parse and validate the analysis groups file against the platemaps of every plate,
   add the platemap columns to each plate's meta, and build the lookup used to route
-  condition partitions to analysis groups. See docs/analysis_groups_format.md for the file format.
+  partitions to analysis groups. See docs/analysis_groups_format.md for the file format.
 keywords:
   - analysis groups
   - platemap
@@ -14,18 +14,18 @@ components: []
 input:
   - ch_samplesheet:
       type: channel
-      description: Channel of validated samplesheet metadata maps, one per plate
+      description: Channel of validated sample sheet metadata maps, one per plate
   - groups_file:
       type: string
       description: Path to the analysis groups file (null for a single group per aggregate level)
   - platemap_well_column:
       type: string
-      description: Name of the well column in the platemaps (excluded from plate_metadata_columns)
+      description: Name of the well column in the platemaps (excluded from platemap_columns)
 output:
   - samplesheet:
       type: channel
       description: |
-        Channel of metadata maps, one per plate, with plate_metadata_columns added.
+        Channel of metadata maps, one per plate, with platemap_columns added.
         Emitted only once the analysis groups pass validation.
   - analysis_groups:
       type: channel

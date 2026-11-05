@@ -9,7 +9,7 @@ See `CLAUDE.md` and `docs/CONTRIBUTING.md` for how to run them.
 Groovy classes in `tests/lib` are on the nf-test classpath, so they can be used directly in any test.
 Changes to them trigger a full test run (see `triggers` in `nf-test.config`).
 
-- `TestSamplesheet`: makes the relative paths in a samplesheet absolute for pipeline tests.
+- `TestSamplesheet`: makes the relative paths in a sample sheet absolute for pipeline tests.
 
 ## Checking parquet outputs
 

@@ -6,9 +6,9 @@ A complete example is in [`assets/analysis_groups_example.yaml`](../assets/analy
 ## Top-level structure
 
 An optional `default` key, plus `cell` and/or `well` keys.
-Each value is a list of grouping criteria.
-`default` grouping entries are added to both `cell` and `well`.
-Unlike before, duplicates are not merged: a `cell` or `well` grouping entry with the same `name` as a `default` grouping entry is an **error**, even if the two are identical.
+Each value is a list of grouping entries.
+`default` groupings are added to both `cell` and `well`.
+Duplicates are not merged: a `cell` or `well` grouping entry with the same `name` as a `default` grouping entry is an **error**, even if the two are identical.
 
 ```yaml
 default:
@@ -44,7 +44,7 @@ Quote values like these (e.g., `excluded: ["0.10"]`) so they match the platemap 
 A label for the grouping itself, distinct from the group names inside `groups`, which name individual value-set groups.
 It identifies the grouping in error messages and logs, and labels the groups the grouping produces.
 
-Names must be unique within an aggregate level, counting the `default` grouping entries added to that aggregate level; a duplicate is an **error**.
+Names must be unique within an aggregate level, counting the `default` groupings added to that aggregate level; a duplicate is an **error**.
 The same name may be used in both `cell` and `well`.
 Names may contain only letters, digits, `_`, and `-`, so they can be used safely in output paths.
 

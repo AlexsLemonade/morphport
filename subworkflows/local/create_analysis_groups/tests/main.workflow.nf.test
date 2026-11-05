@@ -7,7 +7,7 @@ nextflow_workflow {
     tag "subworkflows_local"
     tag "create_analysis_groups"
 
-    test("CREATE_ANALYSIS_GROUPS: emits the samplesheet and the analysis groups lookup") {
+    test("CREATE_ANALYSIS_GROUPS: emits the sample sheet and the analysis groups lookup") {
 
         when {
             workflow {
@@ -43,7 +43,7 @@ nextflow_workflow {
             assert workflow.success
             assert workflow.out.samplesheet.collect { meta -> meta.plate_id }.sort() == ['plate_001', 'plate_002']
             // platemap columns (minus the well column) are added to each meta
-            assert workflow.out.samplesheet.collectEntries { meta -> [(meta.plate_id): meta.plate_metadata_columns] } == [
+            assert workflow.out.samplesheet.collectEntries { meta -> [(meta.plate_id): meta.platemap_columns] } == [
                 plate_001: ['Metadata_plate_map_name', 'Metadata_gene_allele', 'Metadata_treatment'],
                 plate_002: ['Metadata_plate_map_name', 'Metadata_gene_allele'],
             ]

@@ -22,7 +22,7 @@ input:
         type: map
         description: |
           Groovy Map containing plate metadata,
-          e.g. [ plate_id:'plate_001', batch:'batch_1', plate_metadata_columns:['Metadata_compound','Metadata_dose'] ]
+          e.g. [ plate_id:'plate_001', batch:'batch_1', platemap_columns:['Metadata_treatment','Metadata_dose'] ]
     - parquet_files:
         type: file
         description: |

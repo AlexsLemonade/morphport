@@ -21,7 +21,7 @@ The pipeline takes Cell Painting data from imaging experiments, converts and ann
 
 ```mermaid
 flowchart TD
-    INPUT([Input:\nsamplesheet & data files])
+    INPUT([Input:\nsample sheet & data files])
 
     subgraph per_plate ["Per plate"]
         CYTOTABLE["CYTOTABLE_CONVERT\nSQLite → Parquet\n(optional)"]
@@ -54,7 +54,7 @@ flowchart TD
     INPUT --> per_plate
 
     PARTITION["PARTITION_PROFILES\nSplit into partitions"]
-    GROUP["GROUP\nCombine by analysis groups\n(e.g., cell line)"]
+    GROUP["GROUP\nCombine by analysis groups\n(e.g., cell type)"]
 
     per_plate -->|"Plate 1"| PARTITION
     per_plate -->|"Plate 2"| PARTITION
@@ -78,21 +78,16 @@ flowchart TD
 > [!NOTE]
 > If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/get_started/environment_setup/overview) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/get_started/run-your-first-pipeline) with `-profile test` before running the workflow on actual data.
 
-<!-- TODO nf-core: Describe the minimum required steps to execute the pipeline, e.g. how to prepare samplesheets.
-     Explain what rows and columns represent. For instance (please edit as appropriate):
-
-First, prepare a samplesheet with your input data that looks as follows:
+First, prepare a sample sheet with one row per plate, for example:
 
 `samplesheet.csv`:
 
 ```csv
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
+plate,project,source,batch
+2024_02_02_B8A1R2_P3T2,cpg0020-varchamp,broad,2024_02_06_Batch_8
 ```
 
-Each row represents a fastq file (single-end) or a pair of fastq files (paired end).
-
--->
+See the [usage documentation](docs/usage.md) for all sample sheet columns.
 
 Now, you can run the pipeline using:
 

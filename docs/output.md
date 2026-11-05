@@ -29,7 +29,7 @@ Outputs are organized by project, then by aggregate level, then by the tool that
         └── hierarchical_clustering/edge_wells_[included|excluded]/
 ```
 
-- `<project>` is the `project` value from the samplesheet.
+- `<project>` is the `project` value from the sample sheet.
 - `cell/` contains single-cell profiles and results computed from them.
 - `well/` contains per-well profiles (aggregated from the per-cell profiles) and results computed from them.
 - Outputs from coSMicQC filtering onward are placed in an `edge_wells_included/` or `edge_wells_excluded/` directory within each tool directory, depending on whether the wells on the edge of the plate were removed.
@@ -39,7 +39,7 @@ Outputs are organized by project, then by aggregate level, then by the tool that
 
 ### File naming
 
-Per-plate outputs (up to and including normalization) are named with the plate identifier (`<plate_id>`) from the samplesheet.
+Per-plate outputs (up to and including normalization) are named with the plate identifier (`<plate_id>`) from the sample sheet.
 
 Per-group outputs (feature selection and later) are named with a group tag (`<group_tag>`) that identifies the analysis group, of the form:
 
@@ -79,7 +79,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 </details>
 
 [CytoTable](https://github.com/cytomining/CytoTable) converts the CellProfiler SQLite database for each plate to a single parquet file, joining the per-compartment tables into one row per cell.
-This step only runs for plates with a `sqlite_path` in the samplesheet; plates with `cytotable_preset` set to `skip` use the existing parquet file(s) at `parquet_path` and produce no output here.
+This step only runs for plates with a `sqlite_path` in the sample sheet; plates with `cytotable_preset` set to `skip` use the existing parquet file(s) at `parquet_path` and produce no output here.
 
 ### Platemap annotation
 

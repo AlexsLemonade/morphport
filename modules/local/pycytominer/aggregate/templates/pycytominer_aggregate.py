@@ -32,11 +32,11 @@ def main():
     plate_id = "${meta.plate_id}"
     operation = "${operation}"
     task_process = "${task.process}"
-    plate_metadata_columns = "${meta.plate_metadata_columns.join(',')}"
+    platemap_columns = "${meta.platemap_columns.join(',')}"
 
     # Build the strata list: plate, well, and any additional platemap-derived columns.
     # Ensure each column carries the Metadata_ prefix that pycytominer expects.
-    extra = [c.strip() for c in plate_metadata_columns.split(",") if c.strip()]
+    extra = [c.strip() for c in platemap_columns.split(",") if c.strip()]
     strata = ["Metadata_Plate", "Metadata_Well"] + [
         c if c.startswith("Metadata_") else f"Metadata_{c}" for c in extra
     ]

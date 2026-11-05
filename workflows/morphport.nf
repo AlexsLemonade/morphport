@@ -27,7 +27,7 @@ include { partitionKey                     } from '../subworkflows/local/create_
 
 workflow MORPHPORT {
     take:
-    ch_samplesheet       // channel: samplesheet read in from --input
+    ch_samplesheet       // channel: sample sheet read in from --input
     analysis_groups_file // string: path to the analysis groups file (null for a single group per aggregate level)
     outdir
 
@@ -35,8 +35,8 @@ workflow MORPHPORT {
 
     // Parse the analysis groups file, check the groups against every plate's platemap
     // and build the analysis groups lookup (see CREATE_ANALYSIS_GROUPS).
-    // Downstream steps use the samplesheet emitted by CREATE_ANALYSIS_GROUPS rather than ch_samplesheet
-    // so no process starts until the checks pass; it also adds the partition columns to plate_metadata_columns.
+    // Downstream steps use the sample sheet emitted by CREATE_ANALYSIS_GROUPS rather than ch_samplesheet
+    // so no process starts until the checks pass; it also adds the partition columns to platemap_columns.
     CREATE_ANALYSIS_GROUPS(
         ch_samplesheet,
         analysis_groups_file,
@@ -313,7 +313,7 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
             def aggregate_level = meta.aggregate_level
             def partition_key = partitionKey(meta, groups.partition_columns)
             def aggregate_level_groups = groups[aggregate_level] ?: [:]
-            // every partition value comes from a platemap (or samplesheet) read during
+            // every partition value comes from a platemap (or sample sheet) read during
             // initialisation, so a partition missing from the lookup is a pipeline bug
             if (!aggregate_level_groups.containsKey(partition_key)) {
                 error("Internal error: no analysis groups lookup entry for ${aggregate_level} partition ${partition_key} (plate '${meta.plate_id}')")

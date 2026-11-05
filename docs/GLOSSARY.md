@@ -19,9 +19,10 @@ A multi-well plate of cells that was imaged; the unit of input to the pipeline.
 **Platemap**:
 The per-well metadata table (cell type, treatment, and so on) for a plate layout; several plates may share one platemap.
 
-**Samplesheet**:
+**Sample sheet**:
 The input table listing the plates to process, with one row per plate.
 Despite the name, each row is a plate, not a biological sample.
+Files, parameters, and code write it as one word (`samplesheet`).
 
 ### Experimental design
 
@@ -56,7 +57,7 @@ _Avoid_: aggregation level, level (on its own), data type
 ### Partitions
 
 **Partition**:
-The profiles from one plate at one aggregation level that share one combination of partition-column values.
+The profiles from one plate at one aggregate level that share one combination of partition-column values.
 
 **Partition columns**:
 The platemap columns that any grouping uses to select or divide profiles, such as `Metadata_treatment`.
@@ -74,8 +75,16 @@ _Avoid_: combo, condition combo
 
 **Grouping**:
 A named rule in the analysis groups file that defines how profiles are divided into analysis groups (e.g., `moa_grouping`).
-_Avoid_: grouping entry, grouping criteria
+"Grouping entry" is an acceptable term when referring to how a grouping is written in the analysis groups file.
+_Avoid_: grouping criteria
 
 **Analysis group**:
 A set of profiles that are analyzed together, produced by a grouping (e.g., `kinase_inhibitor` from `moa_grouping`).
 "Group" is an acceptable shorthand.
+
+**Subgroup**:
+The profiles that share one combination of values of a grouping's subgroup columns.
+The grouping is applied separately within each subgroup, so every analysis group belongs to one subgroup.
+
+**Group tag**:
+The string that names an analysis group and its output files, made from the aggregate level, the grouping name, and the grouping and subgroup column values that identify the group (e.g., `cell__moa_by_cell_line__treatment=kinase_inhibitor__cell_type=lineA`).

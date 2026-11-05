@@ -28,7 +28,7 @@ include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_morp
 workflow ALEXSLEMONADE_MORPHPORT {
 
     take:
-    samplesheet // channel: samplesheet read in from --input
+    samplesheet // channel: sample sheet read in from --input
 
     main:
 
