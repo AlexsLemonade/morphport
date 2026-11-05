@@ -3,7 +3,7 @@ description: |
   Computes hierarchical clustering of the samples within an analysis group.
   Clusters either the selected features of the feature-selected profiles or the
   PC1..PCk columns of the PCA embeddings with Ward linkage, using fastcluster's
-  memory-saving linkage_vector so that large (e.g. cell-level) groups can be
+  memory-saving linkage_vector so that large (e.g. per-cell) groups can be
   clustered without building a pairwise distance matrix.
   Writes the scipy linkage matrix and a table of leaf labels and identifying
   metadata as parquet files, along with a JSON summary of the clustering.
@@ -81,7 +81,7 @@ input:
         type: integer
         description: |
           Maximum number of samples to cluster. Groups with more rows than this
-          (e.g., large cell-level groups) are skipped rather than clustered, and
+          (e.g., large groups of per-cell profiles) are skipped rather than clustered, and
           the summary JSON records skipped=true with the reason.
 
 output:

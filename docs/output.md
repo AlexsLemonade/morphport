@@ -31,7 +31,7 @@ Outputs are organized by project, then by aggregate level, then by the tool that
 
 - `<project>` is the `project` value from the samplesheet.
 - `cell/` contains single-cell profiles and results computed from them.
-- `well/` contains well-level aggregated profiles and results computed from them.
+- `well/` contains per-well profiles (aggregated from the per-cell profiles) and results computed from them.
 - Outputs from coSMicQC filtering onward are placed in an `edge_wells_included/` or `edge_wells_excluded/` directory within each tool directory, depending on whether the wells on the edge of the plate were removed.
   With `--edge_well_filter off`, only `edge_wells_included/` is present; with `--edge_well_filter on`, only `edge_wells_excluded/` is present.
   With `--edge_well_filter both` (the default), every step from coSMicQC filtering onward is run twice, and both directories are present.
@@ -49,7 +49,7 @@ Per-group outputs (feature selection and later) are named with a group tag (`<gr
 
 where `<group_id>` lists the grouping column and any subgroup columns with their values, without the `Metadata_` prefix, joined by `__`.
 For example, `cell__moa_by_cell_line__treatment=kinase_inhibitor__cell_type=lineA`.
-When no analysis groups file is provided, each level has a single group, and the tag is `cell__all` or `well__all`.
+When no analysis groups file is provided, each aggregate level has a single group, and the tag is `cell__all` or `well__all`.
 Characters other than letters, digits, `.`, `_`, `=`, and `-` are replaced with `_`.
 See [the analysis groups file format](analysis_groups_format.md) for how groups are defined.
 
@@ -60,7 +60,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 - [CytoTable](#cytotable) - Convert CellProfiler SQLite output to parquet
 - [Platemap annotation](#platemap-annotation) - Add platemap metadata to each cell (optional output)
 - [coSMicQC](#cosmicqc) - Remove edge wells and outlier cells
-- [Aggregation](#aggregation) - Summarize single-cell profiles to well-level profiles
+- [Aggregation](#aggregation) - Summarize per-cell profiles to per-well profiles
 - [Normalization](#normalization) - Normalize profiles within each plate
 - [Plate partitioning](#plate-partitioning) - Split each plate's profiles into partitions (optional output)
 - [Feature selection](#feature-selection) - Select informative features for each analysis group
@@ -119,7 +119,7 @@ When edge wells are excluded, wells on the border of the plate are removed first
 <summary>Output files</summary>
 
 - `<project>/well/pycytominer/edge_wells_*/`
-  - `well_<plate_id>.parquet`: Well-level profiles, one row per well.
+  - `well_<plate_id>.parquet`: Per-well profiles, one row per well.
 
 </details>
 
@@ -133,19 +133,19 @@ Pycytominer `aggregate` summarizes the filtered single-cell profiles in each wel
 - `<project>/cell/pycytominer/edge_wells_*/`
   - `normalized_cell_<plate_id>.parquet`: Normalized single-cell profiles.
 - `<project>/well/pycytominer/edge_wells_*/`
-  - `normalized_well_<plate_id>.parquet`: Normalized well-level profiles.
+  - `normalized_well_<plate_id>.parquet`: Normalized per-well profiles.
 
 </details>
 
 Pycytominer `normalize` normalizes features within each plate, using the methods set by `--pycytominer_normalize_method_cell` and `--pycytominer_normalize_method_well` and the reference samples set by `--pycytominer_normalize_samples`.
-If the normalization method for a level is `none`, normalization is skipped and no normalized files are written for that level.
+If the normalization method for an aggregate level is `none`, normalization is skipped and no normalized files are written for that aggregate level.
 
 ### Plate partitioning
 
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/<level>/partition/edge_wells_*/`
+- `<project>/<aggregate_level>/partition/edge_wells_*/`
   - `<plate_id>/`: [Hive-style](https://duckdb.org/docs/stable/data/partitioning/hive_partitioning) partitioned parquet files for the plate, with one directory level per partition column (e.g. `Metadata_treatment=drugA/`).
     Values in directory names are percent-encoded.
   - `partitions_<plate_id>.json`: A list of the partition directories, each with its decoded column values.
@@ -162,7 +162,7 @@ These files are intermediate outputs and are only published with `--publish_opti
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/<level>/pycytominer/edge_wells_*/`
+- `<project>/<aggregate_level>/pycytominer/edge_wells_*/`
   - `features_<group_tag>.txt`: The selected feature names, one per line.
   - `feature_select_summary_<group_tag>.json`: Feature selection summary for the group, including the group definition, the operations requested and applied, the parameters used, the imaging channels detected from feature names, and the number of features before and after selection.
 
@@ -179,7 +179,7 @@ Groups with no selected features are skipped by later steps, with a warning in t
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/<level>/embeddings/edge_wells_*/`
+- `<project>/<aggregate_level>/embeddings/edge_wells_*/`
   - `embeddings_<group_tag>.parquet`: One row per sample (cell or well) in the group, with all `Metadata_` columns, principal components (`PC1`, `PC2`, ...), and UMAP coordinates (`UMAP1`, `UMAP2`).
   - `embeddings_summary_<group_tag>.json`: Embedding summary for the group, including the group definition, the source plates, row counts before and after NaN handling, and the PCA (components used, explained variance ratios) and UMAP (neighbors, minimum distance, random seed) settings.
 
@@ -195,7 +195,7 @@ If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parq
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/<level>/hierarchical_clustering/edge_wells_*/`
+- `<project>/<aggregate_level>/hierarchical_clustering/edge_wells_*/`
   - `clustering_samples_linkage_<group_tag>.parquet`: The [scipy linkage matrix](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html), one row per merge, with columns `left`, `right`, `distance`, and `n_members`.
     Following scipy, leaves are numbered `0` to `n-1`, and the node created by row `i` is numbered `n + i`.
     The tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.
@@ -207,7 +207,7 @@ If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parq
 
 </details>
 
-Samples in each group are clustered with Ward linkage, using [fastcluster](https://danifold.net/fastcluster.html)'s memory-saving algorithm so that large cell-level groups can be clustered without computing all pairwise distances at once.
+Samples in each group are clustered with Ward linkage, using [fastcluster](https://danifold.net/fastcluster.html)'s memory-saving algorithm so that large analysis groups of per-cell profiles can be clustered without computing all pairwise distances at once.
 By default, samples are clustered on their principal components; set `--clustering_samples_input features` to cluster on their selected features instead, which is slower for large groups since clustering time grows with the number of columns.
 The distance metric is set by `--clustering_samples_distance_metric` (default `cosine`).
 The `correlation` metric (Pearson correlation between sample profiles) is recommended only when clustering features, since centering a sample's principal component scores is not meaningful.
@@ -220,7 +220,7 @@ The selected features in each group are clustered separately, using the feature-
 Features are not scaled before clustering.
 As in the embedding step, rows with a fraction of missing feature values above `--sample_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
 Constant features should already be removed by feature selection; as a backup, any features that are constant across the remaining samples are excluded.
-Feature clustering is run for all groups, including cell-level groups, unless fewer than 2 samples or 2 features remain after filtering.
+Feature clustering is run for all groups, including analysis groups of per-cell profiles, unless fewer than 2 samples or 2 features remain after filtering.
 
 For skipped groups, the parquet files are empty, and the summary has `skipped: true` and a `skip_reason`.
 

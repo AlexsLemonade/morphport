@@ -27,14 +27,14 @@ flowchart TD
         CYTOTABLE["CYTOTABLE_CONVERT\nSQLite → Parquet\n(optional)"]
         ANNOTATE[PYCYTOMINER_ANNOTATE\nAdd platemap metadata]
         FILTER[COSMICQC_FILTER\nRemove low-quality cells]
-        AGGREGATE[PYCYTOMINER_AGGREGATE\nCell → well level]
+        AGGREGATE[PYCYTOMINER_AGGREGATE\nPer-cell → per-well profiles]
         NORMALIZE["PYCYTOMINER_NORMALIZE\nNormalize features\n(optional)"]
 
         CYTOTABLE --> ANNOTATE
         ANNOTATE --> FILTER
-        FILTER -->|cell level| NORMALIZE
+        FILTER -->|per-cell| NORMALIZE
         FILTER --> AGGREGATE
-        AGGREGATE -->|well level| NORMALIZE
+        AGGREGATE -->|per-well| NORMALIZE
     end
 
     subgraph per_group ["Per analysis group"]

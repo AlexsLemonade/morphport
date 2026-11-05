@@ -381,7 +381,7 @@ nextflow_function {
                     filter: [:],
                     subgroup_columns: [],
                 ]
-                // moa is a default grouping, so it appears in both levels
+                // moa is a default grouping, so it appears in both aggregate levels
                 input[0] = [cell: [moa, typo], well: [moa]]
                 input[1] = [
                     [Metadata_treatment: 'drugA', project: 'demo', plate_id: 'p1'],
@@ -476,7 +476,7 @@ nextflow_function {
         }
     }
 
-    test("validateGroupTags: the same tag in different projects or levels is allowed") {
+    test("validateGroupTags: the same tag in different projects or aggregate levels is allowed") {
 
         function "validateGroupTags"
 

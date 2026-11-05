@@ -19,7 +19,7 @@ well:
   - <grouping entry>
 ```
 
-If no analysis groups file is given, no grouping or partitioning is performed: each level (`cell` and `well`) gets a single group containing all of a project's data.
+If no analysis groups file is given, no grouping or partitioning is performed: each aggregate level (`cell` and `well`) gets a single group containing all of a project's data.
 
 ## Grouping entry format
 
@@ -44,7 +44,7 @@ Quote values like these (e.g., `excluded: ["0.10"]`) so they match the platemap 
 A label for the grouping itself, distinct from the group names inside `groups`, which name individual value-set groups.
 It identifies the grouping in error messages and logs, and labels the groups the grouping produces.
 
-Names must be unique within a level, counting the `default` grouping entries added to that level; a duplicate is an **error**.
+Names must be unique within an aggregate level, counting the `default` grouping entries added to that aggregate level; a duplicate is an **error**.
 The same name may be used in both `cell` and `well`.
 Names may contain only letters, digits, `_`, and `-`, so they can be used safely in output paths.
 
@@ -236,7 +236,7 @@ cell:
     subgroup_columns: [cell_type]
 
 well:
-  # well-level grouping by cell type, added to the default treatment grouping
+  # grouping of per-well profiles by cell type, added to the default treatment grouping
   - name: cell_type
     grouping_column: cell_type
     groups: one_per_value

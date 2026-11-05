@@ -20,7 +20,7 @@
 workflow CREATE_ANALYSIS_GROUPS {
     take:
     ch_samplesheet       // channel: one validated samplesheet meta per plate
-    groups_file          // string: path to the analysis groups file (null for a single group per level)
+    groups_file          // string: path to the analysis groups file (null for a single group per aggregate level)
     platemap_well_column // string: name of the well column in the platemaps (excluded from plate_metadata_columns)
 
     main:
@@ -172,7 +172,7 @@ def readPlatemap(platemap_path) {
 def validateGroupingStructure(parsed) {
     def errors = []
     def warnings = []
-    def levels = ['default', 'cell', 'well']
+    def top_level_keys = ['default', 'cell', 'well']
 
     if (!(parsed instanceof Map)) {
         errors << "The analysis groups file is not the correct format; it should be a YAML or JSON file with top-level keys for 'default', 'cell', and/or 'well'."
@@ -180,36 +180,36 @@ def validateGroupingStructure(parsed) {
     }
 
     // check that we only have the expected top-level keys
-    (parsed.keySet().collect { key -> key as String } - levels).each { key ->
+    (parsed.keySet().collect { key -> key as String } - top_level_keys).each { key ->
         errors << "Unknown top-level key '${key}': expected 'default', 'cell', and/or 'well'."
     }
 
-    // check that each level contains a list of groupings; a missing level has no groupings
-    def level_groupings = levels.collectEntries { level ->
-        def groupings = parsed.get(level)
+    // check that each top-level key contains a list of groupings; a missing key has no groupings
+    def groupings_by_key = top_level_keys.collectEntries { top_level_key ->
+        def groupings = parsed.get(top_level_key)
         if (groupings != null && !(groupings instanceof List)) {
-            errors << "'${level}' must contain a list of groupings."
+            errors << "'${top_level_key}' must contain a list of groupings."
             groupings = []
         }
-        [(level): groupings ?: []]
+        [(top_level_key): groupings ?: []]
     }
 
     // check each grouping
-    level_groupings.each { level, groupings ->
+    groupings_by_key.each { top_level_key, groupings ->
         groupings.eachWithIndex { grouping, idx ->
-            def result = validateGrouping(grouping, level, idx + 1)
+            def result = validateGrouping(grouping, top_level_key, idx + 1)
             errors.addAll(result.errors)
             warnings.addAll(result.warnings)
         }
     }
 
-    // check that grouping names are unique within each level, counting the default groupings added to it
-    def named = level_groupings.collectEntries { level, groupings ->
-        [(level): groupings.findAll { grouping -> grouping instanceof Map && grouping.name != null }.collect { grouping -> grouping.name as String }]
+    // check that grouping names are unique within each aggregate level, counting the default groupings added to it
+    def named = groupings_by_key.collectEntries { top_level_key, groupings ->
+        [(top_level_key): groupings.findAll { grouping -> grouping instanceof Map && grouping.name != null }.collect { grouping -> grouping.name as String }]
     }
-    ['cell', 'well'].each { level ->
-        (named['default'] + named[level]).countBy { name -> name }.findAll { _name, count -> count > 1 }.each { name, _count ->
-            errors << "Grouping name '${name}' is used more than once in '${level}' (including 'default' groupings)."
+    ['cell', 'well'].each { aggregate_level ->
+        (named['default'] + named[aggregate_level]).countBy { name -> name }.findAll { _name, count -> count > 1 }.each { name, _count ->
+            errors << "Grouping name '${name}' is used more than once in '${aggregate_level}' (including 'default' groupings)."
         }
     }
 
@@ -219,18 +219,18 @@ def validateGroupingStructure(parsed) {
 
 //
 // Check the structure of a single grouping from the analysis groups file (see validateGroupingStructure).
-// `position` is the grouping's 1-based position in its level, used to label it in messages if it has no name.
+// `position` is the grouping's 1-based position under its top-level key, used to label it in messages if it has no name.
 // Returns [errors: [...], warnings: [...]].
 //
-def validateGrouping(grouping, level, position) {
+def validateGrouping(grouping, top_level_key, position) {
     def errors = []
     def warnings = []
 
     if (!(grouping instanceof Map)) {
-        errors << "Grouping ${position} in '${level}' ('${grouping}') must be a mapping with 'name', 'grouping_column', and 'groups' keys."
+        errors << "Grouping ${position} in '${top_level_key}' ('${grouping}') must be a mapping with 'name', 'grouping_column', and 'groups' keys."
         return [errors: errors, warnings: warnings]
     }
-    def label = grouping.name != null ? "Grouping '${grouping.name}' in '${level}'" : "Grouping ${position} in '${level}'"
+    def label = grouping.name != null ? "Grouping '${grouping.name}' in '${top_level_key}'" : "Grouping ${position} in '${top_level_key}'"
 
     // check that all keys are known and the required keys are present
     def known_keys = ['name', 'grouping_column', 'groups', 'always_include', 'excluded', 'filter', 'subgroup_columns']
@@ -345,12 +345,12 @@ def isFlatList(values) {
 // aggregate_level ('cell'/'well') → list of groupings. Each grouping has every key filled in:
 //   [name, grouping_column, groups, always_include, excluded, filter, subgroup_columns]
 // Column names get the Metadata_ prefix, and all values are coerced to strings to match
-// the values read from platemaps. 'default' groupings are placed first in each level.
+// the values read from platemaps. 'default' groupings are placed first in each aggregate level.
 //
 def normalizeGroupings(parsed) {
     def default_groupings = (parsed.get('default') ?: []).collect { grouping -> normalizeGrouping(grouping) }
-    return ['cell', 'well'].collectEntries { level ->
-        [(level): default_groupings + (parsed.get(level) ?: []).collect { grouping -> normalizeGrouping(grouping) }]
+    return ['cell', 'well'].collectEntries { aggregate_level ->
+        [(aggregate_level): default_groupings + (parsed.get(aggregate_level) ?: []).collect { grouping -> normalizeGrouping(grouping) }]
     }
 }
 
@@ -383,8 +383,8 @@ def toStringList(values) {
 // Parse analysis_groups_file into a map of aggregate_level ('cell'/'well') → list of
 // normalized groupings (see normalizeGroupings and docs/analysis_groups_format.md).
 // Structural errors abort the run here, before any process is submitted.
-// If no file is given, each level gets a single grouping named 'all' with no grouping column,
-// meaning "one all-encompassing group per level" (no partitioning).
+// If no file is given, each aggregate level gets a single grouping named 'all' with no grouping column,
+// meaning "one all-encompassing group per aggregate level" (no partitioning).
 //
 def parseGroupings(groups_file) {
     if (!groups_file) {
@@ -413,7 +413,7 @@ def parseGroupings(groups_file) {
 
 //
 // Columns PARTITION_PROFILES must split by: the union of every grouping's grouping_column,
-// subgroup_columns, and filter columns across both levels.
+// subgroup_columns, and filter columns across both aggregate levels.
 //
 def groupingPartitionColumns(parsed_groups) {
     def groupings = parsed_groups.cell + parsed_groups.well
@@ -435,8 +435,8 @@ def groupingPartitionColumns(parsed_groups) {
 //
 // A partition_key (see partitionKey) is a plate partition key's partition column values plus project
 // (i.e., without plate_id), which is what each partition's meta carries after expandHivePartitions. Every observed partition key is
-// present at both levels; an empty list means the partition belongs to no group at that
-// level (e.g., it was filtered out or excluded).
+// present at both aggregate levels; an empty list means the partition belongs to no group at that
+// aggregate level (e.g., it was filtered out or excluded).
 //
 // group_meta identifies the group:
 //   [project, aggregate_level, grouping_name, grouping_column, group, subgroup_values, group_id, group_tag]
@@ -471,13 +471,13 @@ def buildAnalysisGroups(parsed_groups, plate_partition_keys) {
     // LinkedHashSet dedups by hash (unique() is quadratic) while keeping first-seen order
     def partition_keys = plate_partition_keys.collect { plate_partition_key -> partitionKey(plate_partition_key, partition_columns) } as LinkedHashSet
 
-    def level_lookups = ['cell', 'well'].collectEntries { level ->
+    def aggregate_level_lookups = ['cell', 'well'].collectEntries { aggregate_level ->
         def lookup = partition_keys.collectEntries { partition_key -> [(partition_key): []] }
-        parsed_groups[level].each { grouping ->
+        parsed_groups[aggregate_level].each { grouping ->
             assignGroupingSets(grouping, plate_partition_keys).each { group_key, members ->
                 def group_meta = [
                     project: group_key.project,
-                    aggregate_level: level,
+                    aggregate_level: aggregate_level,
                     grouping_name: grouping.name,
                     grouping_column: grouping.grouping_column,
                     group: group_key.group,
@@ -491,9 +491,9 @@ def buildAnalysisGroups(parsed_groups, plate_partition_keys) {
                 member_keys.each { partition_key -> lookup[partition_key] << group_with_size }
             }
         }
-        [(level): lookup]
+        [(aggregate_level): lookup]
     }
-    return [partition_columns: partition_columns] + level_lookups
+    return [partition_columns: partition_columns] + aggregate_level_lookups
 }
 
 //
@@ -594,7 +594,7 @@ def groupTag(group_meta) {
 
 //
 // Check that distinct groups get distinct output tags within each project and aggregate level,
-// since published outputs are only separated by project, level, and tag.
+// since published outputs are only separated by project, aggregate level, and tag.
 // groupTag replaces characters outside [A-Za-z0-9._=-] with '_', so groups or values that differ
 // only in those characters (e.g. 'kinase inhibitor' and 'kinase/inhibitor') would otherwise
 // overwrite each other's outputs. Takes the lookup from buildAnalysisGroups and returns a list
@@ -602,8 +602,8 @@ def groupTag(group_meta) {
 //
 def validateGroupTags(analysis_groups) {
     def group_metas = ['cell', 'well']
-        .collectMany { level ->
-            (analysis_groups[level] ?: [:]).values().collectMany { groups ->
+        .collectMany { aggregate_level ->
+            (analysis_groups[aggregate_level] ?: [:]).values().collectMany { groups ->
                 groups.collect { group_meta, _size -> group_meta }
             }
         }
@@ -629,7 +629,7 @@ def validateGroupTags(analysis_groups) {
 //   - named groups that don't account for an observed (filtered) value
 //   - always_include values absent from the filtered rows
 //   - always_include values absent from any subgroup (within a project) that has other rows
-// Groupings shared by both levels (default groupings) are checked once.
+// Groupings shared by both aggregate levels (default groupings) are checked once.
 //
 def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
     def errors = []
@@ -691,7 +691,7 @@ def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
 // Find grouping and subgroup columns missing from the platemaps of plates a grouping uses
 // (after its filter). Not an error, since a column may be absent from only some plates,
 // but a typo would otherwise silently put every row in a single '_Absent_' group.
-// Returns a list of warning messages; groupings shared by both levels are checked once.
+// Returns a list of warning messages; groupings shared by both aggregate levels are checked once.
 //
 def missingGroupingColumns(parsed_groups, plate_partition_keys) {
     def groupings = (parsed_groups.cell + parsed_groups.well).unique()
@@ -709,7 +709,7 @@ def missingGroupingColumns(parsed_groups, plate_partition_keys) {
 //
 // List the plate partition keys for one plate: each unique combination of partition column values
 // in its platemap (platemap_partition_values, from enumeratePlatemapPartitionValues), plus project and plate_id.
-// A plate partition key is a partition key plus plate_id, without an aggregation level;
+// A plate partition key is a partition key plus plate_id, without an aggregate level;
 // each one defines the cell and well partitions a plate can produce.
 // Plate-level metadata from the samplesheet (not yet supported) would be merged in here.
 //

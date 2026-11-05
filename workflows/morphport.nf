@@ -28,7 +28,7 @@ include { partitionKey                     } from '../subworkflows/local/create_
 workflow MORPHPORT {
     take:
     ch_samplesheet       // channel: samplesheet read in from --input
-    analysis_groups_file // string: path to the analysis groups file (null for a single group per level)
+    analysis_groups_file // string: path to the analysis groups file (null for a single group per aggregate level)
     outdir
 
     main:
@@ -102,10 +102,10 @@ workflow MORPHPORT {
         ]
     }
 
-    // make well-level aggregates with pycytominer
+    // make per-well profiles by aggregating the per-cell profiles with pycytominer
     PYCYTOMINER_AGGREGATE(ch_filtered, params.pycytominer_aggregate_operation)
 
-    // combine well- and cell-level data into a single channel
+    // combine per-well and per-cell profiles into a single channel
     ch_pre_normalize = ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result)
         .map { meta, parquet ->
             // add the correct normalization method to the tuple based on the aggregate level
@@ -132,7 +132,7 @@ workflow MORPHPORT {
     )
 
     // Partition profiles by the partition columns
-    // This does both cell and well level partitioning;
+    // This partitions both the per-cell and per-well profiles;
     // we separate them out again later using the aggregate_level metadata.
     // The analysis_groups value channel carries the partition column set;
     // branch on it so PARTITION_PROFILES only runs when there is something to partition.
@@ -303,22 +303,22 @@ def expandHivePartitions(meta, partition_dir, manifest_file) {
 // by its aggregate level and partition key (partition column values plus project), and fanned
 // out into one tuple per group it belongs to, keyed by groupKey(group_meta, size) so groupTuple
 // can release each group as soon as size items have arrived.
-// A partition that belongs to no group at its level (filtered out or excluded) emits nothing.
+// A partition that belongs to no group at its aggregate level (filtered out or excluded) emits nothing.
 //
 def createGroupChannels(ch_partitioned, ch_analysis_groups) {
     def ch_grouping = ch_partitioned
         // add the analysis groups lookup to each ch_partitioned tuple
         .combine(ch_analysis_groups)
         .flatMap { meta, parquets, groups ->
-            def agg_level = meta.aggregate_level
+            def aggregate_level = meta.aggregate_level
             def partition_key = partitionKey(meta, groups.partition_columns)
-            def level_groups = groups[agg_level] ?: [:]
+            def aggregate_level_groups = groups[aggregate_level] ?: [:]
             // every partition value comes from a platemap (or samplesheet) read during
             // initialisation, so a partition missing from the lookup is a pipeline bug
-            if (!level_groups.containsKey(partition_key)) {
-                error("Internal error: no analysis groups lookup entry for ${agg_level} partition ${partition_key} (plate '${meta.plate_id}')")
+            if (!aggregate_level_groups.containsKey(partition_key)) {
+                error("Internal error: no analysis groups lookup entry for ${aggregate_level} partition ${partition_key} (plate '${meta.plate_id}')")
             }
-            level_groups[partition_key].collect { group_meta, expected_size ->
+            aggregate_level_groups[partition_key].collect { group_meta, expected_size ->
                 // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate groups.
                 // Each variant gets every partition, so the expected size is the same for both.
                 def key_data = params.edge_well_filter == 'both'

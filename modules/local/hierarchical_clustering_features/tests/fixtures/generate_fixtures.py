@@ -11,7 +11,7 @@ Generate the small parquet fixtures for the hierarchical_clustering_features mod
 
 Writes to the directory containing this script:
 
-- profiles_nan_rows.parquet, profiles_complete.parquet: well-level feature-selected
+- profiles_nan_rows.parquet, profiles_complete.parquet: per-well feature-selected
   profiles for plates P1 and P2 (6 wells each) with Metadata_Plate, Metadata_Well, and
   Metadata_cell_line columns, and features feat_a..feat_e and feat_constant.
   - profiles_nan_rows.parquet (P1):

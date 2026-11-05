@@ -19,7 +19,7 @@ clustering on the columns (features) of the feature matrix. Writes three files:
 
 Pairwise feature distances take memory proportional to the square of the
 number of features, and time linear in the number of samples, so all groups
-are clustered, including cell-level groups.
+are clustered, including groups of per-cell profiles.
 
 NOTE: features are clustered without any additional scaling. This module
 assumes the upstream pycytominer normalization has already produced

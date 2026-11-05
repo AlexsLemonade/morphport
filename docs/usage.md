@@ -87,7 +87,7 @@ All platemap columns are added to the annotated profiles as `Metadata_`-prefixed
 
 After per-plate processing, profiles are split into partitions (one for each combination of values of the metadata columns used in the analysis groups file) and the partitions are combined into analysis groups for feature selection, embeddings, and clustering.
 Groups are defined in a YAML (or JSON) file passed with `--analysis_groups_file`, using platemap metadata columns.
-If no analysis groups file is given, each level (`cell` and `well`) gets a single group containing all of a project's data.
+If no analysis groups file is given, each aggregate level (`cell` and `well`) gets a single group containing all of a project's data.
 
 ```bash
 --analysis_groups_file '[path to analysis groups file]'
@@ -268,7 +268,7 @@ Each step in the pipeline has a default set of requirements for number of CPUs, 
 For most of the pipeline steps, if the job exits with any of the error codes specified [here](../conf/base.config) it will automatically be resubmitted once with a higher resource request (2 x original).
 If it still fails after the second attempt then the pipeline execution is stopped.
 
-Cell-level steps on plates with many cells, and analysis groups that combine many plates, may need more memory than the defaults.
+Steps that process per-cell profiles for plates with many cells, and analysis groups that combine many plates, may need more memory than the defaults.
 
 To change the resource requests, please see the [max resources](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#set-max-resources) and [customise process resources](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#customize-process-resources) section of the nf-core website.
 

@@ -17,7 +17,7 @@ input:
       description: Channel of validated samplesheet metadata maps, one per plate
   - groups_file:
       type: string
-      description: Path to the analysis groups file (null for a single group per level)
+      description: Path to the analysis groups file (null for a single group per aggregate level)
   - platemap_well_column:
       type: string
       description: Name of the well column in the platemaps (excluded from plate_metadata_columns)
@@ -31,7 +31,7 @@ output:
       type: channel
       description: |
         Value channel with the analysis groups lookup from buildAnalysisGroups:
-        partition_columns and, for each of cell and well level, partition key to a list of
+        partition_columns and, for each of the cell and well aggregate levels, partition key to a list of
         [group_meta, expected group size]
 authors:
   - "@jashapiro"

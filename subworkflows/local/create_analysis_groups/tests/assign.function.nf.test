@@ -517,7 +517,7 @@ nextflow_function {
             // partition keys come back as strings (see the assignGroupingSets note)
             def pk = { treatment -> "{Metadata_treatment=${treatment}, Metadata_cell_type=lineA, project=demo}".toString() }
             assert function.result.partition_columns == ['Metadata_treatment', 'Metadata_cell_type']
-            // every observed partition is a known key in every level, even with no groups there
+            // every observed partition is a known key in every aggregate level, even with no groups there
             assert function.result.well.keySet() == function.result.cell.keySet()
             assert function.result.well.values().every { groups -> groups == [] }
             // kinase_inhibitor: p1 drugA + DMSO from p1 and p2 = 3 items
@@ -532,7 +532,7 @@ nextflow_function {
         }
     }
 
-    test("buildAnalysisGroups: one_per_value group ids use the value; default groupings appear in both levels") {
+    test("buildAnalysisGroups: one_per_value group ids use the value; default groupings appear in both aggregate levels") {
 
         function "buildAnalysisGroups"
 
@@ -559,16 +559,16 @@ nextflow_function {
 
         then {
             assert function.success
-            def group_meta = { level ->
+            def group_meta = { aggregate_level ->
                 [
                     project: 'demo',
-                    aggregate_level: level,
+                    aggregate_level: aggregate_level,
                     grouping_name: 'treatment',
                     grouping_column: 'Metadata_treatment',
                     group: 'drugA',
                     subgroup_values: [:],
                     group_id: 'treatment=drugA',
-                    group_tag: "${level}__treatment__treatment=drugA".toString(),
+                    group_tag: "${aggregate_level}__treatment__treatment=drugA".toString(),
                 ]
             }
             // partition keys come back as strings (see the assignGroupingSets note)
@@ -581,7 +581,7 @@ nextflow_function {
         }
     }
 
-    test("buildAnalysisGroups: no analysis groups file gives one 'all' group per level and project") {
+    test("buildAnalysisGroups: no analysis groups file gives one 'all' group per aggregate level and project") {
 
         function "buildAnalysisGroups"
 
@@ -608,16 +608,16 @@ nextflow_function {
 
         then {
             assert function.success
-            def group_meta = { level ->
+            def group_meta = { aggregate_level ->
                 [
                     project: 'demo',
-                    aggregate_level: level,
+                    aggregate_level: aggregate_level,
                     grouping_name: 'all',
                     grouping_column: null,
                     group: 'all_values',
                     subgroup_values: [:],
                     group_id: 'all',
-                    group_tag: "${level}__all".toString(),
+                    group_tag: "${aggregate_level}__all".toString(),
                 ]
             }
             assert function.result == [

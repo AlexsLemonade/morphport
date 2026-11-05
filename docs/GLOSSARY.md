@@ -48,10 +48,10 @@ One stain or imaging mode captured for each image (e.g., DNA, ER, RNA, AGP, Mito
 "Channel" on its own refers to a Nextflow channel, not an imaging channel.
 _Avoid_: fluorescence channel, stain (when referring to the channel)
 
-**Aggregation level**:
-Whether profiles describe individual cells (`cell`) or whole wells (`well`); well-level profiles are aggregated from the cell-level profiles in each well.
+**Aggregate level**:
+Whether profiles describe individual cells (`cell`) or whole wells (`well`); per-well profiles are aggregated from the per-cell profiles in each well.
 "Per-cell", "per-well", and "well summary" are acceptable descriptions of the two levels.
-_Avoid_: level (on its own), data type
+_Avoid_: aggregation level, level (on its own), data type
 
 ### Partitions
 
@@ -67,7 +67,7 @@ _Avoid_: condition, combo, condition combo
 
 **Plate partition key**:
 A partition key together with the plate it comes from.
-It has no aggregation level, so each plate partition key corresponds to one cell-level and one well-level partition.
+It has no aggregate level, so each plate partition key corresponds to one per-cell and one per-well partition.
 _Avoid_: combo, condition combo
 
 ### Analysis groups
