@@ -22,7 +22,7 @@ The per-well metadata table (cell type, treatment, and so on) for a plate layout
 **Sample sheet**:
 The input table listing the plates to process, with one row per plate.
 Despite the name, each row is a plate, not a biological sample.
-Files, parameters, and code write it as one word (`samplesheet`).
+Either "sample sheet" or "samplesheet" is acceptable (the nf-core template uses `samplesheet` in files, parameters, and code); prefer two words in prose.
 
 ### Experimental design
 

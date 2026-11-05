@@ -7,7 +7,7 @@ nextflow_workflow {
     tag "subworkflows_local"
     tag "create_analysis_groups"
 
-    test("CREATE_ANALYSIS_GROUPS: emits the sample sheet and the analysis groups lookup") {
+    test("CREATE_ANALYSIS_GROUPS: emits the samplesheet and the analysis groups lookup") {
 
         when {
             workflow {

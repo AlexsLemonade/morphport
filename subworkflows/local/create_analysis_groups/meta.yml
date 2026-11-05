@@ -14,7 +14,7 @@ components: []
 input:
   - ch_samplesheet:
       type: channel
-      description: Channel of validated sample sheet metadata maps, one per plate
+      description: Channel of validated samplesheet metadata maps, one per plate
   - groups_file:
       type: string
       description: Path to the analysis groups file (null for a single group per aggregate level)

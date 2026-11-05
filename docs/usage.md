@@ -9,18 +9,18 @@ Each plate's CellProfiler output is converted to parquet if needed, annotated wi
 Each plate's profiles are then split into partitions, one for each combination of values of the metadata columns used in the analysis groups file, and the partitions are combined into analysis groups for feature selection, embedding (PCA and UMAP), and hierarchical clustering.
 
 We expect most input data to come from the [Cell Painting Gallery](https://github.com/broadinstitute/cellpainting-gallery) (CPG), a public AWS S3 bucket (`s3://cellpainting-gallery`) of Cell Painting datasets.
-The pipeline follows CPG directory conventions, so for CPG data the sample sheet often only needs to identify each plate, and the pipeline will find the input files itself.
+The pipeline follows CPG directory conventions, so for CPG data the samplesheet often only needs to identify each plate, and the pipeline will find the input files itself.
 The important exception is that this does not yet work for parquet input files, as the conventions around the locations of such input files are not yet solidified.
-Data stored elsewhere can also be used by providing explicit file paths in the sample sheet.
+Data stored elsewhere can also be used by providing explicit file paths in the samplesheet.
 
-## Sample sheet input
+## Samplesheet input
 
-You will need to create a sample sheet with information about the plates you would like to process.
+You will need to create a samplesheet with information about the plates you would like to process.
 Use this parameter to specify its location.
 It has to be a comma-separated file with a header row, with one row per plate, as shown in the examples below.
 
 ```bash
---input '[path to sample sheet file]'
+--input '[path to samplesheet file]'
 ```
 
 ### Plates on the Cell Painting Gallery
@@ -37,7 +37,7 @@ s3://cellpainting-gallery/<project>/<source>/workspace/metadata/platemaps/<batch
 When `sqlite_path` is not provided and the project name follows the CPG format (e.g., `cpg0016-jump`), the pipeline reads the plate's CellProfiler SQLite file from the `backend` path above.
 When neither `platemap_file` nor `platemaps_dir` is provided, the pipeline looks up the plate in the batch's `barcode_platemap.csv` (matching `Assay_Plate_Barcode` to `plate`) to find the name of its platemap, then reads that platemap from the `platemap` directory.
 
-A sample sheet for CPG plates may look something like the one below:
+A samplesheet for CPG plates may look something like the one below:
 
 ```csv title="samplesheet.csv"
 plate,project,source,batch
@@ -48,9 +48,9 @@ plate,project,source,batch
 
 The Cell Painting Gallery is public, but reading from it requires either AWS credentials or anonymous S3 access; see [Accessing the Cell Painting Gallery](#accessing-the-cell-painting-gallery).
 
-### Full sample sheet
+### Full samplesheet
 
-The sample sheet can include the optional columns below to point to files that are not on the Cell Painting Gallery, to override the default CPG locations, or to start from existing parquet profiles.
+The samplesheet can include the optional columns below to point to files that are not on the Cell Painting Gallery, to override the default CPG locations, or to start from existing parquet profiles.
 Any columns not in the table below are ignored.
 
 <!-- prettier-ignore -->
@@ -67,7 +67,7 @@ Any columns not in the table below are ignored.
 | `cytotable_preset` | No       | CytoTable preset used to convert the SQLite file to parquet: `cellprofiler_sqlite`, `cellprofiler_sqlite_cpg0016_jump` (default), or `cellprofiler_sqlite_pycytominer`. Use `skip` to skip conversion and read existing profiles from `parquet_path`.
 
 Projects whose names do not follow the CPG format (`cpgNNNN-...`) must provide `sqlite_path` (or `parquet_path`) and one of `platemap_file` or `platemaps_dir`.
-For example, a sample sheet mixing CPG data with local parquet profiles might look like this:
+For example, a samplesheet mixing CPG data with local parquet profiles might look like this:
 
 ```csv title="samplesheet.csv"
 plate,project,source,batch,parquet_path,platemaps_dir,cytotable_preset
@@ -75,11 +75,11 @@ plate,project,source,batch,parquet_path,platemaps_dir,cytotable_preset
 MP00000001,my-project,my-lab,Round_1,/data/profiles/MP00000001.parquet,/data/metadata/platemaps,skip
 ```
 
-An [example sample sheet](../assets/samplesheet.csv) has been provided with the pipeline.
+An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
 
 ### Platemap metadata
 
-The sample sheet only identifies each plate and its input files; any other columns are ignored.
+The samplesheet only identifies each plate and its input files; any other columns are ignored.
 Following CPG conventions, any additional metadata should be included as a column in the platemap, even if every well on a plate has the same value.
 All platemap columns are added to the annotated profiles as `Metadata_`-prefixed columns and can be used in the [analysis groups file](analysis_groups_format.md).
 
@@ -169,7 +169,7 @@ This version number will be logged in reports when you run the pipeline, so that
 Stochastic steps (such as PCA and UMAP) use a fixed seed, set with `--random_seed`, so repeated runs with the same inputs and parameters should give the same results.
 
 To further assist in reproducibility, you can share and reuse [parameter files](#running-the-pipeline) to repeat pipeline runs with the same settings without having to write out a command with every single parameter.
-Because Cell Painting Gallery paths are public, sample sheets that refer only to CPG data can be shared and reused as-is.
+Because Cell Painting Gallery paths are public, samplesheets that refer only to CPG data can be shared and reused as-is.
 
 > [!TIP]
 > If you wish to share such a params file (such as uploading it as supplementary material for academic publications), make sure to NOT include cluster specific paths to files, nor institutional specific profiles.

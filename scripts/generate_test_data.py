@@ -10,19 +10,19 @@
 """
 Generate synthetic single-cell profiles for the pipeline test data.
 
-The test data are defined by a sample sheet and the platemaps it refers to,
+The test data are defined by a samplesheet and the platemaps it refers to,
 which are tracked in the repository (by default in tests/data/).
-For each plate in the sample sheet, this script simulates cells in every well of the plate's platemap,
+For each plate in the samplesheet, this script simulates cells in every well of the plate's platemap,
 and writes a converted parquet file to the plate's parquet_path (under --output-dir if relative),
 as expected from data in the Cell Painting Gallery at the converted parquet stage (no SQLite processing).
 The parquet files are ignored by git (they hold the bulk of the data);
 a .gitkeep file is written alongside each one to keep the directory structure.
 
-Platemaps are found as in the pipeline: from the sample sheet platemap_file column, or by looking up
+Platemaps are found as in the pipeline: from the samplesheet platemap_file column, or by looking up
 the plate in <platemaps_dir>/<batch>/barcode_platemap.csv and reading
 <platemaps_dir>/<batch>/platemap/<Plate_Map_Name>.{txt,tsv,csv}.
 Only the well_position column of each platemap is used.
-Input paths in the sample sheet are relative to the current directory, as in the pipeline.
+Input paths in the samplesheet are relative to the current directory, as in the pipeline.
 
 Feature values are random, with no structure by cell line or other platemap columns.
 Feature names follow CellProfiler conventions, and include the features used by the coSMicQC filters
@@ -77,7 +77,7 @@ MISSING_RATE = 0.2
 
 def find_platemap(samplesheet_row: Mapping[str, str]) -> Path:
     """
-    Find the platemap file for a sample sheet row, either from platemap_file or by looking up the plate
+    Find the platemap file for a samplesheet row, either from platemap_file or by looking up the plate
     in barcode_platemap.csv under platemaps_dir.
     This mirrors resolvePlatemapFromDir in the pipeline.
     """
@@ -161,18 +161,18 @@ def main() -> None:
         "--samplesheet",
         type=Path,
         default=Path("tests/data/samplesheet.csv"),
-        help="Sample sheet defining the test plates (default: %(default)s)",
+        help="Samplesheet defining the test plates (default: %(default)s)",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("."),
-        help="Base directory for relative parquet_path values in the sample sheet (default: current directory)",
+        help="Base directory for relative parquet_path values in the samplesheet (default: current directory)",
     )
     parser.add_argument("--seed", type=int, default=2026, help="Random seed")
     args = parser.parse_args()
 
-    # all sample sheet values are read as strings
+    # all samplesheet values are read as strings
     samplesheet_rows = cast(
         list[dict[str, str]],
         pd.read_csv(args.samplesheet, dtype=str, keep_default_na=False).to_dict(

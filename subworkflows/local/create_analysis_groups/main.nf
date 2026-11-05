@@ -14,12 +14,12 @@
 // plate partition keys (platemap partition column values plus project and plate_id), and check
 // the analysis groups against those plate partition keys and for output tag collisions.
 // Errors abort the run here: structural errors in the file are raised by parseGroupings while
-// the workflow is being built, and the sample sheet is only emitted once the data checks pass,
+// the workflow is being built, and the samplesheet is only emitted once the data checks pass,
 // so no process is submitted with a bad groups file. Each platemap file is processed once.
 //
 workflow CREATE_ANALYSIS_GROUPS {
     take:
-    ch_samplesheet       // channel: one validated sample sheet meta per plate
+    ch_samplesheet       // channel: one validated samplesheet meta per plate
     groups_file          // string: path to the analysis groups file (null for a single group per aggregate level)
     platemap_well_column // string: name of the well column in the platemaps (excluded from platemap_columns)
 
@@ -27,7 +27,7 @@ workflow CREATE_ANALYSIS_GROUPS {
     def parsed_groups = parseGroupings(groups_file)
     def partition_columns = groupingPartitionColumns(parsed_groups)
 
-    // the checks and group sizes need every plate at once, so collect the sample sheet into a single list
+    // the checks and group sizes need every plate at once, so collect the samplesheet into a single list
     def ch_checked = ch_samplesheet
         .toList()
         .map { metas ->

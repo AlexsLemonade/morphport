@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/nf-core/modules/master/subworkflows/yaml-schema.json
 name: "PIPELINE_INITIALISATION"
-description: Subworkflow with utility functions specific to the AlexsLemonade/morphport pipeline, including sample sheet validation and pipeline initialisation/completion handling
+description: Subworkflow with utility functions specific to the AlexsLemonade/morphport pipeline, including samplesheet validation and pipeline initialisation/completion handling
 keywords:
   - utility
   - pipeline
@@ -29,7 +29,7 @@ input:
       description: The output directory where results will be saved
   - input:
       type: string
-      description: Path to input sample sheet CSV
+      description: Path to input samplesheet CSV
   - help:
       type: boolean
       description: Display help message and exit

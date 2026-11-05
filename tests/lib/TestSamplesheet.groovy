@@ -1,17 +1,17 @@
 //
-// Sample sheet helper for nf-test pipeline tests (tests/lib is on the nf-test classpath)
+// Samplesheet helper for nf-test pipeline tests (tests/lib is on the nf-test classpath)
 //
 import com.opencsv.CSVReader
 import com.opencsv.CSVWriter
 
 class TestSamplesheet {
 
-    // sample sheet columns that hold file or directory paths
+    // samplesheet columns that hold file or directory paths
     static final List<String> PATH_COLUMNS = ['sqlite_path', 'parquet_path', 'platemaps_dir', 'platemap_file']
 
     //
-    // Write a copy of a sample sheet to out_dir with its relative path columns made absolute, and return the copy's path.
-    // Sample sheet paths are relative to the repo root (the usual launch directory),
+    // Write a copy of a samplesheet to out_dir with its relative path columns made absolute, and return the copy's path.
+    // Samplesheet paths are relative to the repo root (the usual launch directory),
     // but nf-test runs pipeline tests in an isolated launch directory, where they would not otherwise resolve.
     // Absolute paths and URIs (e.g. s3://) are left unchanged.
     // Uses the opencsv library bundled with nf-test, so quoted fields are read and written correctly.

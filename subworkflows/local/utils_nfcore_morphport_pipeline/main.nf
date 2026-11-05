@@ -31,7 +31,7 @@ workflow PIPELINE_INITIALISATION {
     monochrome_logs   // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
-    input             //  string: Path to input sample sheet
+    input             //  string: Path to input samplesheet
     help              // boolean: Display help message and exit
     help_full         // boolean: Show the full help message
     show_hidden       // boolean: Show hidden parameters in the help message
@@ -105,7 +105,7 @@ workflow PIPELINE_INITIALISATION {
 
     //
     // Create channel from input file provided through params.input.
-    // The sample sheet is validated as a single list so every problem is reported at once.
+    // The samplesheet is validated as a single list so every problem is reported at once.
     //
     def ch_samplesheet = channel
         .fromList(samplesheetToList(input, "${projectDir}/assets/schema_input.json"))
@@ -168,7 +168,7 @@ workflow PIPELINE_COMPLETION {
 */
 
 //
-// Validate channels from input sample sheet
+// Validate channels from input samplesheet
 //
 def validateInputSamplesheet(metas) {
     def errors = []
@@ -181,10 +181,10 @@ def validateInputSamplesheet(metas) {
             }
             // skip cytotable conversion and read profiles from parquet_path (a path or glob for split files).
             // There is no default: CPG profiles live at workspace/profiles/<batch>_<plate_layout>/<plate>/,
-            // and the plate layout is not in the sample sheet (it could be looked up in barcode_platemap.csv).
+            // and the plate layout is not in the samplesheet (it could be looked up in barcode_platemap.csv).
             if (!meta.parquet_path) {
                 errors << ("Plate '${meta.plate_id}': cytotable_preset is 'skip'," +
-                    " so 'parquet_path' must be provided in the sample sheet.")
+                    " so 'parquet_path' must be provided in the samplesheet.")
             }
             else if (!files(meta.parquet_path).any { f -> f.exists() }) {
                 errors << "No parquet file found for plate '${meta.plate_id}' at ${meta.parquet_path}"
@@ -194,7 +194,7 @@ def validateInputSamplesheet(metas) {
             if (meta.parquet_path) {
                 log.warn("Plate '${meta.plate_id}': 'parquet_path' is ignored because cytotable_preset is '${meta.cytotable_preset}'")
             }
-            // resolve sqlite_path for CPG projects that omit it in the sample sheet
+            // resolve sqlite_path for CPG projects that omit it in the samplesheet
             if (!sqlite_path) {
                 if (meta.project =~ /^cpg\d{4}/) {
                     sqlite_path = "s3://cellpainting-gallery/${meta.project}/${meta.source}/workspace/backend/${meta.batch}/${meta.plate_id}/${meta.plate_id}.sqlite"
@@ -202,7 +202,7 @@ def validateInputSamplesheet(metas) {
                 else {
                     errors << ("Plate '${meta.plate_id}': project '${meta.project}'" +
                         " does not match the expected CPG format (e.g. cpg0016-jump)." +
-                        " Provide 'sqlite_path' explicitly in the sample sheet.")
+                        " Provide 'sqlite_path' explicitly in the samplesheet.")
                 }
             }
             if (sqlite_path && !file(sqlite_path).exists()) {
@@ -210,7 +210,7 @@ def validateInputSamplesheet(metas) {
             }
         }
 
-        // resolve platemap if not explicitly provided in the sample sheet
+        // resolve platemap if not explicitly provided in the samplesheet
         def platemap_path = meta.platemap_file
         if (!platemap_path) {
             def platemaps_base = null
@@ -223,7 +223,7 @@ def validateInputSamplesheet(metas) {
             else {
                 errors << ("Plate '${meta.plate_id}': no platemap provided and project '${meta.project}'" +
                     " does not match the expected CPG format." +
-                    " Provide 'platemap_file' or 'platemaps_dir' in the sample sheet.")
+                    " Provide 'platemap_file' or 'platemaps_dir' in the samplesheet.")
             }
             if (platemaps_base) {
                 try {
@@ -242,7 +242,7 @@ def validateInputSamplesheet(metas) {
 
     if (errors) {
         error(
-            "Sample sheet validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
+            "Samplesheet validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
         )
     }
 

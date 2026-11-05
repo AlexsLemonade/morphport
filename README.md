@@ -21,7 +21,7 @@ The pipeline takes Cell Painting data from imaging experiments, converts and ann
 
 ```mermaid
 flowchart TD
-    INPUT([Input:\nsample sheet & data files])
+    INPUT([Input:\nsamplesheet & data files])
 
     subgraph per_plate ["Per plate"]
         CYTOTABLE["CYTOTABLE_CONVERT\nSQLite → Parquet\n(optional)"]
