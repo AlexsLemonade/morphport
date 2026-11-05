@@ -7,20 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### `Added`
 
-- `HIERARCHICAL_CLUSTERING_FEATURES`: clusters the selected features within each analysis group, using the feature-selected profiles of all samples in the group.
+- `HIERARCHICAL_CLUSTERING_FEATURES`: clusters the selected features within each analysis group, using all the feature-selected profiles in the group.
   Outputs are written to `hierarchical_clustering/` as `clustering_features_linkage_*.parquet`, `clustering_features_leaves_*.parquet`, and `clustering_features_summary_*.json`.
   The linkage method and distance metric are set with the new `--clustering_features_linkage_method` and `--clustering_features_distance_metric` parameters.
 
 ### `Changed`
 
-- `HIERARCHICAL_CLUSTERING` is renamed to `HIERARCHICAL_CLUSTERING_SAMPLES`, and its outputs are renamed to `clustering_samples_linkage_*.parquet`, `clustering_samples_leaves_*.parquet`, and `clustering_samples_summary_*.json`, to distinguish them from the feature clustering outputs.
-- `--clustering_linkage_method` and `--clustering_distance_metric` are renamed to `--clustering_samples_linkage_method` and `--clustering_samples_distance_metric`.
-- `HIERARCHICAL_CLUSTERING_SAMPLES` now always uses Ward linkage via fastcluster's memory-saving `linkage_vector`, to support clustering large cell-level groups.
-  Samples are clustered on their principal components by default; the new `--clustering_samples_input features` option clusters on the selected features instead.
-  `--clustering_samples_linkage_method` is removed, and `--clustering_samples_distance_metric` now accepts `cosine` (default), `correlation`, or `euclidean`.
-  The default `--clustering_max_samples` is raised from 5000 to 200000.
-- `--embedding_max_nan_fraction` is renamed to `--sample_max_nan_fraction`, since it is shared by the embedding and clustering steps.
+- `HIERARCHICAL_CLUSTERING` is renamed to `HIERARCHICAL_CLUSTERING_PROFILES`, and its outputs are renamed to `clustering_profiles_linkage_*.parquet`, `clustering_profiles_leaves_*.parquet`, and `clustering_profiles_summary_*.json`, to distinguish them from the feature clustering outputs.
+  The `n_samples` and `n_samples_zero_length` keys in the clustering summary files are renamed to `n_profiles` and `n_profiles_zero_length`.
+- `--clustering_linkage_method` and `--clustering_distance_metric` are renamed to `--clustering_profiles_linkage_method` and `--clustering_profiles_distance_metric`.
+- `HIERARCHICAL_CLUSTERING_PROFILES` now always uses Ward linkage via fastcluster's memory-saving `linkage_vector`, to support clustering large analysis groups of per-cell profiles.
+  Profiles are clustered on their principal components by default; the new `--clustering_profiles_input features` option clusters on the selected features instead.
+  `--clustering_profiles_linkage_method` is removed, and `--clustering_profiles_distance_metric` now accepts `cosine` (default), `correlation`, or `euclidean`.
+  `--clustering_max_samples` is renamed to `--clustering_max_profiles`, and its default is raised from 5000 to 200000.
+- `--embedding_max_nan_fraction` is renamed to `--profile_max_nan_fraction`, since it is shared by the embedding and clustering steps.
 - `PARTITION_CONDITIONS` is renamed to `PARTITION_PROFILES`.
+- `--pycytominer_normalize_samples` is renamed to `--pycytominer_normalize_reference_profiles`.
 
 ### `Fixed`
 

@@ -72,7 +72,7 @@ groups:
 ```
 
 Each key is a group name; each value is the list of raw column values that belong to that group.
-A value may appear in more than one named group — the resulting samples belong to both groups (fan-out), not one or the other.
+A value may appear in more than one named group — the resulting profiles belong to both groups (fan-out), not one or the other.
 This is how a drug with two mechanisms of action ends up correctly analyzed under each one.
 
 **3. `groups: all_values`**
@@ -97,8 +97,8 @@ A list of values whose data joins **every** group this grouping produces, instea
 Works with `groups: one_per_value` and named `groups`.
 Two examples:
 
-- Named groups: `always_include: [DMSO]` alongside MoA groups means DMSO's samples appear in the `kinase_inhibitor` group, the `hdac_inhibitor` group, and any other named group in this grouping.
-- `one_per_value`: `always_include: [DMSO]` means every per-treatment group (one per distinct treatment value) also includes DMSO's samples, i.e., "every drug vs. DMSO."
+- Named groups: `always_include: [DMSO]` alongside MoA groups means DMSO's profiles appear in the `kinase_inhibitor` group, the `hdac_inhibitor` group, and any other named group in this grouping.
+- `one_per_value`: `always_include: [DMSO]` means every per-treatment group (one per distinct treatment value) also includes DMSO's profiles, i.e., "every drug vs. DMSO."
 
 Values listed in `always_include` do **not** form a group of their own.
 A DMSO-only group would duplicate what every other group already contains, so with `one_per_value`, `always_include: [DMSO]` produces only the per-drug groups.

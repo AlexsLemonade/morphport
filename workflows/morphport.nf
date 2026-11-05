@@ -14,7 +14,7 @@ include { PYCYTOMINER_AGGREGATE            } from '../modules/local/pycytominer/
 include { PYCYTOMINER_NORMALIZE            } from '../modules/local/pycytominer/normalize'
 include { PYCYTOMINER_FEATURE_SELECT       } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS               } from '../modules/local/compute_embeddings'
-include { HIERARCHICAL_CLUSTERING_SAMPLES  } from '../modules/local/hierarchical_clustering_samples'
+include { HIERARCHICAL_CLUSTERING_PROFILES  } from '../modules/local/hierarchical_clustering_profiles'
 include { HIERARCHICAL_CLUSTERING_FEATURES } from '../modules/local/hierarchical_clustering_features'
 include { CREATE_ANALYSIS_GROUPS           } from '../subworkflows/local/create_analysis_groups'
 include { partitionKey                     } from '../subworkflows/local/create_analysis_groups'
@@ -122,7 +122,7 @@ workflow MORPHPORT {
 
     PYCYTOMINER_NORMALIZE(
         ch_pre_normalize.normalize.map { meta, parquet, normalize_method ->
-            [meta, parquet, params.pycytominer_normalize_samples, normalize_method]
+            [meta, parquet, params.pycytominer_normalize_reference_profiles, normalize_method]
         },
     )
 
@@ -189,23 +189,23 @@ workflow MORPHPORT {
         params.embedding_umap_neighbors,
         params.embedding_umap_min_dist,
         params.random_seed,
-        params.sample_max_nan_fraction,
+        params.profile_max_nan_fraction,
         params.embedding_min_rows,
     )
 
-    // cluster the samples on either the feature-selected profiles or their PCs;
+    // cluster the profiles on either the feature-selected profiles or their PCs;
     // empty lists stand in for the optional features file and embeddings summary
-    ch_clustering_samples_input = params.clustering_samples_input == 'pcs'
+    ch_clustering_profiles_input = params.clustering_profiles_input == 'pcs'
         ? COMPUTE_EMBEDDINGS.out.result
             .map { meta, embeddings_parquet, summary_json -> [meta, [embeddings_parquet], [], summary_json] }
         : ch_feature_selected.has_features
             .map { meta, _plate_metas, parquets, features -> [meta, parquets, features, []] }
 
-    HIERARCHICAL_CLUSTERING_SAMPLES(
-        ch_clustering_samples_input,
-        params.clustering_samples_distance_metric,
-        params.sample_max_nan_fraction,
-        params.clustering_max_samples,
+    HIERARCHICAL_CLUSTERING_PROFILES(
+        ch_clustering_profiles_input,
+        params.clustering_profiles_distance_metric,
+        params.profile_max_nan_fraction,
+        params.clustering_max_profiles,
     )
 
     // cluster the selected features from the full feature-selected matrix
@@ -213,7 +213,7 @@ workflow MORPHPORT {
         ch_feature_selected.has_features,
         params.clustering_features_linkage_method,
         params.clustering_features_distance_metric,
-        params.sample_max_nan_fraction,
+        params.profile_max_nan_fraction,
     )
 
     //

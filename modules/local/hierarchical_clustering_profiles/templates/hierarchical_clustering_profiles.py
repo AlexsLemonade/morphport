@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Nextflow template script to compute hierarchical clustering of the samples
+Nextflow template script to compute hierarchical clustering of the profiles
 within one analysis group.
 
-Clusters the samples (rows) of one of two inputs:
+Clusters the profiles (rows) of one of two inputs:
 
 - the feature-selected profiles, restricted to the morphological features
   listed in features_file (written upstream by pycytominer_feature_select), or
@@ -13,7 +13,7 @@ Clusters the samples (rows) of one of two inputs:
 Clustering always uses Ward linkage via fastcluster's memory-saving
 `linkage_vector()`, which never builds the pairwise distance matrix, so memory
 scales with the size of the input matrix rather than the square of the number
-of samples. Ward linkage requires euclidean distances; the correlation and
+of profiles. Ward linkage requires euclidean distances; the correlation and
 cosine metrics are implemented by transforming each row before clustering:
 
 - correlation: center each row, then scale it to unit length
@@ -25,13 +25,13 @@ which is 2 * (1 - Pearson correlation) when the rows are also centered.
 
 Writes three files:
 
-- clustering_samples_linkage_{group_tag}.parquet: the scipy linkage matrix, one row per
+- clustering_profiles_linkage_{group_tag}.parquet: the scipy linkage matrix, one row per
   merge, with columns left, right, distance, n_members.
   Following scipy, leaf ids are 0..n-1 and the node created by row i is n + i.
   The full tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.
-- clustering_samples_leaves_{group_tag}.parquet: one row per leaf, with columns leaf_id,
+- clustering_profiles_leaves_{group_tag}.parquet: one row per leaf, with columns leaf_id,
   leaf_order (position in the dendrogram), label, and identifying metadata.
-- clustering_samples_summary_{group_tag}.json: clustering parameters and skip status.
+- clustering_profiles_summary_{group_tag}.json: clustering parameters and skip status.
 """
 
 import json
@@ -48,9 +48,9 @@ from scipy.cluster.hierarchy import leaves_list
 # Identify the PC columns in the embeddings parquet by column name
 PC_COLUMN_PATTERN = re.compile(r"PC[0-9]+")
 
-# Columns that are used to identify a sample/well.
-# Together, Plate + Well identify a well-level sample; ImageNumber + ObjectNumber are
-# needed in addition for cell-level samples, since ObjectNumber alone only identifies
+# Columns that are used to identify a profile.
+# Together, Plate + Well identify a per-well profile; ImageNumber + ObjectNumber are
+# needed in addition for per-cell profiles, since ObjectNumber alone only identifies
 # a cell within its image/site.
 ID_COLUMNS = (
     "Metadata_Plate",
@@ -77,7 +77,7 @@ LEAVES_SCHEMA = {
 
 
 def validate_clustering_params(
-    distance_metric: str, max_nan_fraction: float, max_samples: int
+    distance_metric: str, max_nan_fraction: float, max_profiles: int
 ):
     """
     Validate clustering parameters before loading any data, so bad params fail
@@ -91,8 +91,8 @@ def validate_clustering_params(
         raise ValueError(
             f"max_nan_fraction must be between 0 and 1, got {max_nan_fraction}"
         )
-    if max_samples < 2:
-        raise ValueError(f"max_samples must be >= 2, got {max_samples}")
+    if max_profiles < 2:
+        raise ValueError(f"max_profiles must be >= 2, got {max_profiles}")
 
 
 def write_versions(task_process: str):
@@ -164,13 +164,13 @@ def main():
     group_tag = group_meta["group_tag"]
     distance_metric = "${distance_metric}"
     max_nan_fraction = float("${max_nan_fraction}")
-    max_samples = int("${max_samples}")
+    max_profiles = int("${max_profiles}")
     task_process = "${task.process}"
-    linkage_parquet = f"clustering_samples_linkage_{group_tag}.parquet"
-    leaves_parquet = f"clustering_samples_leaves_{group_tag}.parquet"
-    clustering_summary_json = f"clustering_samples_summary_{group_tag}.json"
+    linkage_parquet = f"clustering_profiles_linkage_{group_tag}.parquet"
+    leaves_parquet = f"clustering_profiles_leaves_{group_tag}.parquet"
+    clustering_summary_json = f"clustering_profiles_summary_{group_tag}.json"
 
-    validate_clustering_params(distance_metric, max_nan_fraction, max_samples)
+    validate_clustering_params(distance_metric, max_nan_fraction, max_profiles)
     # written up front so skipped groups report versions too
     write_versions(task_process)
 
@@ -239,7 +239,7 @@ def main():
     summary["n_columns"] = len(cluster_cols)
 
     # the grouping column (absent without an analysis groups file) and subgroup columns
-    # identify each leaf's condition within the group; the ID columns identify the sample
+    # identify each leaf's partition within the group; the ID columns identify the profile
     metadata_cols = (
         ([grouping_column] if grouping_column else [])
         + list(subgroup_values)
@@ -257,7 +257,7 @@ def main():
     #   * rows with nan_fraction > max_nan_fraction are dropped
     #   * surviving rows with any NaN have those entries filled with 0
     # Rows are counted lazily first, so groups that will be skipped (in particular
-    # those over max_samples) are never loaded into memory.
+    # those over max_profiles) are never loaded into memory.
     # Nulls (e.g. from columns missing in some parquets) become NaN in numpy.
     nan_per_row = pl.sum_horizontal(
         [pl.col(c).cast(pl.Float64).is_nan().fill_null(True) for c in cluster_cols]
@@ -266,40 +266,40 @@ def main():
     row_counts = (
         input_lf.select(
             n_rows_input=pl.len(),
-            n_samples=keep_expr.sum(),
+            n_profiles=keep_expr.sum(),
             n_rows_nan_filled=(keep_expr & (nan_per_row > 0)).sum(),
         )
         .collect()
         .row(0, named=True)
     )
     n_rows_input = row_counts["n_rows_input"]
-    n_samples = row_counts["n_samples"]
-    n_rows_dropped = n_rows_input - n_samples
+    n_profiles = row_counts["n_profiles"]
+    n_rows_dropped = n_rows_input - n_profiles
     n_rows_nan_filled = row_counts["n_rows_nan_filled"]
     summary.update(
         {
             "n_rows_input": n_rows_input,
             "n_rows_dropped_nan": n_rows_dropped,
             "n_rows_nan_filled": n_rows_nan_filled,
-            "n_samples": n_samples,
+            "n_profiles": n_profiles,
         }
     )
-    if n_samples < 2:
+    if n_profiles < 2:
         write_skipped(
             linkage_parquet,
             leaves_parquet,
             clustering_summary_json,
             summary,
-            f"n_samples ({n_samples}) < 2 after NaN filtering; cannot cluster",
+            f"n_profiles ({n_profiles}) < 2 after NaN filtering; cannot cluster",
         )
         return
-    if n_samples > max_samples:
+    if n_profiles > max_profiles:
         write_skipped(
             linkage_parquet,
             leaves_parquet,
             clustering_summary_json,
             summary,
-            f"n_samples ({n_samples}) > clustering_max_samples ({max_samples})",
+            f"n_profiles ({n_profiles}) > clustering_max_profiles ({max_profiles})",
         )
         return
 
@@ -319,7 +319,7 @@ def main():
     np.nan_to_num(cluster_mat, copy=False, nan=0.0)
 
     # ---- Build leaf labels ---------------------------------------------------
-    rows = metadata_df.to_dicts() if metadata_cols else [{} for _ in range(n_samples)]
+    rows = metadata_df.to_dicts() if metadata_cols else [{} for _ in range(n_profiles)]
     labels = []
     for i, row in enumerate(rows):
         row["__row_id__"] = i
@@ -327,7 +327,7 @@ def main():
 
     # ---- Cluster -------------------------------------------------------------
     cluster_mat, n_zero_length = transform_rows(cluster_mat, distance_metric)
-    summary["n_samples_zero_length"] = n_zero_length
+    summary["n_profiles_zero_length"] = n_zero_length
     # linkage_vector requires a C-contiguous float64 array
     cluster_mat = np.ascontiguousarray(cluster_mat, dtype=np.float64)
     linkage_matrix = fastcluster.linkage_vector(
@@ -354,7 +354,7 @@ def main():
     # to the right with hstack
     leaves_df = pl.DataFrame(
         {
-            "leaf_id": np.arange(n_samples),
+            "leaf_id": np.arange(n_profiles),
             "leaf_order": leaf_order,
             "label": labels,
         },

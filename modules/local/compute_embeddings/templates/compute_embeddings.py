@@ -182,7 +182,7 @@ def main():
     pca = PCA(n_components=n_components_eff, random_state=random_seed)
     pcs = pca.fit_transform(feature_mat)
 
-    # UMAP requires at least n_neighbors + 1 samples. If the group is small,
+    # UMAP requires at least n_neighbors + 1 profiles. If the group is small,
     # cap n_neighbors to keep UMAP runnable.
     n_neighbors_eff = max(2, min(n_neighbors, n_rows_clean - 1))
     umap_kwargs = dict(

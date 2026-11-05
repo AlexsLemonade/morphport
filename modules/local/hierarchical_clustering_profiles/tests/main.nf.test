@@ -1,11 +1,11 @@
 nextflow_process {
 
-    name "Test Process HIERARCHICAL_CLUSTERING_SAMPLES"
+    name "Test Process HIERARCHICAL_CLUSTERING_PROFILES"
     script "../main.nf"
-    process "HIERARCHICAL_CLUSTERING_SAMPLES"
+    process "HIERARCHICAL_CLUSTERING_PROFILES"
     tag "modules"
     tag "modules_local"
-    tag "hierarchical_clustering_samples"
+    tag "hierarchical_clustering_profiles"
 
     // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
     // 12 wells over two plates, with one all-NaN row (P1 A05), one row with a single NaN (P1 A06),
@@ -60,13 +60,13 @@ nextflow_process {
                 n_rows_input: 12,
                 n_rows_dropped_nan: 1,
                 n_rows_nan_filled: 1,
-                n_samples: 11,
-                n_samples_zero_length: 0,
+                n_profiles: 11,
+                n_profiles_zero_length: 0,
             ]
             with(path(linkage).parquet) {
                 assert rowCount == 10
                 assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
-                // the last merge joins all samples
+                // the last merge joins all profiles
                 assert rows[-1][3] == 11
                 // node ids are 0..(2n - 2), each merged once, except the root
                 assert rows.collectMany { row -> [row[0], row[1]] }.sort() == (0..<20).toList()
@@ -88,7 +88,7 @@ nextflow_process {
                 assert rows.every { row -> row[3] == 'U2-OS' && row[4] == '24h' }
             }
             def versions = path(process.out.versions[0]).yaml
-            assert versions['HIERARCHICAL_CLUSTERING_SAMPLES'].keySet() == ['python', 'polars', 'numpy', 'scipy', 'fastcluster'] as Set
+            assert versions['HIERARCHICAL_CLUSTERING_PROFILES'].keySet() == ['python', 'polars', 'numpy', 'scipy', 'fastcluster'] as Set
         }
     }
 
@@ -115,9 +115,9 @@ nextflow_process {
             def (_meta, linkage, leaves, summary) = process.out.result[0]
             with(path(summary).json) {
                 assert metric == 'correlation'
-                assert n_samples == 11
+                assert n_profiles == 11
                 // the constant row (P2 A01) has zero length after centering
-                assert n_samples_zero_length == 1
+                assert n_profiles_zero_length == 1
                 assert !containsKey('skipped')
             }
             with(path(linkage).parquet) {
@@ -155,9 +155,9 @@ nextflow_process {
             def (_meta, linkage, leaves, summary) = process.out.result[0]
             with(path(summary).json) {
                 assert metric == 'cosine'
-                assert n_samples == 11
+                assert n_profiles == 11
                 // the constant row is not centered for cosine, so it has nonzero length
-                assert n_samples_zero_length == 0
+                assert n_profiles_zero_length == 0
             }
             assert path(linkage).parquet.rowCount == 10
             assert path(leaves).parquet.rowCount == 11
@@ -190,7 +190,7 @@ nextflow_process {
                 assert n_rows_input == 12
                 assert n_rows_dropped_nan == 2
                 assert n_rows_nan_filled == 0
-                assert n_samples == 10
+                assert n_profiles == 10
             }
             assert path(linkage).parquet.rowCount == 9
             with(path(leaves).parquet) {
@@ -228,7 +228,7 @@ nextflow_process {
                 assert n_rows_input == 8
                 assert n_rows_dropped_nan == 0
                 assert n_rows_nan_filled == 0
-                assert n_samples == 8
+                assert n_profiles == 8
                 assert !containsKey('skipped')
             }
             with(path(linkage).parquet) {
@@ -315,7 +315,7 @@ nextflow_process {
         }
     }
 
-    test("skip - more samples than max_samples") {
+    test("skip - more profiles than max_profiles") {
 
         when {
             process {
@@ -339,9 +339,9 @@ nextflow_process {
             with(path(summary).json) {
                 // rows are counted (after NaN filtering) before skipping
                 assert n_rows_input == 12
-                assert n_samples == 11
+                assert n_profiles == 11
                 assert skipped == true
-                assert skip_reason == 'n_samples (11) > clustering_max_samples (10)'
+                assert skip_reason == 'n_profiles (11) > clustering_max_profiles (10)'
             }
             with(path(linkage).parquet) {
                 assert rowCount == 0

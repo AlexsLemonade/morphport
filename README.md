@@ -40,7 +40,7 @@ flowchart TD
     subgraph per_group ["Per analysis group"]
         FEATURE_SELECT[PYCYTOMINER_FEATURE_SELECT\nSelect informative features]
         EMBEDDINGS[COMPUTE_EMBEDDINGS\nPCA + UMAP]
-        CLUSTERING[HIERARCHICAL_CLUSTERING_SAMPLES\nCluster samples]
+        CLUSTERING[HIERARCHICAL_CLUSTERING_PROFILES\nCluster profiles]
         CLUSTER_FEATURES[HIERARCHICAL_CLUSTERING_FEATURES\nCluster features]
         FEATURE_SELECT --> EMBEDDINGS
         EMBEDDINGS -->|"PCs (default)"| CLUSTERING

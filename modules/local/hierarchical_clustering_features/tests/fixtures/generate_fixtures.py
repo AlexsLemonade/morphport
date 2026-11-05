@@ -19,7 +19,7 @@ Writes to the directory containing this script:
     - well A06: feat_b is NaN (filled with 0 with max_nan_fraction 0.5, dropped with 0)
   - profiles_complete.parquet (P2): no missing values
 - profiles_single_well.parquet: one well (P3 A01) with the same columns and no missing values,
-  too few samples to cluster.
+  too few profiles to cluster.
 
 In every file, feat_constant is 1.0 in every row (except the all-NaN well), so it is
 dropped as a constant feature before clustering, and feat_e is NaN in every row and is

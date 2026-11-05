@@ -99,8 +99,8 @@ workflow PIPELINE_INITIALISATION {
     if (params.clustering_features_linkage_method == 'ward' && params.clustering_features_distance_metric != 'euclidean') {
         error("clustering_features_linkage_method 'ward' requires clustering_features_distance_metric 'euclidean', got '${params.clustering_features_distance_metric}'.")
     }
-    if (params.clustering_samples_input == 'pcs' && params.clustering_samples_distance_metric == 'correlation') {
-        log.warn("clustering_samples_distance_metric 'correlation' centers each sample's principal component scores, which is not meaningful; consider 'cosine' or 'euclidean', or set clustering_samples_input to 'features'.")
+    if (params.clustering_profiles_input == 'pcs' && params.clustering_profiles_distance_metric == 'correlation') {
+        log.warn("clustering_profiles_distance_metric 'correlation' centers each profile's principal component scores, which is not meaningful; consider 'cosine' or 'euclidean', or set clustering_profiles_input to 'features'.")
     }
 
     //

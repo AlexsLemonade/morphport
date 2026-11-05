@@ -26,9 +26,9 @@ input:
         type: file
         description: Profile parquet file (per-cell or per-well)
         pattern: "*.parquet"
-    - normalize_samples:
+    - reference_profiles:
         type: string
-        description: pycytominer 'samples' query (e.g. "all" or a pandas query selecting reference wells)
+        description: Reference profiles to fit the normalizer on, passed to pycytominer's `samples` argument (e.g. "all" or a pandas query selecting reference wells)
     - normalize_method:
         type: string
         description: Normalization method — one of 'mad_robustize', 'standardize', 'robustize', or 'spherize'
@@ -37,7 +37,7 @@ output:
   - result:
       - meta:
           type: map
-          description: Groovy Map containing plate metadata with plate_normalized, plate_normalization_method, and plate_normalization_samples added
+          description: Groovy Map containing plate metadata with plate_normalized, plate_normalization_method, and plate_normalization_reference_profiles added
       - "normalized_*.parquet":
           type: file
           description: Normalized profile parquet

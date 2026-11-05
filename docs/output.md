@@ -65,7 +65,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 - [Plate partitioning](#plate-partitioning) - Split each plate's profiles into partitions (optional output)
 - [Feature selection](#feature-selection) - Select informative features for each analysis group
 - [Embeddings](#embeddings) - Compute PCA and UMAP embeddings for each analysis group
-- [Hierarchical clustering](#hierarchical-clustering) - Cluster the samples and features within each analysis group
+- [Hierarchical clustering](#hierarchical-clustering) - Cluster the profiles and features within each analysis group
 - [Pipeline information](#pipeline-information) - Report metrics generated during the workflow execution
 
 ### CytoTable
@@ -137,7 +137,7 @@ Pycytominer `aggregate` summarizes the filtered single-cell profiles in each wel
 
 </details>
 
-Pycytominer `normalize` normalizes features within each plate, using the methods set by `--pycytominer_normalize_method_cell` and `--pycytominer_normalize_method_well` and the reference samples set by `--pycytominer_normalize_samples`.
+Pycytominer `normalize` normalizes features within each plate, using the methods set by `--pycytominer_normalize_method_cell` and `--pycytominer_normalize_method_well` and the reference profiles set by `--pycytominer_normalize_reference_profiles`.
 If the normalization method for an aggregate level is `none`, normalization is skipped and no normalized files are written for that aggregate level.
 
 ### Plate partitioning
@@ -180,13 +180,13 @@ Groups with no selected features are skipped by later steps, with a warning in t
 <summary>Output files</summary>
 
 - `<project>/<aggregate_level>/embeddings/edge_wells_*/`
-  - `embeddings_<group_tag>.parquet`: One row per sample (cell or well) in the group, with all `Metadata_` columns, principal components (`PC1`, `PC2`, ...), and UMAP coordinates (`UMAP1`, `UMAP2`).
+  - `embeddings_<group_tag>.parquet`: One row per profile (cell or well) in the group, with all `Metadata_` columns, principal components (`PC1`, `PC2`, ...), and UMAP coordinates (`UMAP1`, `UMAP2`).
   - `embeddings_summary_<group_tag>.json`: Embedding summary for the group, including the group definition, the source plates, row counts before and after NaN handling, and the PCA (components used, explained variance ratios) and UMAP (neighbors, minimum distance, random seed) settings.
 
 </details>
 
 PCA is computed on the selected features, and UMAP is then computed from the principal components.
-Rows with a fraction of missing feature values greater than `--sample_max_nan_fraction` are dropped; remaining missing values are set to 0.
+Rows with a fraction of missing feature values greater than `--profile_max_nan_fraction` are dropped; remaining missing values are set to 0.
 The number of principal components and UMAP neighbors are reduced if the group is too small for the requested values; the summary records the values used.
 If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parquet file contains only metadata columns, and the summary has `skipped: true` and a `skip_reason`.
 
@@ -196,31 +196,31 @@ If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parq
 <summary>Output files</summary>
 
 - `<project>/<aggregate_level>/hierarchical_clustering/edge_wells_*/`
-  - `clustering_samples_linkage_<group_tag>.parquet`: The [scipy linkage matrix](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html), one row per merge, with columns `left`, `right`, `distance`, and `n_members`.
+  - `clustering_profiles_linkage_<group_tag>.parquet`: The [scipy linkage matrix](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html), one row per merge, with columns `left`, `right`, `distance`, and `n_members`.
     Following scipy, leaves are numbered `0` to `n-1`, and the node created by row `i` is numbered `n + i`.
     The tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.
-  - `clustering_samples_leaves_<group_tag>.parquet`: One row per leaf (sample), with columns `leaf_id` (the row number in the clustered matrix, after dropping rows with missing values), `leaf_order` (position in the dendrogram), `label`, and the grouping, subgroup, and sample identifier metadata columns.
-  - `clustering_samples_summary_<group_tag>.json`: Sample clustering summary for the group, including the group definition, clustering input, linkage method, distance metric, NaN filtering counts, and number of samples.
-  - `clustering_features_linkage_<group_tag>.parquet`: The scipy linkage matrix for the selected features, in the same format as the sample linkage matrix.
+  - `clustering_profiles_leaves_<group_tag>.parquet`: One row per leaf (profile), with columns `leaf_id` (the row number in the clustered matrix, after dropping rows with missing values), `leaf_order` (position in the dendrogram), `label`, and the grouping, subgroup, and profile identifier metadata columns.
+  - `clustering_profiles_summary_<group_tag>.json`: Profile clustering summary for the group, including the group definition, clustering input, linkage method, distance metric, NaN filtering counts, and number of profiles.
+  - `clustering_features_linkage_<group_tag>.parquet`: The scipy linkage matrix for the selected features, in the same format as the profile linkage matrix.
   - `clustering_features_leaves_<group_tag>.parquet`: One row per leaf (feature), with columns `leaf_id` (the row number in the linkage matrix), `leaf_order` (position in the dendrogram), and `label` (the feature name).
-  - `clustering_features_summary_<group_tag>.json`: Feature clustering summary for the group, including the group definition, linkage method, distance metric, NaN filtering counts, and number of samples and features.
+  - `clustering_features_summary_<group_tag>.json`: Feature clustering summary for the group, including the group definition, linkage method, distance metric, NaN filtering counts, and number of profiles and features.
 
 </details>
 
-Samples in each group are clustered with Ward linkage, using [fastcluster](https://danifold.net/fastcluster.html)'s memory-saving algorithm so that large analysis groups of per-cell profiles can be clustered without computing all pairwise distances at once.
-By default, samples are clustered on their principal components; set `--clustering_samples_input features` to cluster on their selected features instead, which is slower for large groups since clustering time grows with the number of columns.
-The distance metric is set by `--clustering_samples_distance_metric` (default `cosine`).
-The `correlation` metric (Pearson correlation between sample profiles) is recommended only when clustering features, since centering a sample's principal component scores is not meaningful.
-Because Ward linkage requires euclidean distances, the `correlation` metric is implemented by centering each sample and scaling it to unit length, and `cosine` by scaling each sample to unit length.
-For these metrics, the merge distances in the linkage matrix are on the euclidean scale of the transformed samples, where the squared distance between two samples is `2 * (1 - r)` for correlation (or cosine similarity) `r`.
-As in the embedding step, rows with a fraction of missing values above `--sample_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
-Groups are skipped if they were skipped by the embedding step (when clustering principal components), have fewer than 2 samples, or have more than `--clustering_max_samples` samples.
+Profiles in each group are clustered with Ward linkage, using [fastcluster](https://danifold.net/fastcluster.html)'s memory-saving algorithm so that large analysis groups of per-cell profiles can be clustered without computing all pairwise distances at once.
+By default, profiles are clustered on their principal components; set `--clustering_profiles_input features` to cluster on their selected features instead, which is slower for large groups since clustering time grows with the number of columns.
+The distance metric is set by `--clustering_profiles_distance_metric` (default `cosine`).
+The `correlation` metric (Pearson correlation between profiles) is recommended only when clustering features, since centering a profile's principal component scores is not meaningful.
+Because Ward linkage requires euclidean distances, the `correlation` metric is implemented by centering each profile and scaling it to unit length, and `cosine` by scaling each profile to unit length.
+For these metrics, the merge distances in the linkage matrix are on the euclidean scale of the transformed profiles, where the squared distance between two profiles is `2 * (1 - r)` for correlation (or cosine similarity) `r`.
+As in the embedding step, rows with a fraction of missing values above `--profile_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
+Groups are skipped if they were skipped by the embedding step (when clustering principal components), have fewer than 2 profiles, or have more than `--clustering_max_profiles` profiles.
 
-The selected features in each group are clustered separately, using the feature-selected profiles of all samples in the group, with the linkage method and distance metric set by `--clustering_features_linkage_method` and `--clustering_features_distance_metric`.
+The selected features in each group are clustered separately, using all the feature-selected profiles in the group, with the linkage method and distance metric set by `--clustering_features_linkage_method` and `--clustering_features_distance_metric`.
 Features are not scaled before clustering.
-As in the embedding step, rows with a fraction of missing feature values above `--sample_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
-Constant features should already be removed by feature selection; as a backup, any features that are constant across the remaining samples are excluded.
-Feature clustering is run for all groups, including analysis groups of per-cell profiles, unless fewer than 2 samples or 2 features remain after filtering.
+As in the embedding step, rows with a fraction of missing feature values above `--profile_max_nan_fraction` are dropped, and remaining missing values are filled with 0.
+Constant features should already be removed by feature selection; as a backup, any features that are constant across the remaining profiles are excluded.
+Feature clustering is run for all groups, including analysis groups of per-cell profiles, unless fewer than 2 profiles or 2 features remain after filtering.
 
 For skipped groups, the parquet files are empty, and the summary has `skipped: true` and a `skip_reason`.
 

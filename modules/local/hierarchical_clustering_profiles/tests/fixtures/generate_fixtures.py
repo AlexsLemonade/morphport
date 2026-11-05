@@ -7,7 +7,7 @@
 # ]
 # ///
 """
-Generate the small parquet fixtures for the hierarchical_clustering_samples module tests.
+Generate the small parquet fixtures for the hierarchical_clustering_profiles module tests.
 
 Writes to the directory containing this script:
 
@@ -27,7 +27,7 @@ The text and JSON fixtures (features.txt, embeddings_summary*.json) are written 
 
 Usage (from the repository root):
 
-    uv run modules/local/hierarchical_clustering_samples/tests/fixtures/generate_fixtures.py
+    uv run modules/local/hierarchical_clustering_profiles/tests/fixtures/generate_fixtures.py
 """
 
 import pathlib

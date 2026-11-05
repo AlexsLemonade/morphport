@@ -1,6 +1,6 @@
-name: hierarchical_clustering_samples
+name: hierarchical_clustering_profiles
 description: |
-  Computes hierarchical clustering of the samples within an analysis group.
+  Computes hierarchical clustering of the profiles within an analysis group.
   Clusters either the selected features of the feature-selected profiles or the
   PC1..PCk columns of the PCA embeddings with Ward linkage, using fastcluster's
   memory-saving linkage_vector so that large (e.g. per-cell) groups can be
@@ -74,13 +74,13 @@ input:
         type: number
         description: |
           Per-row NaN tolerance as a fraction of clustered columns (the pipeline
-          passes sample_max_nan_fraction, so clustering and embeddings use the
+          passes profile_max_nan_fraction, so clustering and embeddings use the
           same rows). Rows above the threshold are dropped; surviving rows have
           NaNs filled with 0.
-  - - max_samples:
+  - - max_profiles:
         type: integer
         description: |
-          Maximum number of samples to cluster. Groups with more rows than this
+          Maximum number of profiles to cluster. Groups with more rows than this
           (e.g., large groups of per-cell profiles) are skipped rather than clustered, and
           the summary JSON records skipped=true with the reason.
 
@@ -89,7 +89,7 @@ output:
       - meta:
           type: map
           description: Group key map (unchanged from input).
-      - "clustering_samples_linkage_*.parquet":
+      - "clustering_profiles_linkage_*.parquet":
           type: file
           description: |
             scipy linkage matrix with one row per merge and columns
@@ -97,8 +97,8 @@ output:
             Leaf ids are 0..n-1 and the node created by row i is n + i.
             The tree can be rebuilt with scipy.cluster.hierarchy.to_tree().
             Empty (zero rows) for skipped groups.
-          pattern: "clustering_samples_linkage_*.parquet"
-      - "clustering_samples_leaves_*.parquet":
+          pattern: "clustering_profiles_linkage_*.parquet"
+      - "clustering_profiles_leaves_*.parquet":
           type: file
           description: |
             One row per leaf with columns leaf_id, leaf_order (position in the
@@ -106,14 +106,14 @@ output:
             identifying metadata columns present in the input parquets.
             leaf_id is the row number in the clustered matrix (input rows after NaN filtering).
             Empty (zero rows) for skipped groups.
-          pattern: "clustering_samples_leaves_*.parquet"
-      - "clustering_samples_summary_*.json":
+          pattern: "clustering_profiles_leaves_*.parquet"
+      - "clustering_profiles_summary_*.json":
           type: file
           description: |
             Summary JSON with group identity, input, method, metric, NaN
-            filtering counts, and n_samples.
+            filtering counts, and n_profiles.
             Skipped groups contain skipped=true and skip_reason.
-          pattern: "clustering_samples_summary_*.json"
+          pattern: "clustering_profiles_summary_*.json"
   - versions:
       - versions.yml:
           type: file
