@@ -1,0 +1,302 @@
+nextflow_process {
+
+    name "Test Process HIERARCHICAL_CLUSTERING_FEATURES"
+    script "../main.nf"
+    process "HIERARCHICAL_CLUSTERING_FEATURES"
+    tag "modules"
+    tag "modules_local"
+    tag "hierarchical_clustering_features"
+
+    // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
+    // 12 wells over two plates, with one all-NaN row (P1 A05) and one row with a single NaN (P1 A06);
+    // and a single well (P3 A01). features.txt lists feat_a..feat_d and feat_constant,
+    // which is constant in every file.
+
+    // Shared group metadata, interpolated into each test's input as Groovy source text.
+    // Tests that need different values add them with `+ [key: value]`.
+    def groupMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
+        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
+        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
+    ]"""
+
+    test("average linkage - correlation") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta} + [
+                        subgroup_values: [Metadata_timepoint: '24h'],
+                        group_id: 'cell_line=U2-OS__timepoint=24h',
+                        group_tag: 'well__by_cell_line__cell_line=U2-OS__timepoint=24h',
+                    ],
+                    [[plate_id: 'P1'], [plate_id: 'P2']],
+                    [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = 'average'
+                input[2] = 'correlation'
+                input[3] = 0.5
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, linkage, leaves, summary) = process.out.result[0]
+            assert meta.group_tag == 'well__by_cell_line__cell_line=U2-OS__timepoint=24h'
+            assert path(summary).json == [
+                group_tag: 'well__by_cell_line__cell_line=U2-OS__timepoint=24h',
+                aggregate_level: 'well',
+                grouping_name: 'by_cell_line',
+                grouping_column: 'Metadata_cell_line',
+                group: 'U2-OS',
+                subgroup_values: [Metadata_timepoint: '24h'],
+                method: 'average',
+                metric: 'correlation',
+                max_nan_fraction: 0.5,
+                n_rows_input: 12,
+                n_rows_dropped_nan: 1,
+                n_rows_nan_filled: 1,
+                n_samples: 11,
+                n_features_dropped_constant: 1,
+                n_features: 4,
+            ]
+            with(path(linkage).parquet) {
+                assert rowCount == 3
+                assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
+                // the last merge joins all features
+                assert rows[-1][3] == 4
+                // node ids are 0..(2n - 2), each merged once, except the root
+                assert rows.collectMany { row -> [row[0], row[1]] }.sort() == (0..<6).toList()
+            }
+            with(path(leaves).parquet) {
+                assert rowCount == 4
+                assert schema == [leaf_id: Long, leaf_order: Long, label: String]
+                assert rows.collect { row -> row[0] } == (0..<4).toList()
+                assert rows.collect { row -> row[1] }.sort() == (0..<4).toList()
+                // features in features file order, without the constant feature
+                assert rows.collect { row -> row[2] } == ['feat_a', 'feat_b', 'feat_c', 'feat_d']
+            }
+            def versions = path(process.out.versions[0]).yaml
+            assert versions['HIERARCHICAL_CLUSTERING_FEATURES'].keySet() == ['python', 'polars', 'numpy', 'scipy'] as Set
+        }
+    }
+
+    test("ward linkage - euclidean") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    [[plate_id: 'P1'], [plate_id: 'P2']],
+                    [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = 'ward'
+                input[2] = 'euclidean'
+                input[3] = 0.5
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, linkage, leaves, summary) = process.out.result[0]
+            with(path(summary).json) {
+                assert method == 'ward'
+                assert metric == 'euclidean'
+                assert n_samples == 11
+                assert n_features == 4
+                assert !containsKey('skipped')
+            }
+            with(path(linkage).parquet) {
+                assert rowCount == 3
+                assert rows[-1][3] == 4
+            }
+            with(path(leaves).parquet) {
+                assert rowCount == 4
+                assert rows.collect { row -> row[2] } == ['feat_a', 'feat_b', 'feat_c', 'feat_d']
+            }
+        }
+    }
+
+    test("complete linkage - cosine") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    [[plate_id: 'P1'], [plate_id: 'P2']],
+                    [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = 'complete'
+                input[2] = 'cosine'
+                input[3] = 0.5
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, linkage, leaves, summary) = process.out.result[0]
+            with(path(summary).json) {
+                assert method == 'complete'
+                assert metric == 'cosine'
+                assert n_samples == 11
+                assert n_features == 4
+                assert !containsKey('skipped')
+            }
+            with(path(linkage).parquet) {
+                assert rowCount == 3
+                assert rows[-1][3] == 4
+            }
+            assert path(leaves).parquet.rowCount == 4
+        }
+    }
+
+    test("max_nan_fraction 0 drops all rows with NaNs") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    [[plate_id: 'P1'], [plate_id: 'P2']],
+                    [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = 'average'
+                input[2] = 'correlation'
+                input[3] = 0
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, linkage, leaves, summary) = process.out.result[0]
+            with(path(summary).json) {
+                assert max_nan_fraction == 0.0
+                assert n_rows_input == 12
+                assert n_rows_dropped_nan == 2
+                assert n_rows_nan_filled == 0
+                assert n_samples == 10
+                assert n_features == 4
+            }
+            assert path(linkage).parquet.rowCount == 3
+            assert path(leaves).parquet.rowCount == 4
+        }
+    }
+
+    test("skip - fewer than 2 samples") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta} + [plate_ids: ['P3']],
+                    [[plate_id: 'P3']],
+                    [file("${moduleDir}/tests/fixtures/profiles_single_well.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = 'average'
+                input[2] = 'correlation'
+                input[3] = 0.5
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, linkage, leaves, summary) = process.out.result[0]
+            with(path(summary).json) {
+                assert n_rows_input == 1
+                assert n_samples == 1
+                assert skipped == true
+                assert skip_reason == 'n_samples (1) < 2 after NaN filtering; cannot cluster'
+            }
+            with(path(linkage).parquet) {
+                assert rowCount == 0
+                assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
+            }
+            with(path(leaves).parquet) {
+                assert rowCount == 0
+                assert schema == [leaf_id: Long, leaf_order: Long, label: String]
+            }
+        }
+    }
+
+    test("skip - fewer than 2 variable features") {
+
+        when {
+            process {
+                """
+                // feat_a and feat_constant
+                input[0] = [
+                    ${groupMeta},
+                    [[plate_id: 'P1'], [plate_id: 'P2']],
+                    [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
+                    file("${moduleDir}/tests/fixtures/features_one_variable.txt"),
+                ]
+                input[1] = 'average'
+                input[2] = 'correlation'
+                input[3] = 0.5
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, linkage, leaves, summary) = process.out.result[0]
+            with(path(summary).json) {
+                // only the all-NaN row has missing values in feat_a and feat_constant
+                assert n_rows_dropped_nan == 1
+                assert n_rows_nan_filled == 0
+                assert n_samples == 11
+                assert n_features_dropped_constant == 1
+                assert n_features == 1
+                assert skipped == true
+                assert skip_reason == 'n_features (1) < 2 after dropping constant features; cannot cluster'
+            }
+            with(path(linkage).parquet) {
+                assert rowCount == 0
+                assert schema == [left: Long, right: Long, distance: Double, n_members: Long]
+            }
+            with(path(leaves).parquet) {
+                assert rowCount == 0
+                assert schema == [leaf_id: Long, leaf_order: Long, label: String]
+            }
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    [[plate_id: 'P1'], [plate_id: 'P2']],
+                    [file("${moduleDir}/tests/fixtures/profiles_nan_rows.parquet"), file("${moduleDir}/tests/fixtures/profiles_complete.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = 'average'
+                input[2] = 'correlation'
+                input[3] = 0.5
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert snapshot(process.out).match()
+        }
+    }
+}

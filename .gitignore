@@ -20,3 +20,6 @@ stub/results/
 tests/data/**/*.parquet
 
 .claude/settings.local.json
+
+# local issue tracker for agent skills
+.scratch/

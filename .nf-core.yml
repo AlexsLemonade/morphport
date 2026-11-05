@@ -29,6 +29,9 @@ lint:
   main_nf_include_versions: false
   pipeline_name_conventions: false
   readme: false
+  # docs/agents contains Docker Go-template format strings, not Jinja
+  template_strings:
+    - docs/agents/dev-environment.md
 nf_core_version: 4.2.1
 repository_type: pipeline
 template:

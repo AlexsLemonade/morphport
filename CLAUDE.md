@@ -10,6 +10,12 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - Do NOT create, read, or modify `.env` files or any file containing credentials, tokens, or secrets.
 - Do NOT make network requests to external services without explicit authorization (no `curl`, `wget`, API calls, etc.). However, you may use WebSearch and WebFetch tools to retrieve documentation or code examples relevant to the task at hand.
 - Do NOT install system-level packages or modify system configuration.
+- Do NOT pipe downloaded content into a shell (no `curl ... | bash`, `wget -O- ... | sh`, or process substitution equivalents).
+  Download scripts to the scratchpad as files, read the whole script, and only then run it.
+  When reading, explicitly check for dangerous behavior: `sudo` or privilege changes, deleting or overwriting files outside the intended install location, edits to shell rc files or system configuration, reads of credentials or tokens, requests to unexpected hosts, and obfuscated or encoded code (`base64`, `eval`, long escaped strings).
+  State in your report that you checked for these, and what you found.
+  If a script cannot be read in full (for example a self-extracting installer with a binary payload), read its header and options, verify its published checksum, and say so.
+- Do NOT run `nextflow run` on a pipeline the human has not named explicitly; ask first.
 - Do NOT access or reference any data that is not already present in this repository.
 
 ## Expectations
@@ -23,6 +29,9 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - After finishing a set of edits, stop and describe the changes; do NOT run the full nf-test suite until the human says to.
   Quick, targeted checks (e.g. running a template helper on a small synthetic DataFrame) are fine once testing is approved.
 - Pipeline tests use nf-test, with tests in `tests/` (e.g. `tests/default.nf.test` and its snapshot).
+- Module tests live in `modules/local/<module>/tests/main.nf.test`; run a single module's tests with e.g. `nf-test test modules/local/<module>/tests/main.nf.test`.
+- Check parquet outputs property by property (row count, column names, schema, specific values) with `path(file).parquet` (the nft-parquet plugin); never snapshot parquet md5s or calculated values.
+  See `tests/README.md` for usage.
 - The synthetic test profiles are not tracked by git; generate them first with `uv run scripts/generate_test_data.py` (see `tests/data/README.md`).
 - Run the tests with both the default Nextflow version and the version pinned in CI (`.github/workflows/nf-test.yml`, currently 25.10.4):
 
@@ -61,3 +70,26 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - Always include `stub` blocks for creating placeholder outputs during testing or debugging.
 - Do not use implicit `it` variables in closures; always define explicit input variables.
   - if an input variable is not used, prefix it with `_` to indicate it is unused (e.g., `ch_input.map { _unused, value -> ... }`).
+
+## Agent skills
+
+### Issue tracker
+
+Agent-skill issues and specs are tracked as local markdown files under `.scratch/<feature>/` (gitignored), for local, individual use only.
+Shared issues still belong on GitHub and should be filed as needed, but a human must file them manually; agents may draft them but must not create them.
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The default five triage roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), recorded as `Status:` lines in issue files.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one glossary at `docs/GLOSSARY.md`, with ADRs in `planning/decisions/` named `NNN-<slug>.md` and referred to as `Decision-NNN`.
+See `docs/agents/domain.md`.
+
+### Dev environment
+
+Installing and running Nextflow, nf-test, nf-core, conda, and Java is pre-approved within the limits in `docs/agents/dev-environment.md`.
+Read it before installing anything, or when a tool fails in a way that looks environmental (missing tool, network block, certificate error, architecture mismatch).

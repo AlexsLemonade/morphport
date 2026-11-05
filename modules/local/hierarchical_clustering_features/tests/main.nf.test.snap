@@ -1,0 +1,65 @@
+{
+    "stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "project": "test",
+                            "aggregate_level": "well",
+                            "grouping_name": "by_cell_line",
+                            "grouping_column": "Metadata_cell_line",
+                            "group": "U2-OS",
+                            "subgroup_values": {
+                                
+                            },
+                            "group_id": "cell_line=U2-OS",
+                            "group_tag": "well__by_cell_line__cell_line=U2-OS",
+                            "plate_ids": [
+                                "P1",
+                                "P2"
+                            ]
+                        },
+                        "clustering_features_linkage_well__by_cell_line__cell_line=U2-OS.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                        "clustering_features_leaves_well__by_cell_line__cell_line=U2-OS.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                        "clustering_features_summary_well__by_cell_line__cell_line=U2-OS.json:md5,7f65ab4eb627bd1ae619e17ae36e7bca"
+                    ]
+                ],
+                "1": [
+                    "versions.yml:md5,5e22a55d6dc7a7400f588a36092565f6"
+                ],
+                "result": [
+                    [
+                        {
+                            "project": "test",
+                            "aggregate_level": "well",
+                            "grouping_name": "by_cell_line",
+                            "grouping_column": "Metadata_cell_line",
+                            "group": "U2-OS",
+                            "subgroup_values": {
+                                
+                            },
+                            "group_id": "cell_line=U2-OS",
+                            "group_tag": "well__by_cell_line__cell_line=U2-OS",
+                            "plate_ids": [
+                                "P1",
+                                "P2"
+                            ]
+                        },
+                        "clustering_features_linkage_well__by_cell_line__cell_line=U2-OS.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                        "clustering_features_leaves_well__by_cell_line__cell_line=U2-OS.parquet:md5,d41d8cd98f00b204e9800998ecf8427e",
+                        "clustering_features_summary_well__by_cell_line__cell_line=U2-OS.json:md5,7f65ab4eb627bd1ae619e17ae36e7bca"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,5e22a55d6dc7a7400f588a36092565f6"
+                ]
+            }
+        ],
+        "timestamp": "2026-11-03T12:16:48.443386523",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.04.4"
+        }
+    }
+}
