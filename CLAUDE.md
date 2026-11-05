@@ -64,3 +64,21 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 - Always include `stub` blocks for creating placeholder outputs during testing or debugging.
 - Do not use implicit `it` variables in closures; always define explicit input variables.
   - if an input variable is not used, prefix it with `_` to indicate it is unused (e.g., `ch_input.map { _unused, value -> ... }`).
+
+## Agent skills
+
+### Issue tracker
+
+Agent-skill issues and specs are tracked as local markdown files under `.scratch/<feature>/` (gitignored), for local, individual use only.
+Shared issues still belong on GitHub and should be filed as needed, but a human must file them manually; agents may draft them but must not create them.
+See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The default five triage roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), recorded as `Status:` lines in issue files.
+See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one glossary at `docs/GLOSSARY.md`, with ADRs in `planning/decisions/` named `NNN-<slug>.md` and referred to as `Decision-NNN`.
+See `docs/agents/domain.md`.
