@@ -62,7 +62,7 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 - [coSMicQC](#cosmicqc) - Remove edge wells and outlier cells
 - [Aggregation](#aggregation) - Summarize single-cell profiles to well-level profiles
 - [Normalization](#normalization) - Normalize profiles within each plate
-- [Plate partitioning](#plate-partitioning) - Split plates by experimental condition (optional output)
+- [Plate partitioning](#plate-partitioning) - Split each plate's profiles into partitions (optional output)
 - [Feature selection](#feature-selection) - Select informative features for each analysis group
 - [Embeddings](#embeddings) - Compute PCA and UMAP embeddings for each analysis group
 - [Hierarchical clustering](#hierarchical-clustering) - Cluster the samples and features within each analysis group
@@ -153,7 +153,7 @@ If the normalization method for a level is `none`, normalization is skipped and 
 
 </details>
 
-Each plate is split by the metadata columns used in the analysis groups file, so that partitions can be combined into analysis groups across plates.
+Each plate is partitioned by the metadata columns used in the analysis groups file, so that partitions can be combined into analysis groups across plates.
 This step only runs when an analysis groups file is provided.
 These files are intermediate outputs and are only published with `--publish_optional` (or the `debug` profile).
 

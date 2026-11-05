@@ -6,7 +6,7 @@
 
 `AlexsLemonade/morphport` processes Cell Painting profiles for the Pediatric Cancer Cell Morphology Atlas (PCCMA) portal.
 Each plate's CellProfiler output is converted to parquet if needed, annotated with platemap metadata, quality filtered, aggregated, and normalized.
-Plates are then split by experimental condition and combined into analysis groups for feature selection, embedding (PCA and UMAP), and hierarchical clustering.
+Each plate's profiles are then split into partitions, one for each combination of values of the metadata columns used in the analysis groups file, and the partitions are combined into analysis groups for feature selection, embedding (PCA and UMAP), and hierarchical clustering.
 
 We expect most input data to come from the [Cell Painting Gallery](https://github.com/broadinstitute/cellpainting-gallery) (CPG), a public AWS S3 bucket (`s3://cellpainting-gallery`) of Cell Painting datasets.
 The pipeline follows CPG directory conventions, so for CPG data the samplesheet often only needs to identify each plate, and the pipeline will find the input files itself.
@@ -85,7 +85,7 @@ All platemap columns are added to the annotated profiles as `Metadata_`-prefixed
 
 ## Analysis groups
 
-After per-plate processing, profiles are split by experimental condition and combined into analysis groups for feature selection, embeddings, and clustering.
+After per-plate processing, profiles are split into partitions (one for each combination of values of the metadata columns used in the analysis groups file) and the partitions are combined into analysis groups for feature selection, embeddings, and clustering.
 Groups are defined in a YAML (or JSON) file passed with `--analysis_groups_file`, using platemap metadata columns.
 If no analysis groups file is given, each level (`cell` and `well`) gets a single group containing all of a project's data.
 

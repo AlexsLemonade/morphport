@@ -53,7 +53,7 @@ flowchart TD
 
     INPUT --> per_plate
 
-    PARTITION["PARTITION_CONDITIONS\nSplit by conditions"]
+    PARTITION["PARTITION_PROFILES\nSplit into partitions"]
     GROUP["GROUP\nCombine by analysis groups\n(e.g., cell line)"]
 
     per_plate -->|"Plate 1"| PARTITION

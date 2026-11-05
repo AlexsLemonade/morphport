@@ -17,7 +17,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { plate, treatment, cell_type ->
+                def plate_partition_key = { plate, treatment, cell_type ->
                     [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
                 }
                 def grouping = { name, col, groups, extra ->
@@ -40,10 +40,10 @@ nextflow_function {
                     well: [],
                 ]
                 input[1] = [
-                    combo.call('p1', 'DMSO', 'lineA'),
-                    combo.call('p1', 'drugA', 'lineA'),
-                    combo.call('p2', 'DMSO', 'lineB'),
-                    combo.call('p2', 'drugE', 'lineB'),
+                    plate_partition_key.call('p1', 'DMSO', 'lineA'),
+                    plate_partition_key.call('p1', 'drugA', 'lineA'),
+                    plate_partition_key.call('p2', 'DMSO', 'lineB'),
+                    plate_partition_key.call('p2', 'drugE', 'lineB'),
                 ]
                 """
             }
@@ -320,7 +320,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { treatment, cell_type ->
+                def plate_partition_key = { treatment, cell_type ->
                     [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: 'p1']
                 }
                 input[0] = [
@@ -338,9 +338,9 @@ nextflow_function {
                     well: [],
                 ]
                 input[1] = [
-                    combo.call('DMSO', 'lineA'),
-                    combo.call('drugA', 'lineA'),
-                    combo.call('drugA', 'lineB'),
+                    plate_partition_key.call('DMSO', 'lineA'),
+                    plate_partition_key.call('drugA', 'lineA'),
+                    plate_partition_key.call('drugA', 'lineB'),
                 ]
                 """
             }

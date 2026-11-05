@@ -1,4 +1,4 @@
-process PARTITION_CONDITIONS {
+process PARTITION_PROFILES {
     tag "${meta.plate_id}"
     label 'process_low'
     label 'publish_optional'
@@ -20,17 +20,17 @@ process PARTITION_CONDITIONS {
 
     script:
     partition_columns_str = (partition_columns as List).join(',')
-    template 'partition_conditions.py'
+    template 'partition_profiles.py'
 
     stub:
     // Emit a single Hive directory per plate using the _Absent_ sentinel for every column.
-    // This matches what enumeratePlatemapCombos predicts for a column missing from the platemap,
+    // This matches what enumeratePlatemapPartitionValues predicts for a column missing from the platemap,
     // so the stub setup pairs with an analysis_groups file that references columns absent
     // from the stub platemaps — no need to read the platemap here.
-    condition_cols = partition_columns as List
-    stub_path = condition_cols.collect { col -> "${col}=_Absent_" }.join('/')
+    partition_cols = partition_columns as List
+    stub_path = partition_cols.collect { col -> "${col}=_Absent_" }.join('/')
     stub_manifest = groovy.json.JsonOutput.toJson([
-        [path: stub_path, values: condition_cols.collectEntries { col -> [(col): '_Absent_'] }]
+        [path: stub_path, values: partition_cols.collectEntries { col -> [(col): '_Absent_'] }]
     ])
     """
     mkdir -p "${meta.plate_id}/${stub_path}"
@@ -40,8 +40,8 @@ process PARTITION_CONDITIONS {
     cat <<-END_JSON > platemap_summary_${meta.plate_id}.json
     {
         "plate_id": "${meta.plate_id}",
-        "condition_columns": ${groovy.json.JsonOutput.toJson(condition_cols)},
-        "partitions": ${groovy.json.JsonOutput.toJson(condition_cols.collectEntries { x -> [(x): [:]] })}
+        "partition_columns": ${groovy.json.JsonOutput.toJson(partition_cols)},
+        "partitions": ${groovy.json.JsonOutput.toJson(partition_cols.collectEntries { x -> [(x): [:]] })}
     }
     END_JSON
 

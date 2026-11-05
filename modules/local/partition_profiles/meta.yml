@@ -1,4 +1,4 @@
-name: partition_conditions
+name: partition_profiles
 description: Joins platemap metadata into a per-plate parquet file and writes Hive-style partitioned output
 keywords:
   - cell painting

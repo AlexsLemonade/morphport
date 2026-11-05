@@ -160,7 +160,7 @@ def main():
     plate_metadata_columns = "${meta.plate_metadata_columns.join(',')}"
 
     # Read every platemap value as literal text so values match what Nextflow reads from the
-    # same file when predicting analysis groups (enumeratePlatemapCombos): no type inference
+    # same file when predicting analysis groups (enumeratePlatemapPartitionValues): no type inference
     # (e.g. '010' stays '010', not 10.0), no NA-like strings ('NA', 'null') converted to nulls,
     # and surrounding whitespace stripped. Only blank cells become '_NA_'.
     # choose the delimiter by extension, matching platemapSeparator in Nextflow

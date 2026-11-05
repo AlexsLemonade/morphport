@@ -8,7 +8,7 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
-include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
+include { PARTITION_PROFILES   } from '../modules/local/partition_profiles'
 include { PYCYTOMINER_ANNOTATE             } from '../modules/local/pycytominer/annotate'
 include { PYCYTOMINER_AGGREGATE            } from '../modules/local/pycytominer/aggregate'
 include { PYCYTOMINER_NORMALIZE            } from '../modules/local/pycytominer/normalize'
@@ -131,11 +131,11 @@ workflow MORPHPORT {
         ch_pre_normalize.skip.map { meta, parquet, _normalize_method -> [meta, parquet] }
     )
 
-    // Partition analyses by condition
+    // Partition profiles by the partition columns
     // This does both cell and well level partitioning;
     // we separate them out again later using the aggregate_level metadata.
     // The analysis_groups value channel carries the partition column set;
-    // branch on it so PARTITION_CONDITIONS only runs when there is something to partition.
+    // branch on it so PARTITION_PROFILES only runs when there is something to partition.
     // Only the partition columns are passed on, so edits to the rest of the lookup
     // (group names, membership) don't invalidate cached partitioning tasks on -resume.
     // Note that because ch_analysis_groups is a value channel,
@@ -147,10 +147,10 @@ workflow MORPHPORT {
             skip:      true
         }
 
-    PARTITION_CONDITIONS(ch_prepartition.partition)
-    ch_partitioned = PARTITION_CONDITIONS.out.partitions
-        // expand each Hive directory into one tuple per partition with the conditions
-        // from the partition manifest added to meta
+    PARTITION_PROFILES(ch_prepartition.partition)
+    ch_partitioned = PARTITION_PROFILES.out.partitions
+        // expand each Hive directory into one tuple per partition with the partition column
+        // values from the partition manifest added to meta
         .flatMap { meta, partition_dir, manifest -> expandHivePartitions(meta, partition_dir, manifest) }
         // the skip branch wasn't partitioned, so just pass the files through with the original meta
         .mix(ch_prepartition.skip.map { meta, parquet, _partition_columns -> [meta, [parquet] as List] })
@@ -278,10 +278,10 @@ workflow MORPHPORT {
 */
 
 //
-// Given a Hive partition directory and the manifest written alongside it by PARTITION_CONDITIONS,
+// Given a Hive partition directory and the manifest written alongside it by PARTITION_PROFILES,
 // find the parquet files in each partition, returning a list of tuples of the form:
-//   [meta + partition_conditions, list_of_parquet_files]
-// The partition conditions come from the manifest rather than the directory names, because
+//   [meta + partition_values, list_of_parquet_files]
+// The partition column values come from the manifest rather than the directory names, because
 // DuckDB percent-encodes values in directory names (e.g. 'drug A' → 'drug%20A').
 // Each manifest entry has the form:
 //   [path: 'Metadata_treatment=drug%20A', values: [Metadata_treatment: 'drug A']]
@@ -294,7 +294,7 @@ def expandHivePartitions(meta, partition_dir, manifest_file) {
             def parquets = dir.listFiles()?.findAll { f -> f.name.endsWith('.parquet') } ?: []
             [meta + (partition['values'] as Map), parquets]
         }
-        .findAll { _conditions, parquets -> parquets }
+        .findAll { _partition_values, parquets -> parquets }
 }
 
 //

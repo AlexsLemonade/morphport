@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--clustering_samples_linkage_method` is removed, and `--clustering_samples_distance_metric` now accepts `cosine` (default), `correlation`, or `euclidean`.
   The default `--clustering_max_samples` is raised from 5000 to 200000.
 - `--embedding_max_nan_fraction` is renamed to `--sample_max_nan_fraction`, since it is shared by the embedding and clustering steps.
+- `PARTITION_CONDITIONS` is renamed to `PARTITION_PROFILES`.
 
 ### `Fixed`
 
