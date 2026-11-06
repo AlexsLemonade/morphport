@@ -1,0 +1,3 @@
+plate,project,source,batch,parquet_path,platemaps_dir,cytotable_preset
+MP00000001,test-project,test,Round_1,tests/data/test-project/test/workspace/profiles/Round_1_Assay_Plate1/MP00000001/MP00000001_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,skip
+MP00000002,test-project,test,Round_1,tests/data/test-project/test/workspace/profiles/Round_1_Assay_Plate2/MP00000002/MP00000002_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,skip

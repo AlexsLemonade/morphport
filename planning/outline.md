@@ -226,6 +226,11 @@ Similarly, for a given list of compounds, we will create an mAP table by cell li
 And for each list of cell lines we will create an mAP table by compound.
 Detail to come.
 
+## Output layout _(not final)_
+
+The output directory layout (described in `docs/output.md`) is not final, including the `edge_wells_[included|excluded]` directories within each tool directory.
+If it changes, the `-profile test` snapshot and the `createGroupChannels` edge-well tests will need updating.
+
 ## OME-Arrow Data _(coming)_
 
 If input data is provided in OME-Arrow format as expected, we may want to adapt to use that to keep files together. But for now I focused on parquet inputs and outputs.
