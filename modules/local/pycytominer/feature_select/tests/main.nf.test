@@ -34,9 +34,10 @@ nextflow_process {
         [file("${fixtureDir}/profiles_P1.parquet")],
     ]""" }
 
-    // The pipeline's default options (nextflow.config), as Groovy source text.
-    // Tests that need different values add them with `+ [key: value]`.
-    def defaultOptions = """[
+    // The pipeline's default options (nextflow.config).
+    // Tests that need different values add them with `+ [key: value]`, then convert the map
+    // to Groovy source text with inspect() to interpolate it into the process input.
+    def defaultOptions = [
         operations: 'blocklist,drop_na_columns,variance_threshold,correlation_threshold',
         na_cutoff: 0.05,
         corr_threshold: 0.9,
@@ -48,7 +49,7 @@ nextflow_process {
         noise_removal_perturb_groups: null,
         noise_removal_stdev_cutoff: 0.8,
         per_channel_correlation: false,
-    ]"""
+    ]
 
     // Every feature in the fixtures, in column order.
     // Metadata_* columns and the string column Image_FileName_DNA are not features.
@@ -128,10 +129,10 @@ nextflow_process {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions} + [
+                input[1] = ${(defaultOptions + [
                     operations: 'blocklist,drop_na_columns,variance_threshold,correlation_threshold,drop_outliers,noise_removal',
                     noise_removal_perturb_groups: 'Metadata_treatment',
-                ]
+                ]).inspect()}
                 """
             }
         }
@@ -163,7 +164,7 @@ nextflow_process {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions}
+                input[1] = ${defaultOptions.inspect()}
                 """
             }
         }
@@ -187,7 +188,7 @@ nextflow_process {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions} + [per_channel_correlation: true]
+                input[1] = ${(defaultOptions + [per_channel_correlation: true]).inspect()}
                 """
             }
         }
@@ -218,7 +219,7 @@ nextflow_process {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions} + [corr_method: 'spearman', per_channel_correlation: true]
+                input[1] = ${(defaultOptions + [corr_method: 'spearman', per_channel_correlation: true]).inspect()}
                 """
             }
         }
@@ -245,13 +246,13 @@ nextflow_process {
         }
     }
 
-    test("fewer rows than min_rows_stats") {
+    test("below min_rows_stats - skips statistics-based operations") {
 
         when {
             process {
                 """
                 input[0] = ${onePlate("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions}
+                input[1] = ${defaultOptions.inspect()}
                 """
             }
         }
@@ -271,13 +272,13 @@ nextflow_process {
         }
     }
 
-    test("fewer rows than min_rows_stats - only statistics-based operations") {
+    test("below min_rows_stats, only statistics-based operations - keeps all features") {
 
         when {
             process {
                 """
                 input[0] = ${onePlate("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions} + [operations: 'variance_threshold,correlation_threshold']
+                input[1] = ${(defaultOptions + [operations: 'variance_threshold,correlation_threshold']).inspect()}
                 """
             }
         }
@@ -303,7 +304,7 @@ nextflow_process {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions} + [operations: 'noise_removal', noise_removal_perturb_groups: 'Metadata_missing']
+                input[1] = ${(defaultOptions + [operations: 'noise_removal', noise_removal_perturb_groups: 'Metadata_missing']).inspect()}
                 """
             }
         }
@@ -320,7 +321,7 @@ nextflow_process {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions} + [operations: 'blocklist,bogus']
+                input[1] = ${(defaultOptions + [operations: 'blocklist,bogus']).inspect()}
                 """
             }
         }
@@ -337,7 +338,7 @@ nextflow_process {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions} + [corr_methd: 'spearman']
+                input[1] = ${(defaultOptions + [corr_methd: 'spearman']).inspect()}
                 """
             }
         }
@@ -356,7 +357,7 @@ nextflow_process {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${defaultOptions}
+                input[1] = ${defaultOptions.inspect()}
                 """
             }
         }
