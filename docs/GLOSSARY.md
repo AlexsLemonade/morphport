@@ -40,6 +40,14 @@ A treatment used as a baseline for comparison with other treatments, such as DMS
 
 ### Profiles
 
+**Feature**:
+A single morphological measurement, such as the mean DNA intensity in the nucleus; one column of a profile.
+Feature names follow CellProfiler's naming (e.g., `Nuclei_Intensity_MeanIntensity_DNA`), and metadata columns (prefixed `Metadata_`) are not features.
+_Avoid_: measurement, variable (when referring to a feature column)
+
+**Feature selection**:
+Choosing which features to keep for an analysis group, removing those that are uninformative, redundant, or unreliable.
+
 **Profile**:
 A vector of morphological feature values describing one cell or one well.
 _Avoid_: sample, observation (when referring to a single cell or well's feature values)
@@ -48,6 +56,10 @@ _Avoid_: sample, observation (when referring to a single cell or well's feature 
 One stain or imaging mode captured for each image (e.g., DNA, ER, RNA, AGP, Mito, or brightfield), as named in CellProfiler feature names.
 "Channel" on its own refers to a Nextflow channel, not an imaging channel.
 _Avoid_: fluorescence channel, stain (when referring to the channel)
+
+**Channel group**:
+The features whose names refer to the same set of imaging channels (e.g., all features measured only in DNA, or all features correlating DNA with ER).
+Features that refer to no imaging channel, such as shape features, form their own channel group.
 
 **Aggregate level**:
 Whether profiles describe individual cells (`cell`) or whole wells (`well`); per-well profiles are aggregated from the per-cell profiles in each well.
