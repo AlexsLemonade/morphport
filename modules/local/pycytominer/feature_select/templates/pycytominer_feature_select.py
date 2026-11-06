@@ -135,7 +135,7 @@ def group_features_by_channel(
 
 
 def apply_per_channel_correlation_threshold(
-    df: pd.DataFrame, features: list, channel_pattern, threshold: float
+    df: pd.DataFrame, features: list, channel_pattern, threshold: float, method: str
 ) -> tuple[list[str], list[dict]]:
     """Run pycytominer's correlation_threshold once per channel group.
     Returns (kept_features, per_group_stats) where per_group_stats is a list
@@ -156,7 +156,7 @@ def apply_per_channel_correlation_threshold(
                 samples="all",
                 operation=["correlation_threshold"],
                 corr_threshold=threshold,
-                corr_method="pearson",
+                corr_method=method,
             )
             kept_set = set(result_df.columns)
             group_kept = [f for f in group_features if f in kept_set]
@@ -176,17 +176,21 @@ def main():
     # raw string so JSON escapes in metadata values survive
     group_meta = json.loads(r"""${meta_json}""")
     group_tag = group_meta["group_tag"]
-    operations = [op.strip() for op in "${operations}".split(",")]
-    na_cutoff = float("${na_cutoff}")
-    corr_threshold = float("${corr_threshold}")
-    corr_method = "${corr_method}"
-    freq_cut = float("${freq_cut}")
-    unique_cut = float("${unique_cut}")
-    min_rows_stats = int("${min_rows_stats}")
-    outlier_cutoff = float("${outlier_cutoff}")
-    noise_removal_perturb_groups = "${noise_removal_perturb_groups}"
-    noise_removal_stdev_cutoff = float("${noise_removal_stdev_cutoff}")
-    use_per_channel_correlation = "${per_channel_correlation}".lower() == "true"
+    options = json.loads(r"""${options_json}""")
+    operations = [op.strip() for op in options["operations"].split(",")]
+    na_cutoff = float(options["na_cutoff"])
+    corr_threshold = float(options["corr_threshold"])
+    corr_method = options["corr_method"]
+    freq_cut = float(options["freq_cut"])
+    unique_cut = float(options["unique_cut"])
+    min_rows_stats = int(options["min_rows_stats"])
+    outlier_cutoff = float(options["outlier_cutoff"])
+    # null (or empty) when noise_removal is not used
+    noise_removal_perturb_groups = options["noise_removal_perturb_groups"] or None
+    noise_removal_stdev_cutoff = float(options["noise_removal_stdev_cutoff"])
+    use_per_channel_correlation = (
+        str(options["per_channel_correlation"]).lower() == "true"
+    )
     task_process = "${task.process}"
 
     df = pd.read_parquet(parquet_dir, dtype_backend="pyarrow")
@@ -273,6 +277,7 @@ def main():
                 features=surviving_features,
                 channel_pattern=channel_pattern,
                 threshold=corr_threshold,
+                method=corr_method,
             )
         )
         print(
