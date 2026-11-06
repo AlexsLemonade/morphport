@@ -9,8 +9,8 @@ nextflow_pipeline {
         when {
             params {
                 outdir = "$outputDir"
-                // synthetic data from scripts/generate_test_data.py (see tests/data/README.md)
-                input = TestSamplesheet.withAbsolutePaths("$projectDir/tests/data/samplesheet.csv", "$projectDir", "$launchDir")
+                // minimal synthetic data from scripts/generate_test_data.py (see tests/data/README.md)
+                input = TestSamplesheet.withAbsolutePaths("$projectDir/tests/data/samplesheet_minimal.csv", "$projectDir", "$launchDir")
             }
         }
 
@@ -19,8 +19,14 @@ nextflow_pipeline {
             // File contents are not snapshotted: numeric results (normalization, embeddings, clustering)
             // can vary slightly across platforms and container engines.
             def stable_path = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
+            // Embedding and clustering summaries: 3 per group, for the 4 groups in tests/data/analysis_groups_minimal.yml
+            // (neuroblastoma at both aggregate levels, u2os_anchor at the cell level, all_cell_lines at the well level)
+            def analysis_summaries = getAllFilesFromDir(params.outdir, include: ['**/embeddings_summary_*.json', '**/clustering_*_summary_*.json'])
             assert workflow.success
             assertAll(
+                // every group has enough data to be embedded and clustered, so none are skipped
+                { assert analysis_summaries.size() == 12 },
+                { analysis_summaries.each { summary -> assert !path(summary.toString()).json.skipped : "${summary.name} was skipped" } },
                 { assert snapshot(
                     // pipeline versions.yml file from which Nextflow version is removed because we test pipelines on multiple Nextflow versions
                     removeNextflowVersion("$outputDir/pipeline_info/morphport_software_versions.yml"),
@@ -40,6 +46,8 @@ nextflow_pipeline {
                 outdir = "$outputDir"
                 input = TestSamplesheet.withAbsolutePaths("$projectDir/stub/samplesheet.csv", "$projectDir", "$launchDir")
                 analysis_groups_file = "$projectDir/stub/analysis_groups.yml"
+                // the test profile only runs with edge wells excluded; run both edge-well variants here
+                edge_well_filter = 'both'
             }
         }
 
