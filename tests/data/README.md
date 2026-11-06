@@ -8,7 +8,9 @@ There are six plates: two plate layouts (`Assay_Plate1` and `Assay_Plate2`) in o
 Each layout has four cell lines, with U2-OS on both layouts as an anchor, and includes U2-OS wells on each edge of the plate.
 
 - `samplesheet.csv`: samplesheet for all six plates
-- `analysis_groups.yml`: analysis groups using the platemap columns
+- `analysis_groups.yml`: analysis groups using the platemap columns, covering several forms of `groups`
+- `samplesheet_minimal.csv`: samplesheet for two plates (one of each layout, at 24 hours), used by the `test` profile
+- `analysis_groups_minimal.yml`: a few analysis groups for the minimal samplesheet, used by the `test` profile
 - `test-project/test/workspace/metadata/platemaps/<batch>/`: `barcode_platemap.csv` and per-plate platemaps
 - `test-project/test/workspace/profiles/<batch>_<plate_layout>/<plate>/<plate>_converted.parquet`: single-cell profiles (generated)
 
@@ -26,7 +28,8 @@ To change the test data, edit the samplesheet and platemaps, then rerun the scri
 
 ## Running the pipeline
 
-The `test` profile uses this samplesheet and analysis groups file.
+The `test` profile uses the minimal samplesheet and analysis groups file, with only edge wells excluded (`edge_well_filter = 'on'`), so that every analysis step runs on real data with as few tasks as possible.
+The profiles are generated for all six plates, which include the two plates in the minimal samplesheet.
 From the repository root:
 
 ```bash
