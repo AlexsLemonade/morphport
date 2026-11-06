@@ -1,0 +1,372 @@
+nextflow_process {
+
+    name "Test Process PYCYTOMINER_FEATURE_SELECT"
+    script "../main.nf"
+    process "PYCYTOMINER_FEATURE_SELECT"
+    tag "modules"
+    tag "modules_local"
+    tag "pycytominer"
+    tag "pycytominer/feature_select"
+
+    // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
+    // 8 wells on each of plates P1 and P2 (16 rows together, above the default min_rows_stats of 15;
+    // P1 alone is below it), with one feature designed to be removed by each operation and
+    // correlated feature pairs within one channel group, across channel groups, and correlated
+    // only by rank (Spearman).
+
+    // Shared group metadata, interpolated into each test's input as Groovy source text.
+    def groupMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
+        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
+        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
+    ]"""
+
+    // Input tuples, as Groovy source text; closures because moduleDir is only defined inside a test.
+    def bothPlates = { fixtureDir -> """[
+        ${groupMeta},
+        [[plate_id: 'P1'], [plate_id: 'P2']],
+        [file("${fixtureDir}/profiles_P1.parquet"), file("${fixtureDir}/profiles_P2.parquet")],
+    ]""" }
+
+    def onePlate = { fixtureDir -> """[
+        ${groupMeta} + [plate_ids: ['P1']],
+        [[plate_id: 'P1']],
+        [file("${fixtureDir}/profiles_P1.parquet")],
+    ]""" }
+
+    // The pipeline's default options (nextflow.config), as Groovy source text.
+    // Tests that need different values add them with `+ [key: value]`.
+    def defaultOptions = """[
+        operations: 'blocklist,drop_na_columns,variance_threshold,correlation_threshold',
+        na_cutoff: 0.05,
+        corr_threshold: 0.9,
+        corr_method: 'pearson',
+        freq_cut: 0.05,
+        unique_cut: 0.01,
+        min_rows_stats: 15,
+        outlier_cutoff: 500,
+        noise_removal_perturb_groups: null,
+        noise_removal_stdev_cutoff: 0.8,
+        per_channel_correlation: false,
+    ]"""
+
+    // Every feature in the fixtures, in column order.
+    // Metadata_* columns and the string column Image_FileName_DNA are not features.
+    def allFeatures = [
+        'Cells_AreaShape_Area',
+        'Cells_AreaShape_Eccentricity',
+        'Cells_AreaShape_EulerNumber',
+        'Nuclei_AreaShape_FormFactor',
+        'Nuclei_AreaShape_Solidity',
+        'Cells_Intensity_MeanIntensity_DNA',
+        'Nuclei_Intensity_MeanIntensity_DNA',
+        'Cells_Intensity_MeanIntensity_ER',
+        'Cells_Intensity_MeanIntensity_RNA',
+        'Cells_Intensity_MeanIntensity_Mito',
+        'Cytoplasm_Intensity_MeanIntensity_Mito',
+        'Cells_Intensity_MeanIntensity_Brightfield_H',
+        'Cells_RadialDistribution_FracAtD_mito_tubeness_1of4',
+        'Cells_Correlation_Pearson_DNA_RNA',
+        'Nuclei_Correlation_Manders_DNA_ER',
+    ]
+
+    // The features each operation is designed to remove
+    def blocklisted = ['Nuclei_Correlation_Manders_DNA_ER']
+    def mostlyMissing = ['Nuclei_AreaShape_Solidity']
+    def lowVariance = ['Cells_AreaShape_EulerNumber']
+    def outliers = ['Cells_AreaShape_Area']
+    def noisy = ['Nuclei_AreaShape_FormFactor']
+    // one of each correlated pair: within the DNA channel group, and across the ER and RNA groups
+    def correlatedInChannel = ['Nuclei_Intensity_MeanIntensity_DNA']
+    def correlatedAcrossChannels = ['Cells_Intensity_MeanIntensity_ER']
+    // rank-correlated with Cells_Intensity_MeanIntensity_Mito, so removed only with Spearman
+    def rankCorrelated = ['Cytoplasm_Intensity_MeanIntensity_Mito']
+
+    // With per-channel correlation, the kept features are listed by channel group, with the
+    // groups in sorted order of their channels (no channel first) and features in column order within each.
+    // Before correlation, blocklist, drop_na_columns, and variance_threshold remove their features.
+    def perChannelGroups = [
+        [channels: [], features: ['Cells_AreaShape_Area', 'Cells_AreaShape_Eccentricity', 'Nuclei_AreaShape_FormFactor']],
+        [channels: ['Brightfield_H'], features: ['Cells_Intensity_MeanIntensity_Brightfield_H']],
+        [channels: ['DNA'], features: ['Cells_Intensity_MeanIntensity_DNA', 'Nuclei_Intensity_MeanIntensity_DNA']],
+        [channels: ['DNA', 'RNA'], features: ['Cells_Correlation_Pearson_DNA_RNA']],
+        [channels: ['ER'], features: ['Cells_Intensity_MeanIntensity_ER']],
+        [channels: ['Mito'], features: ['Cells_Intensity_MeanIntensity_Mito', 'Cytoplasm_Intensity_MeanIntensity_Mito']],
+        [channels: ['RNA'], features: ['Cells_Intensity_MeanIntensity_RNA']],
+        [channels: ['mito_tubeness'], features: ['Cells_RadialDistribution_FracAtD_mito_tubeness_1of4']],
+    ]
+
+    // Summary JSON fields that are the same in every test using the default parameters
+    def defaultSummary = [
+        group_tag: 'well__by_cell_line__cell_line=U2-OS',
+        aggregate_level: 'well',
+        grouping_name: 'by_cell_line',
+        grouping_column: 'Metadata_cell_line',
+        group: 'U2-OS',
+        subgroup_values: [:],
+        operations_requested: ['blocklist', 'drop_na_columns', 'variance_threshold', 'correlation_threshold'],
+        operations_applied: ['blocklist', 'drop_na_columns', 'variance_threshold', 'correlation_threshold'],
+        per_channel_correlation: false,
+        primary_channels: ['Brightfield_H', 'DNA', 'ER', 'Mito', 'RNA'],
+        derived_channels: ['mito_tubeness'],
+        n_rows: 16,
+        min_rows_stats: 15,
+        na_cutoff: 0.05,
+        corr_threshold: 0.9,
+        corr_method: 'pearson',
+        freq_cut: 0.05,
+        unique_cut: 0.01,
+        outlier_cutoff: 500.0,
+        noise_removal_perturb_groups: null,
+        noise_removal_stdev_cutoff: 0.8,
+        n_features_input: 15,
+    ]
+
+    test("all operations") {
+
+        when {
+            process {
+                """
+                input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions} + [
+                    operations: 'blocklist,drop_na_columns,variance_threshold,correlation_threshold,drop_outliers,noise_removal',
+                    noise_removal_perturb_groups: 'Metadata_treatment',
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, plateMetas, parquets, features) = process.out.result[0]
+            assert meta.group_tag == 'well__by_cell_line__cell_line=U2-OS'
+            assert plateMetas == [[plate_id: 'P1'], [plate_id: 'P2']]
+            // the input parquets are passed through unchanged
+            assert parquets.collect { parquet -> path(parquet).parquet.rowCount } == [8, 8]
+
+            def removed = blocklisted + mostlyMissing + lowVariance + correlatedInChannel + correlatedAcrossChannels + outliers + noisy
+            assert path(features).readLines() == allFeatures - removed
+            def ops = ['blocklist', 'drop_na_columns', 'variance_threshold', 'correlation_threshold', 'drop_outliers', 'noise_removal']
+            assert path(process.out.summary[0]).json == defaultSummary + [
+                operations_requested: ops,
+                operations_applied: ops,
+                noise_removal_perturb_groups: 'Metadata_treatment',
+                n_features_output: 8,
+                n_features_removed: 7,
+            ]
+        }
+    }
+
+    test("default operations") {
+
+        when {
+            process {
+                """
+                input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions}
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, _plateMetas, _parquets, features) = process.out.result[0]
+            // outlier and noisy features are kept; correlation across channel groups removes one of the ER/RNA pair
+            def removed = blocklisted + mostlyMissing + lowVariance + correlatedInChannel + correlatedAcrossChannels
+            assert path(features).readLines() == allFeatures - removed
+            assert path(process.out.summary[0]).json == defaultSummary + [
+                n_features_output: 10,
+                n_features_removed: 5,
+            ]
+        }
+    }
+
+    test("per-channel correlation - pearson") {
+
+        when {
+            process {
+                """
+                input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions} + [per_channel_correlation: true]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, _plateMetas, _parquets, features) = process.out.result[0]
+            // only the pair within the DNA channel group is deduplicated
+            assert path(features).readLines() == perChannelGroups.collectMany { group -> group.features } - correlatedInChannel
+            assert path(process.out.summary[0]).json == defaultSummary + [
+                per_channel_correlation: true,
+                n_features_output: 11,
+                n_features_removed: 4,
+                per_channel_correlation_groups: perChannelGroups.collect { group ->
+                    [
+                        channels: group.channels,
+                        n_features_in: group.features.size(),
+                        n_features_out: (group.features - correlatedInChannel).size(),
+                    ]
+                },
+            ]
+        }
+    }
+
+    test("per-channel correlation - spearman") {
+
+        when {
+            process {
+                """
+                input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions} + [corr_method: 'spearman', per_channel_correlation: true]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, _plateMetas, _parquets, features) = process.out.result[0]
+            // with spearman, the rank-correlated Mito pair is also deduplicated
+            def removedByCorrelation = correlatedInChannel + rankCorrelated
+            assert path(features).readLines() == perChannelGroups.collectMany { group -> group.features } - removedByCorrelation
+            assert path(process.out.summary[0]).json == defaultSummary + [
+                corr_method: 'spearman',
+                per_channel_correlation: true,
+                n_features_output: 10,
+                n_features_removed: 5,
+                per_channel_correlation_groups: perChannelGroups.collect { group ->
+                    [
+                        channels: group.channels,
+                        n_features_in: group.features.size(),
+                        n_features_out: (group.features - removedByCorrelation).size(),
+                    ]
+                },
+            ]
+        }
+    }
+
+    test("fewer rows than min_rows_stats") {
+
+        when {
+            process {
+                """
+                input[0] = ${onePlate("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions}
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, _plateMetas, parquet, features) = process.out.result[0]
+            assert path(parquet).parquet.rowCount == 8
+            // statistics-based operations are skipped; blocklist and drop_na_columns still apply
+            assert path(features).readLines() == allFeatures - blocklisted - mostlyMissing
+            assert path(process.out.summary[0]).json == defaultSummary + [
+                operations_applied: ['blocklist', 'drop_na_columns'],
+                n_rows: 8,
+                n_features_output: 13,
+                n_features_removed: 2,
+            ]
+        }
+    }
+
+    test("fewer rows than min_rows_stats - only statistics-based operations") {
+
+        when {
+            process {
+                """
+                input[0] = ${onePlate("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions} + [operations: 'variance_threshold,correlation_threshold']
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, _plateMetas, _parquet, features) = process.out.result[0]
+            // no operations are left to apply, so every feature is kept
+            assert path(features).readLines() == allFeatures
+            assert path(process.out.summary[0]).json == defaultSummary + [
+                operations_requested: ['variance_threshold', 'correlation_threshold'],
+                operations_applied: [],
+                n_rows: 8,
+                n_features_output: 15,
+                n_features_removed: 0,
+            ]
+        }
+    }
+
+    test("noise_removal with a missing perturb groups column - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions} + [operations: 'noise_removal', noise_removal_perturb_groups: 'Metadata_missing']
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("noise_removal perturb-groups column 'Metadata_missing' is not present") }
+        }
+    }
+
+    test("invalid operation - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions} + [operations: 'blocklist,bogus']
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("operations must be a comma-separated subset") }
+        }
+    }
+
+    test("unknown option - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions} + [corr_methd: 'spearman']
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("options is missing keys [] or has unknown keys [corr_methd]") }
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
+                input[1] = ${defaultOptions}
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, plateMetas, parquets, features) = process.out.result[0]
+            // parquets are passed through; check names only, since parquet md5s are not stable
+            assert parquets.collect { parquet -> new File(parquet).name } == ['input1.parquet', 'input2.parquet']
+            assert snapshot(meta, plateMetas, features, process.out.summary, process.out.versions).match()
+        }
+    }
+}
