@@ -32,34 +32,30 @@ input:
         type: list
         description: One or more parquet files for the analysis group; staged into input_parquet/ and read concatenated
         pattern: "*.parquet"
-  - - operations:
-        type: string
-        description: Comma-separated pycytominer feature_select operations (e.g. 'blocklist,drop_na_columns,variance_threshold,correlation_threshold')
-  - - na_cutoff:
-        type: float
-        description: Maximum NaN fraction per column before drop_na_columns removes it
-  - - corr_threshold:
-        type: float
-        description: Correlation threshold for correlation_threshold (feature pairs above this are deduplicated)
-  - - corr_method:
-        type: string
-        enum:
-          - pearson
-          - spearman
-          - kendall
-        description: Correlation method to use for correlation_threshold."
-  - - freq_cut:
-        type: float
-        description: Frequency cut for variance_threshold (ratio of 2nd-most-common to most-common value)
-  - - unique_cut:
-        type: float
-        description: Unique-value cut for variance_threshold (fraction of unique values to profile count)
-  - - min_rows_stats:
-        type: integer
-        description: Minimum row count for applying statistics-based operations (variance_threshold, correlation_threshold, drop_outliers, noise_removal); groups below this fall back to name-based operations only
-  - - per_channel_correlation:
-        type: boolean
-        description: If true and "correlation_threshold" is an included operation, run correlation_threshold once per channel group (features sharing the same channel set) instead of once across all features
+  - - options:
+        type: map
+        description: |
+          Named feature selection options. Every key is required, and unknown keys are an error.
+            operations: Comma-separated pycytominer feature_select operations
+              (e.g. 'blocklist,drop_na_columns,variance_threshold,correlation_threshold')
+            na_cutoff: Maximum NaN fraction per column before drop_na_columns removes it
+            corr_threshold: Correlation threshold for correlation_threshold (feature pairs above this are deduplicated)
+            corr_method: Correlation method for correlation_threshold, including per-channel correlation
+              (pearson, spearman, or kendall)
+            freq_cut: Frequency cut for variance_threshold (ratio of 2nd-most-common to most-common value)
+            unique_cut: Unique-value cut for variance_threshold (fraction of unique values to profile count)
+            min_rows_stats: Minimum row count for applying statistics-based operations (variance_threshold,
+              correlation_threshold, drop_outliers, noise_removal); groups below this fall back to name-based operations only
+            outlier_cutoff: Maximum absolute feature value for drop_outliers; features with a larger absolute value are removed
+            noise_removal_perturb_groups: Metadata column whose values define the replicate groups for noise_removal;
+              must be present in the input parquets when noise_removal is an operation (null when unused)
+            noise_removal_stdev_cutoff: Maximum mean within-group standard deviation for noise_removal;
+              features with a larger value are removed
+            per_channel_correlation: If true and correlation_threshold is an operation, run correlation_threshold
+              once per channel group (features sharing the same channel set) instead of once across all features
+          e.g. [ operations:'blocklist,drop_na_columns', na_cutoff:0.05, corr_threshold:0.9, corr_method:'pearson',
+                 freq_cut:0.05, unique_cut:0.01, min_rows_stats:15, outlier_cutoff:500,
+                 noise_removal_perturb_groups:null, noise_removal_stdev_cutoff:0.8, per_channel_correlation:false ]
 
 output:
   - result:
