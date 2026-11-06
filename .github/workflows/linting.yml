@@ -35,9 +35,6 @@ jobs:
 
       - name: Setup uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-        with:
-          # only used to install nf-core, so caching gains little (and there are no files to key it on)
-          enable-cache: false
 
       - name: read .nf-core.yml
         uses: pietrobolcato/action-read-yaml@9f13718d61111b69f30ab4ac683e67a56d254e1d # 1.1.0
