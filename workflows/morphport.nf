@@ -319,9 +319,11 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
                 error("Internal error: no analysis groups lookup entry for ${aggregate_level} partition ${partition_key} (plate '${meta.plate_id}')")
             }
             aggregate_level_groups[partition_key].collect { group_meta, expected_size ->
-                // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate groups.
+                // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate groups,
+                // and carry the edge-well variant into the group meta for every edge_well_filter value,
+                // so group outputs are published in the edge_wells_[included|excluded] directories.
                 // Each variant gets every partition, so the expected size is the same for both.
-                def key_data = params.edge_well_filter == 'both'
+                def key_data = meta.edge_wells_included != null
                     ? group_meta + [edge_wells_included: meta.edge_wells_included]
                     : group_meta
                 [groupKey(key_data, expected_size), meta, parquets]
