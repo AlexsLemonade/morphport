@@ -27,20 +27,20 @@ flowchart TD
         CYTOTABLE["CYTOTABLE_CONVERT\nSQLite → Parquet\n(optional)"]
         ANNOTATE[PYCYTOMINER_ANNOTATE\nAdd platemap metadata]
         FILTER[COSMICQC_FILTER\nRemove low-quality cells]
-        AGGREGATE[PYCYTOMINER_AGGREGATE\nCell → well level]
+        AGGREGATE[PYCYTOMINER_AGGREGATE\nPer-cell → per-well profiles]
         NORMALIZE["PYCYTOMINER_NORMALIZE\nNormalize features\n(optional)"]
 
         CYTOTABLE --> ANNOTATE
         ANNOTATE --> FILTER
-        FILTER -->|cell level| NORMALIZE
+        FILTER -->|per-cell| NORMALIZE
         FILTER --> AGGREGATE
-        AGGREGATE -->|well level| NORMALIZE
+        AGGREGATE -->|per-well| NORMALIZE
     end
 
     subgraph per_group ["Per analysis group"]
         FEATURE_SELECT[PYCYTOMINER_FEATURE_SELECT\nSelect informative features]
         EMBEDDINGS[COMPUTE_EMBEDDINGS\nPCA + UMAP]
-        CLUSTERING[HIERARCHICAL_CLUSTERING_SAMPLES\nCluster samples]
+        CLUSTERING[HIERARCHICAL_CLUSTERING_PROFILES\nCluster profiles]
         CLUSTER_FEATURES[HIERARCHICAL_CLUSTERING_FEATURES\nCluster features]
         FEATURE_SELECT --> EMBEDDINGS
         EMBEDDINGS -->|"PCs (default)"| CLUSTERING
@@ -53,8 +53,8 @@ flowchart TD
 
     INPUT --> per_plate
 
-    PARTITION["PARTITION_CONDITIONS\nSplit by conditions"]
-    GROUP["GROUP\nCombine by analysis groups\n(e.g., cell line)"]
+    PARTITION["PARTITION_PROFILES\nSplit into partitions"]
+    GROUP["GROUP\nCombine by analysis groups\n(e.g., cell type)"]
 
     per_plate -->|"Plate 1"| PARTITION
     per_plate -->|"Plate 2"| PARTITION
@@ -78,21 +78,16 @@ flowchart TD
 > [!NOTE]
 > If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/get_started/environment_setup/overview) on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/get_started/run-your-first-pipeline) with `-profile test` before running the workflow on actual data.
 
-<!-- TODO nf-core: Describe the minimum required steps to execute the pipeline, e.g. how to prepare samplesheets.
-     Explain what rows and columns represent. For instance (please edit as appropriate):
-
-First, prepare a samplesheet with your input data that looks as follows:
+First, prepare a sample sheet with one row per plate, for example:
 
 `samplesheet.csv`:
 
 ```csv
-sample,fastq_1,fastq_2
-CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
+plate,project,source,batch
+2024_02_02_B8A1R2_P3T2,cpg0020-varchamp,broad,2024_02_06_Batch_8
 ```
 
-Each row represents a fastq file (single-end) or a pair of fastq files (paired end).
-
--->
+See the [usage documentation](docs/usage.md) for all sample sheet columns.
 
 Now, you can run the pipeline using:
 

@@ -10,9 +10,9 @@
 */
 
 //
-// Parse the analysis groups file, then build the lookup createGroupChannels uses to route partitions from every plate's condition
-// combos (platemap values plus project and plate_id), and check the analysis groups against
-// those combos and for output tag collisions.
+// Parse the analysis groups file, then build the lookup createGroupChannels uses to route partitions from every plate's
+// plate partition keys (platemap partition column values plus project and plate_id), and check
+// the analysis groups against those plate partition keys and for output tag collisions.
 // Errors abort the run here: structural errors in the file are raised by parseGroupings while
 // the workflow is being built, and the samplesheet is only emitted once the data checks pass,
 // so no process is submitted with a bad groups file. Each platemap file is processed once.
@@ -20,8 +20,8 @@
 workflow CREATE_ANALYSIS_GROUPS {
     take:
     ch_samplesheet       // channel: one validated samplesheet meta per plate
-    groups_file          // string: path to the analysis groups file (null for a single group per level)
-    platemap_well_column // string: name of the well column in the platemaps (excluded from plate_metadata_columns)
+    groups_file          // string: path to the analysis groups file (null for a single group per aggregate level)
+    platemap_well_column // string: name of the well column in the platemaps (excluded from platemap_columns)
 
     main:
     def parsed_groups = parseGroupings(groups_file)
@@ -38,16 +38,16 @@ workflow CREATE_ANALYSIS_GROUPS {
             def platemaps = metas.groupBy { meta -> meta.platemap_file.toString() }.collectEntries { path_key, path_metas ->
                 def platemap_file = path_metas[0].platemap_file
                 [(path_key): [
-                    combos: enumeratePlatemapCombos(platemap_file, partition_columns),
+                    partition_values: enumeratePlatemapPartitionValues(platemap_file, partition_columns),
                     // partition columns travel with meta even if a given platemap omits them
                     // (PYCYTOMINER_ANNOTATE fills any missing column with '_Absent_')
                     columns: (parsePlatemapColumns(platemap_file, platemap_well_column) + partition_columns).unique(),
                 ]]
             }
-            def combos = metas.collectMany { meta -> enumeratePlateCombos(meta, platemaps[meta.platemap_file.toString()].combos) }
-            def analysis_groups = buildAnalysisGroups(parsed_groups, combos)
-            missingGroupingColumns(parsed_groups, combos).each { warning -> log.warn("Analysis groups: ${warning}") }
-            def errors = validateGroupingsAgainstData(parsed_groups, combos) + validateGroupTags(analysis_groups)
+            def plate_partition_keys = metas.collectMany { meta -> enumeratePlatePartitionKeys(meta, platemaps[meta.platemap_file.toString()].partition_values) }
+            def analysis_groups = buildAnalysisGroups(parsed_groups, plate_partition_keys)
+            missingGroupingColumns(parsed_groups, plate_partition_keys).each { warning -> log.warn("Analysis groups: ${warning}") }
+            def errors = validateGroupingsAgainstData(parsed_groups, plate_partition_keys) + validateGroupTags(analysis_groups)
             if (errors) {
                 error(
                     "Analysis groups validation failed:\n" + errors.collect { err -> "  - ${err}" }.join("\n")
@@ -55,16 +55,16 @@ workflow CREATE_ANALYSIS_GROUPS {
             }
             // add the platemap columns so they travel with meta through the pipeline
             def updated_metas = metas.collect { meta ->
-                meta + [plate_metadata_columns: platemaps[meta.platemap_file.toString()].columns]
+                meta + [platemap_columns: platemaps[meta.platemap_file.toString()].columns]
             }
             [updated_metas, analysis_groups]
         }
 
-    // emitted only once the checks pass, with plate_metadata_columns added
+    // emitted only once the checks pass, with platemap_columns added
     def ch_metas = ch_checked.flatMap { metas, _analysis_groups -> metas }
 
     // A value channel with the analysis groups lookup used to route partitions to groups:
-    // partition_columns (passed to PARTITION_CONDITIONS; empty ⇒ no partitioning), and for each
+    // partition_columns (passed to PARTITION_PROFILES; empty ⇒ no partitioning), and for each
     // of cell / well, partition key → list of [group_meta, expected group size].
     // See buildAnalysisGroups for the full structure and an example.
     def ch_analysis_groups = ch_checked.map { _metas, analysis_groups -> analysis_groups }
@@ -172,7 +172,7 @@ def readPlatemap(platemap_path) {
 def validateGroupingStructure(parsed) {
     def errors = []
     def warnings = []
-    def levels = ['default', 'cell', 'well']
+    def top_level_keys = ['default', 'cell', 'well']
 
     if (!(parsed instanceof Map)) {
         errors << "The analysis groups file is not the correct format; it should be a YAML or JSON file with top-level keys for 'default', 'cell', and/or 'well'."
@@ -180,36 +180,36 @@ def validateGroupingStructure(parsed) {
     }
 
     // check that we only have the expected top-level keys
-    (parsed.keySet().collect { key -> key as String } - levels).each { key ->
+    (parsed.keySet().collect { key -> key as String } - top_level_keys).each { key ->
         errors << "Unknown top-level key '${key}': expected 'default', 'cell', and/or 'well'."
     }
 
-    // check that each level contains a list of groupings; a missing level has no groupings
-    def level_groupings = levels.collectEntries { level ->
-        def groupings = parsed.get(level)
+    // check that each top-level key contains a list of groupings; a missing key has no groupings
+    def groupings_by_key = top_level_keys.collectEntries { top_level_key ->
+        def groupings = parsed.get(top_level_key)
         if (groupings != null && !(groupings instanceof List)) {
-            errors << "'${level}' must contain a list of groupings."
+            errors << "'${top_level_key}' must contain a list of groupings."
             groupings = []
         }
-        [(level): groupings ?: []]
+        [(top_level_key): groupings ?: []]
     }
 
     // check each grouping
-    level_groupings.each { level, groupings ->
+    groupings_by_key.each { top_level_key, groupings ->
         groupings.eachWithIndex { grouping, idx ->
-            def result = validateGrouping(grouping, level, idx + 1)
+            def result = validateGrouping(grouping, top_level_key, idx + 1)
             errors.addAll(result.errors)
             warnings.addAll(result.warnings)
         }
     }
 
-    // check that grouping names are unique within each level, counting the default groupings added to it
-    def named = level_groupings.collectEntries { level, groupings ->
-        [(level): groupings.findAll { grouping -> grouping instanceof Map && grouping.name != null }.collect { grouping -> grouping.name as String }]
+    // check that grouping names are unique within each aggregate level, counting the default groupings added to it
+    def named = groupings_by_key.collectEntries { top_level_key, groupings ->
+        [(top_level_key): groupings.findAll { grouping -> grouping instanceof Map && grouping.name != null }.collect { grouping -> grouping.name as String }]
     }
-    ['cell', 'well'].each { level ->
-        (named['default'] + named[level]).countBy { name -> name }.findAll { _name, count -> count > 1 }.each { name, _count ->
-            errors << "Grouping name '${name}' is used more than once in '${level}' (including 'default' groupings)."
+    ['cell', 'well'].each { aggregate_level ->
+        (named['default'] + named[aggregate_level]).countBy { name -> name }.findAll { _name, count -> count > 1 }.each { name, _count ->
+            errors << "Grouping name '${name}' is used more than once in '${aggregate_level}' (including 'default' groupings)."
         }
     }
 
@@ -219,18 +219,18 @@ def validateGroupingStructure(parsed) {
 
 //
 // Check the structure of a single grouping from the analysis groups file (see validateGroupingStructure).
-// `position` is the grouping's 1-based position in its level, used to label it in messages if it has no name.
+// `position` is the grouping's 1-based position under its top-level key, used to label it in messages if it has no name.
 // Returns [errors: [...], warnings: [...]].
 //
-def validateGrouping(grouping, level, position) {
+def validateGrouping(grouping, top_level_key, position) {
     def errors = []
     def warnings = []
 
     if (!(grouping instanceof Map)) {
-        errors << "Grouping ${position} in '${level}' ('${grouping}') must be a mapping with 'name', 'grouping_column', and 'groups' keys."
+        errors << "Grouping ${position} in '${top_level_key}' ('${grouping}') must be a mapping with 'name', 'grouping_column', and 'groups' keys."
         return [errors: errors, warnings: warnings]
     }
-    def label = grouping.name != null ? "Grouping '${grouping.name}' in '${level}'" : "Grouping ${position} in '${level}'"
+    def label = grouping.name != null ? "Grouping '${grouping.name}' in '${top_level_key}'" : "Grouping ${position} in '${top_level_key}'"
 
     // check that all keys are known and the required keys are present
     def known_keys = ['name', 'grouping_column', 'groups', 'always_include', 'excluded', 'filter', 'subgroup_columns']
@@ -345,12 +345,12 @@ def isFlatList(values) {
 // aggregate_level ('cell'/'well') → list of groupings. Each grouping has every key filled in:
 //   [name, grouping_column, groups, always_include, excluded, filter, subgroup_columns]
 // Column names get the Metadata_ prefix, and all values are coerced to strings to match
-// the values read from platemaps. 'default' groupings are placed first in each level.
+// the values read from platemaps. 'default' groupings are placed first in each aggregate level.
 //
 def normalizeGroupings(parsed) {
     def default_groupings = (parsed.get('default') ?: []).collect { grouping -> normalizeGrouping(grouping) }
-    return ['cell', 'well'].collectEntries { level ->
-        [(level): default_groupings + (parsed.get(level) ?: []).collect { grouping -> normalizeGrouping(grouping) }]
+    return ['cell', 'well'].collectEntries { aggregate_level ->
+        [(aggregate_level): default_groupings + (parsed.get(aggregate_level) ?: []).collect { grouping -> normalizeGrouping(grouping) }]
     }
 }
 
@@ -383,8 +383,8 @@ def toStringList(values) {
 // Parse analysis_groups_file into a map of aggregate_level ('cell'/'well') → list of
 // normalized groupings (see normalizeGroupings and docs/analysis_groups_format.md).
 // Structural errors abort the run here, before any process is submitted.
-// If no file is given, each level gets a single grouping named 'all' with no grouping column,
-// meaning "one all-encompassing group per level" (no partitioning).
+// If no file is given, each aggregate level gets a single grouping named 'all' with no grouping column,
+// meaning "one all-encompassing group per aggregate level" (no partitioning).
 //
 def parseGroupings(groups_file) {
     if (!groups_file) {
@@ -412,8 +412,8 @@ def parseGroupings(groups_file) {
 }
 
 //
-// Columns PARTITION_CONDITIONS must split by: the union of every grouping's grouping_column,
-// subgroup_columns, and filter columns across both levels.
+// Columns PARTITION_PROFILES must split by: the union of every grouping's grouping_column,
+// subgroup_columns, and filter columns across both aggregate levels.
 //
 def groupingPartitionColumns(parsed_groups) {
     def groupings = parsed_groups.cell + parsed_groups.well
@@ -424,8 +424,8 @@ def groupingPartitionColumns(parsed_groups) {
 }
 
 //
-// Combine the normalized analysis groups with the condition combos of every plate (from
-// enumeratePlateCombos) to produce the lookup createGroupChannels uses to route partitions:
+// Combine the normalized analysis groups with the plate partition keys of every plate (from
+// enumeratePlatePartitionKeys) to produce the lookup createGroupChannels uses to route partitions:
 //
 //   [
 //     partition_columns: ['Metadata_treatment', ...],
@@ -433,15 +433,15 @@ def groupingPartitionColumns(parsed_groups) {
 //     well: [ ... ],
 //   ]
 //
-// A partition_key (see partitionKey) is a combo's partition column values plus project, which
-// is what each partition's meta carries after expandHivePartitions. Every observed partition key is
-// present at both levels; an empty list means the partition belongs to no group at that
-// level (e.g., it was filtered out or excluded).
+// A partition_key (see partitionKey) is a plate partition key's partition column values plus project
+// (i.e., without plate_id), which is what each partition's meta carries after expandHivePartitions. Every observed partition key is
+// present at both aggregate levels; an empty list means the partition belongs to no group at that
+// aggregate level (e.g., it was filtered out or excluded).
 //
 // group_meta identifies the group:
 //   [project, aggregate_level, grouping_name, grouping_column, group, subgroup_values, group_id, group_tag]
 // group_tag (see groupTag) names the group's output files.
-// Expected sizes count the (plate × combo) items in each group. They're used as the `size`
+// Expected sizes count the plate partition keys in each group. They're used as the `size`
 // argument to groupKey(...) so groupTuple can emit each group eagerly rather than waiting for
 // the upstream channel to close.
 //
@@ -466,18 +466,18 @@ def groupingPartitionColumns(parsed_groups) {
 //    grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
 //    group_id: 'treatment=drugA', group_tag: 'cell__by_treatment__treatment=drugA']
 //
-def buildAnalysisGroups(parsed_groups, combos) {
+def buildAnalysisGroups(parsed_groups, plate_partition_keys) {
     def partition_columns = groupingPartitionColumns(parsed_groups)
     // LinkedHashSet dedups by hash (unique() is quadratic) while keeping first-seen order
-    def partition_keys = combos.collect { combo -> partitionKey(combo, partition_columns) } as LinkedHashSet
+    def partition_keys = plate_partition_keys.collect { plate_partition_key -> partitionKey(plate_partition_key, partition_columns) } as LinkedHashSet
 
-    def level_lookups = ['cell', 'well'].collectEntries { level ->
+    def aggregate_level_lookups = ['cell', 'well'].collectEntries { aggregate_level ->
         def lookup = partition_keys.collectEntries { partition_key -> [(partition_key): []] }
-        parsed_groups[level].each { grouping ->
-            assignGroupingSets(grouping, combos).each { group_key, members ->
+        parsed_groups[aggregate_level].each { grouping ->
+            assignGroupingSets(grouping, plate_partition_keys).each { group_key, members ->
                 def group_meta = [
                     project: group_key.project,
-                    aggregate_level: level,
+                    aggregate_level: aggregate_level,
                     grouping_name: grouping.name,
                     grouping_column: grouping.grouping_column,
                     group: group_key.group,
@@ -487,17 +487,17 @@ def buildAnalysisGroups(parsed_groups, combos) {
                 group_meta = group_meta + [group_tag: groupTag(group_meta)]
                 def group_with_size = [group_meta, members.size()]
                 // the same partition key can come from several plates; list each group once
-                def member_keys = members.collect { combo -> partitionKey(combo, partition_columns) } as Set
+                def member_keys = members.collect { plate_partition_key -> partitionKey(plate_partition_key, partition_columns) } as Set
                 member_keys.each { partition_key -> lookup[partition_key] << group_with_size }
             }
         }
-        [(level): lookup]
+        [(aggregate_level): lookup]
     }
-    return [partition_columns: partition_columns] + level_lookups
+    return [partition_columns: partition_columns] + aggregate_level_lookups
 }
 
 //
-// The key that routes a partition (or combo) to its groups: its partition column values plus
+// The key that routes a partition (or plate partition key) to its groups: its partition column values plus
 // project. Used both to build the analysis groups lookup and to look partitions up in it.
 //
 def partitionKey(meta, partition_columns) {
@@ -505,22 +505,22 @@ def partitionKey(meta, partition_columns) {
 }
 
 //
-// Assign condition combos to the grouping sets (groups) of a single normalized grouping. This is the single
+// Assign plate partition keys to the grouping sets (groups) of a single normalized grouping. This is the single
 // definition of group membership (see docs/analysis_groups_format.md):
-//   1. keep only combos matching every `filter` column
-//   2. drop combos whose grouping_column value is in `excluded`
+//   1. keep only plate_partition_keys matching every `filter` column
+//   2. drop plate_partition_keys whose grouping_column value is in `excluded`
 //   3. assign the rest to groups by value: the value itself (one_per_value), 'all_values',
 //      or every named group listing the value (named groups may overlap)
-//   4. add `always_include` combos to every group with the same project and subgroup values;
+//   4. add `always_include` plate_partition_keys to every group with the same project and subgroup values;
 //      they don't form groups of their own (except with all_values, where they are ordinary)
-// Returns a map of group key [project, group, subgroup_values] → list of member combos.
+// Returns a map of group key [project, group, subgroup_values] → list of member plate_partition_keys.
 //
-def assignGroupingSets(grouping, combos) {
-    def (shared, core) = splitGroupingCombos(grouping, combos)
+def assignGroupingSets(grouping, plate_partition_keys) {
+    def (shared, core) = splitGroupingPlatePartitionKeys(grouping, plate_partition_keys)
 
     def groups = [:]
-    core.each { combo ->
-        def value = combo[grouping.grouping_column]
+    core.each { plate_partition_key ->
+        def value = plate_partition_key[grouping.grouping_column]
         def group_names
         if (grouping.groups == 'one_per_value') {
             group_names = [value]
@@ -532,36 +532,36 @@ def assignGroupingSets(grouping, combos) {
             group_names = grouping.groups.findAll { _group_name, values -> value in values }.keySet() as List
         }
         group_names.each { group_name ->
-            def group_key = [project: combo.project, group: group_name, subgroup_values: combo.subMap(grouping.subgroup_columns)]
-            groups.get(group_key, []) << combo
+            def group_key = [project: plate_partition_key.project, group: group_name, subgroup_values: plate_partition_key.subMap(grouping.subgroup_columns)]
+            groups.get(group_key, []) << plate_partition_key
         }
     }
-    shared.each { combo ->
-        def subgroup_values = combo.subMap(grouping.subgroup_columns)
-        groups.findAll { group_key, _members -> group_key.project == combo.project && group_key.subgroup_values == subgroup_values }
-            .each { _group_key, members -> members << combo }
+    shared.each { plate_partition_key ->
+        def subgroup_values = plate_partition_key.subMap(grouping.subgroup_columns)
+        groups.findAll { group_key, _members -> group_key.project == plate_partition_key.project && group_key.subgroup_values == subgroup_values }
+            .each { _group_key, members -> members << plate_partition_key }
     }
     return groups
 }
 
 //
 // Apply steps 1 and 2 of assignGroupingSets (filter, then drop excluded values) and split the
-// remaining combos into [shared, core]: shared combos have an always_include value and join
-// every group; core combos define the groups. With all_values every combo is core.
+// remaining plate_partition_keys into [shared, core]: shared plate_partition_keys have an always_include value and join
+// every group; core plate_partition_keys define the groups. With all_values every plate_partition_key is core.
 //
-def splitGroupingCombos(grouping, combos) {
+def splitGroupingPlatePartitionKeys(grouping, plate_partition_keys) {
     def always_included = grouping.groups == 'all_values' ? [] : grouping.always_include
-    return combos
-        .findAll { combo -> matchesGroupingFilter(grouping, combo) && !(combo[grouping.grouping_column] in grouping.excluded) }
-        .split { combo -> combo[grouping.grouping_column] in always_included }
+    return plate_partition_keys
+        .findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) && !(plate_partition_key[grouping.grouping_column] in grouping.excluded) }
+        .split { plate_partition_key -> plate_partition_key[grouping.grouping_column] in always_included }
 }
 
 //
-// Whether a combo passes a grouping's filter: its value must be one of the listed values
+// Whether a plate_partition_key passes a grouping's filter: its value must be one of the listed values
 // for every filter column.
 //
-def matchesGroupingFilter(grouping, combo) {
-    return grouping.filter.every { col, values -> combo[col] in values }
+def matchesGroupingFilter(grouping, plate_partition_key) {
+    return grouping.filter.every { col, values -> plate_partition_key[col] in values }
 }
 
 //
@@ -594,7 +594,7 @@ def groupTag(group_meta) {
 
 //
 // Check that distinct groups get distinct output tags within each project and aggregate level,
-// since published outputs are only separated by project, level, and tag.
+// since published outputs are only separated by project, aggregate level, and tag.
 // groupTag replaces characters outside [A-Za-z0-9._=-] with '_', so groups or values that differ
 // only in those characters (e.g. 'kinase inhibitor' and 'kinase/inhibitor') would otherwise
 // overwrite each other's outputs. Takes the lookup from buildAnalysisGroups and returns a list
@@ -602,8 +602,8 @@ def groupTag(group_meta) {
 //
 def validateGroupTags(analysis_groups) {
     def group_metas = ['cell', 'well']
-        .collectMany { level ->
-            (analysis_groups[level] ?: [:]).values().collectMany { groups ->
+        .collectMany { aggregate_level ->
+            (analysis_groups[aggregate_level] ?: [:]).values().collectMany { groups ->
                 groups.collect { group_meta, _size -> group_meta }
             }
         }
@@ -622,16 +622,16 @@ def validateGroupTags(analysis_groups) {
 }
 
 //
-// Check the analysis groups against the condition combos observed in the platemaps
+// Check the analysis groups against the plate partition keys observed in the platemaps
 // Returns a list of error messages:
 //   - a filter column missing from any plate's platemap
 //   - a filter that matches no rows
 //   - named groups that don't account for an observed (filtered) value
 //   - always_include values absent from the filtered rows
 //   - always_include values absent from any subgroup (within a project) that has other rows
-// Groupings shared by both levels (default groupings) are checked once.
+// Groupings shared by both aggregate levels (default groupings) are checked once.
 //
-def validateGroupingsAgainstData(parsed_groups, combos) {
+def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
     def errors = []
     def groupings = (parsed_groups.cell + parsed_groups.well).unique()
     groupings.findAll { grouping -> grouping.grouping_column }.each { grouping ->
@@ -639,18 +639,18 @@ def validateGroupingsAgainstData(parsed_groups, combos) {
 
         // filter columns must be present in every platemap, or those plates silently drop out
         grouping.filter.keySet().each { col ->
-            def plates = combos.findAll { combo -> combo[col] == '_Absent_' }.collect { combo -> combo.plate_id }.unique()
+            def plates = plate_partition_keys.findAll { plate_partition_key -> plate_partition_key[col] == '_Absent_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
             if (plates) {
                 errors << "${label}: filter column '${col}' is missing from the platemap for plate(s) ${plates.join(', ')}."
             }
         }
 
-        def filtered = combos.findAll { combo -> matchesGroupingFilter(grouping, combo) }
+        def filtered = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
         if (grouping.filter && !filtered) {
             errors << "${label}: filter ${grouping.filter} matches no rows."
             return
         }
-        def observed = filtered.collect { combo -> combo[grouping.grouping_column] }.unique()
+        def observed = filtered.collect { plate_partition_key -> plate_partition_key[grouping.grouping_column] }.unique()
 
         // accounting rule for named groups
         if (grouping.groups instanceof Map) {
@@ -672,11 +672,11 @@ def validateGroupingsAgainstData(parsed_groups, combos) {
 
         // every subgroup (within a project) with other rows needs the always_include values
         def present = grouping.always_include - missing
-        def subgroupOf = { combo -> [project: combo.project] + combo.subMap(grouping.subgroup_columns) }
-        def subgroup_values = filtered.groupBy(subgroupOf).collectEntries { subgroup, subgroup_combos ->
-            [(subgroup): subgroup_combos.collect { combo -> combo[grouping.grouping_column] } as Set]
+        def subgroupOf = { plate_partition_key -> [project: plate_partition_key.project] + plate_partition_key.subMap(grouping.subgroup_columns) }
+        def subgroup_values = filtered.groupBy(subgroupOf).collectEntries { subgroup, subgroup_plate_partition_keys ->
+            [(subgroup): subgroup_plate_partition_keys.collect { plate_partition_key -> plate_partition_key[grouping.grouping_column] } as Set]
         }
-        def (_shared, core) = splitGroupingCombos(grouping, filtered)
+        def (_shared, core) = splitGroupingPlatePartitionKeys(grouping, filtered)
         core.collect(subgroupOf).unique().each { subgroup ->
             def subgroup_missing = present.findAll { value -> !(value in subgroup_values[subgroup]) }
             if (subgroup_missing) {
@@ -691,14 +691,14 @@ def validateGroupingsAgainstData(parsed_groups, combos) {
 // Find grouping and subgroup columns missing from the platemaps of plates a grouping uses
 // (after its filter). Not an error, since a column may be absent from only some plates,
 // but a typo would otherwise silently put every row in a single '_Absent_' group.
-// Returns a list of warning messages; groupings shared by both levels are checked once.
+// Returns a list of warning messages; groupings shared by both aggregate levels are checked once.
 //
-def missingGroupingColumns(parsed_groups, combos) {
+def missingGroupingColumns(parsed_groups, plate_partition_keys) {
     def groupings = (parsed_groups.cell + parsed_groups.well).unique()
     return groupings.findAll { grouping -> grouping.grouping_column }.collectMany { grouping ->
-        def filtered = combos.findAll { combo -> matchesGroupingFilter(grouping, combo) }
+        def filtered = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
         ([grouping.grouping_column] + grouping.subgroup_columns).findResults { col ->
-            def plates = filtered.findAll { combo -> combo[col] == '_Absent_' }.collect { combo -> combo.plate_id }.unique()
+            def plates = filtered.findAll { plate_partition_key -> plate_partition_key[col] == '_Absent_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
             plates
                 ? "Grouping '${grouping.name}': column '${col}' is missing from the platemap for plate(s) ${plates.join(', ')}.".toString()
                 : null
@@ -707,14 +707,15 @@ def missingGroupingColumns(parsed_groups, combos) {
 }
 
 //
-// List the condition combos for one plate: each unique combination of partition column values
-// in its platemap (platemap_combos, from enumeratePlatemapCombos), plus project and plate_id.
-// This defines every partition a plate can produce.
-// Plate-level metadata from the samplesheet (not yet supported) would be merged in here.
+// List the plate partition keys for one plate: each unique combination of partition column values
+// in its platemap (platemap_partition_values, from enumeratePlatemapPartitionValues), plus project and plate_id.
+// A plate partition key is a partition key plus plate_id, without an aggregate level;
+// each one defines the cell and well partitions a plate can produce.
+// Plate-specific metadata from the sample sheet (not yet supported) would be merged in here.
 //
-def enumeratePlateCombos(meta, platemap_combos) {
-    return platemap_combos
-        .collect { combo -> combo + [project: meta.project, plate_id: meta.plate_id] }
+def enumeratePlatePartitionKeys(meta, platemap_partition_values) {
+    return platemap_partition_values
+        .collect { plate_partition_key -> plate_partition_key + [project: meta.project, plate_id: meta.plate_id] }
 }
 
 //
@@ -736,23 +737,23 @@ def parsePlatemapColumns(platemap_path, platemap_well_column) {
 }
 
 //
-// Read a platemap file and return the list of unique condition combinations present on the plate.
+// Read a platemap file and return the list of unique partition column value combinations present on the plate.
 // Each combination is a Map keyed by Metadata_-prefixed column names → row values, read the same
 // way pycytominer_annotate.py reads the platemap before partitioning (see readPlatemap), and
 //   - blank cell                                 → '_NA_'
-//   - condition column absent from this platemap → '_Absent_' (mirrors the plate_metadata_columns fill)
+//   - partition column absent from this platemap → '_Absent_' (mirrors the platemap_columns fill)
 // Keeping the encoding aligned is what lets buildAnalysisGroups predict partition keys that
-// actually match the values recorded by PARTITION_CONDITIONS.
+// actually match the values recorded by PARTITION_PROFILES.
 //
-def enumeratePlatemapCombos(platemap_path, partition_columns) {
+def enumeratePlatemapPartitionValues(platemap_path, partition_columns) {
     def rows = readPlatemap(platemap_path)
 
     // every row has the same keys, so the platemap's columns can be read from the first row
     def present_columns = rows[0].keySet()
-    def combos = rows.collect { row ->
+    def partition_values = rows.collect { row ->
         partition_columns.collectEntries { col ->
             [(col): col in present_columns ? (row[col] ?: '_NA_') : '_Absent_']
         }
     }
-    return combos.unique()
+    return partition_values.unique()
 }

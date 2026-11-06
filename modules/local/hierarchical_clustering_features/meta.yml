@@ -61,7 +61,7 @@ input:
         type: number
         description: |
           Per-row NaN tolerance as a fraction of feature columns (the pipeline
-          passes sample_max_nan_fraction, so clustering and embeddings use the
+          passes profile_max_nan_fraction, so clustering and embeddings use the
           same rows). Rows above the threshold are dropped; surviving rows have
           NaNs filled with 0.
 
@@ -92,7 +92,7 @@ output:
           type: file
           description: |
             Summary JSON with group identity, method, metric, NaN filtering
-            counts, n_samples, and n_features.
+            counts, n_profiles, and n_features.
             skipped records whether the group was skipped, with skip_reason
             giving the reason when it was.
           pattern: "clustering_features_summary_*.json"

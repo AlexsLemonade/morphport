@@ -15,7 +15,7 @@
                 "publish_optional": {
                     "type": "boolean",
                     "description": "Publish intermediate pipeline outputs, such as partitioned parquet files.",
-                    "help_text": "By default, intermediate outputs (e.g. from PARTITION_CONDITIONS) are not published to the output directory. Set this flag to publish them, which is useful for debugging. Automatically enabled by the 'debug' profile.",
+                    "help_text": "By default, intermediate outputs (e.g. from PARTITION_PROFILES) are not published to the output directory. Set this flag to publish them, which is useful for debugging. Automatically enabled by the 'debug' profile.",
                     "fa_icon": "fas fa-save",
                     "default": false,
                     "hidden": true
@@ -27,8 +27,8 @@
                     "schema": "assets/schema_input.json",
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
-                    "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row.",
+                    "description": "Path to a comma-separated sample sheet listing the plates to process, with one row per plate.",
+                    "help_text": "You will need to create a sample sheet with one row per plate before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with a header row and at least the columns `plate`, `project`, `source`, and `batch`. See docs/usage.md for the optional columns.",
                     "fa_icon": "fas fa-file-csv"
                 },
                 "outdir": {
@@ -55,14 +55,14 @@
                 "platemap_well_column": {
                     "type": "string",
                     "default": "well_position",
-                    "description": "Column name in the input samplesheet that contains the well identifiers.",
-                    "help_text": "The pipeline uses the values in this column to match the samplesheet to the plate parquet files. The values in this column should correspond to the 'Metadata_Well' column in the plate parquet files. This is typically a column that describes the well position on the plate, such as 'well_position' or 'well_id'."
+                    "description": "Column name in the platemaps that contains the well identifiers.",
+                    "help_text": "The pipeline uses the values in this column to match the platemap to the plate parquet files. The values in this column should correspond to the 'Metadata_Well' column in the plate parquet files. This is typically a column that describes the well position on the plate, such as 'well_position' or 'well_id'."
                 },
                 "analysis_groups_file": {
                     "type": "string",
                     "format": "file-path",
                     "description": "Path to a YAML (or JSON) file specifying how partitions should be grouped for downstream analysis.",
-                    "help_text": "Defines named groupings of the platemap metadata, at the cell and/or well level. If not provided, all plates in a project are analyzed as a single group per level. See docs/analysis_groups_format.md for the file format and assets/analysis_groups_example.yaml for an example."
+                    "help_text": "Defines named groupings of the platemap metadata, for the cell and/or well aggregate level. If not provided, all plates in a project are analyzed as a single group per aggregate level. See docs/analysis_groups_format.md for the file format and assets/analysis_groups_example.yaml for an example."
                 },
                 "random_seed": {
                     "type": "integer",
@@ -100,25 +100,25 @@
                 "pycytominer_aggregate_operation": {
                     "type": "string",
                     "default": "median",
-                    "description": "Aggregation function to use when summarising per-cell data to well-level profiles.",
+                    "description": "Aggregation function to use when summarising per-cell profiles to per-well profiles.",
                     "enum": ["median", "mean"]
                 },
                 "pycytominer_normalize_method_cell": {
                     "type": "string",
                     "default": "mad_robustize",
-                    "description": "Normalization method applied to cell-level profiles. Use 'none' to skip normalization.",
+                    "description": "Normalization method applied to per-cell profiles. Use 'none' to skip normalization.",
                     "enum": ["mad_robustize", "standardize", "robustize", "spherize", "none"]
                 },
                 "pycytominer_normalize_method_well": {
                     "type": "string",
                     "default": "mad_robustize",
-                    "description": "Normalization method applied to well-level profiles. Use 'none' to skip normalization.",
+                    "description": "Normalization method applied to per-well profiles. Use 'none' to skip normalization.",
                     "enum": ["mad_robustize", "standardize", "robustize", "spherize", "none"]
                 },
-                "pycytominer_normalize_samples": {
+                "pycytominer_normalize_reference_profiles": {
                     "type": "string",
                     "default": "all",
-                    "description": "Reference population for fitting the normalizer. Use 'all' to fit on all samples, or a pandas query string to fit on a subset (e.g. \"Metadata_treatment == 'DMSO'\")."
+                    "description": "Reference population for fitting the normalizer. Use 'all' to fit on all profiles, or a pandas query string to fit on a subset (e.g. \"Metadata_treatment == 'DMSO'\")."
                 },
                 "feature_select_operations": {
                     "type": "string",
@@ -212,12 +212,12 @@
                     "minimum": 0.0,
                     "description": "UMAP min_dist parameter."
                 },
-                "sample_max_nan_fraction": {
+                "profile_max_nan_fraction": {
                     "type": "number",
                     "default": 0.0,
                     "minimum": 0.0,
                     "maximum": 1.0,
-                    "description": "Per-sample (row) NaN tolerance as a fraction of feature columns, used by the embedding and clustering steps so they use the same samples. Samples above the threshold are dropped; remaining samples have NaNs filled with 0. Default 0.0 drops any sample with a NaN."
+                    "description": "Per-profile (row) NaN tolerance as a fraction of feature columns, used by the embedding and clustering steps so they use the same profiles. Profiles above the threshold are dropped; remaining profiles have NaNs filled with 0. Default 0.0 drops any profile with a NaN."
                 },
                 "embedding_min_rows": {
                     "type": "integer",
@@ -230,25 +230,25 @@
         "clustering": {
             "title": "Clustering",
             "type": "object",
-            "description": "Parameters controlling hierarchical clustering computed per analysis group: samples are clustered with Ward linkage on the feature-selected profiles or their PCA embeddings, and features on the feature-selected profiles.",
+            "description": "Parameters controlling hierarchical clustering computed per analysis group: profiles are clustered with Ward linkage on the feature-selected profiles or their PCA embeddings, and features on the feature-selected profiles.",
             "properties": {
-                "clustering_samples_input": {
+                "clustering_profiles_input": {
                     "type": "string",
                     "default": "pcs",
-                    "description": "Input for sample clustering: 'pcs' clusters the principal components from the embedding step, 'features' clusters the feature-selected profiles (slower for large groups, as clustering time grows with the number of columns).",
+                    "description": "Input for profile clustering: 'pcs' clusters the principal components from the embedding step, 'features' clusters the feature-selected profiles (slower for large groups, as clustering time grows with the number of columns).",
                     "enum": ["pcs", "features"]
                 },
-                "clustering_samples_distance_metric": {
+                "clustering_profiles_distance_metric": {
                     "type": "string",
                     "default": "cosine",
-                    "description": "Distance metric for sample clustering, which always uses Ward linkage. 'cosine' and 'correlation' are implemented by scaling each sample to unit length (after centering it, for correlation) before Ward/euclidean clustering. 'correlation' is recommended only with clustering_samples_input 'features', since centering a sample's PC scores is not meaningful.",
+                    "description": "Distance metric for profile clustering, which always uses Ward linkage. 'cosine' and 'correlation' are implemented by scaling each profile to unit length (after centering it, for correlation) before Ward/euclidean clustering. 'correlation' is recommended only with clustering_profiles_input 'features', since centering a profile's PC scores is not meaningful.",
                     "enum": ["cosine", "correlation", "euclidean"]
                 },
-                "clustering_max_samples": {
+                "clustering_max_profiles": {
                     "type": "integer",
                     "default": 200000,
                     "minimum": 2,
-                    "description": "Maximum number of samples to cluster. Clustering time grows with the square of the number of samples (and linearly with the number of features or PCs clustered), so groups with more rows than this are skipped rather than clustered, and the output JSON records skipped=true."
+                    "description": "Maximum number of profiles to cluster. Clustering time grows with the square of the number of profiles (and linearly with the number of features or PCs clustered), so groups with more rows than this are skipped rather than clustered, and the output JSON records skipped=true."
                 },
                 "clustering_features_linkage_method": {
                     "type": "string",

@@ -6,7 +6,7 @@
 
 `AlexsLemonade/morphport` processes Cell Painting profiles for the Pediatric Cancer Cell Morphology Atlas (PCCMA) portal.
 Each plate's CellProfiler output is converted to parquet if needed, annotated with platemap metadata, quality filtered, aggregated, and normalized.
-Plates are then split by experimental condition and combined into analysis groups for feature selection, embedding (PCA and UMAP), and hierarchical clustering.
+Each plate's profiles are then split into partitions, one for each combination of values of the metadata columns used in the analysis groups file, and the partitions are combined into analysis groups for feature selection, embedding (PCA and UMAP), and hierarchical clustering.
 
 We expect most input data to come from the [Cell Painting Gallery](https://github.com/broadinstitute/cellpainting-gallery) (CPG), a public AWS S3 bucket (`s3://cellpainting-gallery`) of Cell Painting datasets.
 The pipeline follows CPG directory conventions, so for CPG data the samplesheet often only needs to identify each plate, and the pipeline will find the input files itself.
@@ -77,7 +77,7 @@ MP00000001,my-project,my-lab,Round_1,/data/profiles/MP00000001.parquet,/data/met
 
 An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
 
-### Plate-level metadata
+### Platemap metadata
 
 The samplesheet only identifies each plate and its input files; any other columns are ignored.
 Following CPG conventions, any additional metadata should be included as a column in the platemap, even if every well on a plate has the same value.
@@ -85,9 +85,9 @@ All platemap columns are added to the annotated profiles as `Metadata_`-prefixed
 
 ## Analysis groups
 
-After per-plate processing, profiles are split by experimental condition and combined into analysis groups for feature selection, embeddings, and clustering.
+After per-plate processing, profiles are split into partitions (one for each combination of values of the metadata columns used in the analysis groups file) and the partitions are combined into analysis groups for feature selection, embeddings, and clustering.
 Groups are defined in a YAML (or JSON) file passed with `--analysis_groups_file`, using platemap metadata columns.
-If no analysis groups file is given, each level (`cell` and `well`) gets a single group containing all of a project's data.
+If no analysis groups file is given, each aggregate level (`cell` and `well`) gets a single group containing all of a project's data.
 
 ```bash
 --analysis_groups_file '[path to analysis groups file]'
@@ -268,7 +268,7 @@ Each step in the pipeline has a default set of requirements for number of CPUs, 
 For most of the pipeline steps, if the job exits with any of the error codes specified [here](../conf/base.config) it will automatically be resubmitted once with a higher resource request (2 x original).
 If it still fails after the second attempt then the pipeline execution is stopped.
 
-Cell-level steps on plates with many cells, and analysis groups that combine many plates, may need more memory than the defaults.
+Steps that process per-cell profiles for plates with many cells, and analysis groups that combine many plates, may need more memory than the defaults.
 
 To change the resource requests, please see the [max resources](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#set-max-resources) and [customise process resources](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#customize-process-resources) section of the nf-core website.
 

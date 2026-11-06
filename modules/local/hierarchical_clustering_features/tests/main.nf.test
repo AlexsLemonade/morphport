@@ -59,7 +59,7 @@ nextflow_process {
                 n_rows_input: 12,
                 n_rows_dropped_nan: 1,
                 n_rows_nan_filled: 1,
-                n_samples: 11,
+                n_profiles: 11,
                 n_features_dropped_constant: 1,
                 n_features: 4,
             ]
@@ -108,7 +108,7 @@ nextflow_process {
             with(path(summary).json) {
                 assert method == 'ward'
                 assert metric == 'euclidean'
-                assert n_samples == 11
+                assert n_profiles == 11
                 assert n_features == 4
                 assert !containsKey('skipped')
             }
@@ -147,7 +147,7 @@ nextflow_process {
             with(path(summary).json) {
                 assert method == 'complete'
                 assert metric == 'cosine'
-                assert n_samples == 11
+                assert n_profiles == 11
                 assert n_features == 4
                 assert !containsKey('skipped')
             }
@@ -185,7 +185,7 @@ nextflow_process {
                 assert n_rows_input == 12
                 assert n_rows_dropped_nan == 2
                 assert n_rows_nan_filled == 0
-                assert n_samples == 10
+                assert n_profiles == 10
                 assert n_features == 4
             }
             assert path(linkage).parquet.rowCount == 3
@@ -193,7 +193,7 @@ nextflow_process {
         }
     }
 
-    test("skip - fewer than 2 samples") {
+    test("skip - fewer than 2 profiles") {
 
         when {
             process {
@@ -216,9 +216,9 @@ nextflow_process {
             def (_meta, linkage, leaves, summary) = process.out.result[0]
             with(path(summary).json) {
                 assert n_rows_input == 1
-                assert n_samples == 1
+                assert n_profiles == 1
                 assert skipped == true
-                assert skip_reason == 'n_samples (1) < 2 after NaN filtering; cannot cluster'
+                assert skip_reason == 'n_profiles (1) < 2 after NaN filtering; cannot cluster'
             }
             with(path(linkage).parquet) {
                 assert rowCount == 0
@@ -257,7 +257,7 @@ nextflow_process {
                 // only the all-NaN row has missing values in feat_a and feat_constant
                 assert n_rows_dropped_nan == 1
                 assert n_rows_nan_filled == 0
-                assert n_samples == 11
+                assert n_profiles == 11
                 assert n_features_dropped_constant == 1
                 assert n_features == 1
                 assert skipped == true

@@ -5,10 +5,10 @@ A complete example is in [`assets/analysis_groups_example.yaml`](../assets/analy
 
 ## Top-level structure
 
-Unchanged from the previous format: an optional `default` key, plus `cell` and/or `well` keys.
-Each value is a list of grouping criteria.
-`default` grouping entries are added to both `cell` and `well`, as before.
-Unlike before, duplicates are not merged: a `cell` or `well` grouping entry with the same `name` as a `default` grouping entry is an **error**, even if the two are identical.
+An optional `default` key, plus `cell` and/or `well` keys.
+Each value is a list of grouping entries.
+`default` groupings are added to both `cell` and `well`.
+Duplicates are not merged: a `cell` or `well` grouping entry with the same `name` as a `default` grouping entry is an **error**, even if the two are identical.
 
 ```yaml
 default:
@@ -19,7 +19,7 @@ well:
   - <grouping entry>
 ```
 
-If no analysis groups file is given, no grouping or partitioning is performed: each level (`cell` and `well`) gets a single group containing all of a project's data.
+If no analysis groups file is given, no grouping or partitioning is performed: each aggregate level (`cell` and `well`) gets a single group containing all of a project's data.
 
 ## Grouping entry format
 
@@ -44,14 +44,14 @@ Quote values like these (e.g., `excluded: ["0.10"]`) so they match the platemap 
 A label for the grouping itself, distinct from the group names inside `groups`, which name individual value-set groups.
 It identifies the grouping in error messages and logs, and labels the groups the grouping produces.
 
-Names must be unique within a level, counting the `default` grouping entries added to that level; a duplicate is an **error**.
+Names must be unique within an aggregate level, counting the `default` groupings added to that aggregate level; a duplicate is an **error**.
 The same name may be used in both `cell` and `well`.
 Names may contain only letters, digits, `_`, and `-`, so they can be used safely in output paths.
 
 ### `grouping_column` (required)
 
 Exactly one metadata column, with or without the `Metadata_` prefix (the prefix is added automatically if missing).
-Unlike the previous format, a single grouping can no longer name multiple columns — there is no comma-separated or list form.
+A single grouping names only one column; there is no comma-separated or list form.
 To repeat a grouping within each value of other columns, use `subgroup_columns`.
 
 ### `groups` (required)
@@ -72,7 +72,7 @@ groups:
 ```
 
 Each key is a group name; each value is the list of raw column values that belong to that group.
-A value may appear in more than one named group — the resulting samples belong to both groups (fan-out), not one or the other.
+A value may appear in more than one named group — the resulting profiles belong to both groups (fan-out), not one or the other.
 This is how a drug with two mechanisms of action ends up correctly analyzed under each one.
 
 **3. `groups: all_values`**
@@ -97,8 +97,8 @@ A list of values whose data joins **every** group this grouping produces, instea
 Works with `groups: one_per_value` and named `groups`.
 Two examples:
 
-- Named groups: `always_include: [DMSO]` alongside MoA groups means DMSO's samples appear in the `kinase_inhibitor` group, the `hdac_inhibitor` group, and any other named group in this grouping.
-- `one_per_value`: `always_include: [DMSO]` means every per-treatment group (one per distinct treatment value) also includes DMSO's samples, i.e., "every drug vs. DMSO."
+- Named groups: `always_include: [DMSO]` alongside MoA groups means DMSO's profiles appear in the `kinase_inhibitor` group, the `hdac_inhibitor` group, and any other named group in this grouping.
+- `one_per_value`: `always_include: [DMSO]` means every per-treatment group (one per distinct treatment value) also includes DMSO's profiles, i.e., "every drug vs. DMSO."
 
 Values listed in `always_include` do **not** form a group of their own.
 A DMSO-only group would duplicate what every other group already contains, so with `one_per_value`, `always_include: [DMSO]` produces only the per-drug groups.
@@ -144,7 +144,7 @@ Listing a single value still requires list form (`treatment: [DMSO]`), so the sh
 - **It applies first, and to all rows.** `always_include` values are subject to the filter too — a grouping with `filter: {timepoint: [24h]}` and `always_include: [DMSO]` contributes no DMSO rows if DMSO never appears at 24h. That is a mistake and should be an **error** rather than a silent empty contribution. Detecting it takes observed values; see "How errors are raised" below.
 - **"Observed values" means observed after filtering.** Both the per-value group enumeration of `one_per_value` and the accounting rule for named `groups` consider only values present in the filtered rows. A treatment value that exists in the data but is filtered out of this grouping does not need to be mentioned in `excluded` to satisfy the accounting rule.
 - **A grouping whose filter matches no rows is an error.** A filter naming a value that never appears in the data is far more likely to be a typo than an intentional empty group.
-- **A filter column missing from any platemap is an error.** This is specific to `filter` and has no analogue in the previous format. `enumeratePlatemapCombos` encodes a column absent from a given platemap as the sentinel `_Absent_`, which matches no ordinary filter value — so a plate whose platemap happens to omit `treatment` would contribute **zero rows** to a `filter: {treatment: [...]}` grouping, silently, while other plates matched normally. Grouping columns degrade gracefully here (the rows form an `_Absent_` group and are still visible); filters just drop the data. Every filter column must therefore be present in _every_ plate's platemap.
+- **A filter column missing from any platemap is an error.** This is specific to `filter`. `enumeratePlatemapPartitionValues` encodes a column absent from a given platemap as the sentinel `_Absent_`, which matches no ordinary filter value — so a plate whose platemap happens to omit `treatment` would contribute **zero rows** to a `filter: {treatment: [...]}` grouping, silently, while other plates matched normally. Grouping columns degrade gracefully here (the rows form an `_Absent_` group and are still visible); filters just drop the data. Every filter column must therefore be present in _every_ plate's platemap.
 
 ### `subgroup_columns` (optional)
 
@@ -174,7 +174,7 @@ Each `subgroup_columns` column always produces one subgroup per observed value, 
 There is no way to map subgroup column values into named groups, and `always_include` and `excluded` cannot refer to them; those keys apply only to `grouping_column`.
 To restrict which subgroups exist, use `filter` (see above).
 
-With `groups: one_per_value`, `grouping_column: treatment` with `subgroup_columns: [cell_type]` yields one group per observed (treatment, cell_type) pair, the same as the old format's `treatment,cell_type` shorthand.
+With `groups: one_per_value`, `grouping_column: treatment` with `subgroup_columns: [cell_type]` yields one group per observed (treatment, cell_type) pair.
 Adding `always_include: [DMSO]` drops the DMSO pairs and adds each cell line's DMSO wells to that cell line's other groups.
 With `groups: all_values`, it yields one group per subgroup value, each pooling every value of `grouping_column` within that subgroup.
 
@@ -236,7 +236,7 @@ cell:
     subgroup_columns: [cell_type]
 
 well:
-  # well-level grouping by cell type, added to the default treatment grouping
+  # grouping of per-well profiles by cell type, added to the default treatment grouping
   - name: cell_type
     grouping_column: cell_type
     groups: one_per_value

@@ -7,12 +7,12 @@ nextflow_function {
     tag "create_analysis_groups"
 
     //
-    // enumeratePlatemapCombos / enumeratePlateCombos
+    // enumeratePlatemapPartitionValues / enumeratePlatePartitionKeys
     //
 
-    test("enumeratePlatemapCombos: unique combos with _Absent_ for columns missing from the platemap") {
+    test("enumeratePlatemapPartitionValues: unique partition values with _Absent_ for columns missing from the platemap") {
 
-        function "enumeratePlatemapCombos"
+        function "enumeratePlatemapPartitionValues"
 
         when {
             function {
@@ -32,9 +32,9 @@ nextflow_function {
         }
     }
 
-    test("enumeratePlatemapCombos: blank values are _NA_ and duplicate combos are removed") {
+    test("enumeratePlatemapPartitionValues: blank values are _NA_ and duplicate partition values are removed") {
 
-        function "enumeratePlatemapCombos"
+        function "enumeratePlatemapPartitionValues"
 
         when {
             function {
@@ -58,9 +58,9 @@ nextflow_function {
         }
     }
 
-    test("enumeratePlateCombos: adds project and plate_id to each platemap combo") {
+    test("enumeratePlatePartitionKeys: adds project and plate_id to each platemap partition value set") {
 
-        function "enumeratePlateCombos"
+        function "enumeratePlatePartitionKeys"
 
         when {
             function {
@@ -94,7 +94,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
+                def plate_partition_key = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
                 input[0] = [
                     name: 'treatment',
                     grouping_column: 'Metadata_treatment',
@@ -105,10 +105,10 @@ nextflow_function {
                     subgroup_columns: [],
                 ]
                 input[1] = [
-                    combo.call('p1', 'DMSO'),
-                    combo.call('p1', 'drugA'),
-                    combo.call('p2', 'drugA'),
-                    combo.call('p2', 'drugB'),
+                    plate_partition_key.call('p1', 'DMSO'),
+                    plate_partition_key.call('p1', 'drugA'),
+                    plate_partition_key.call('p2', 'drugA'),
+                    plate_partition_key.call('p2', 'drugB'),
                 ]
                 """
             }
@@ -134,7 +134,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
+                def plate_partition_key = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
                 input[0] = [
                     name: 'treatment',
                     grouping_column: 'Metadata_treatment',
@@ -145,10 +145,10 @@ nextflow_function {
                     subgroup_columns: [],
                 ]
                 input[1] = [
-                    combo.call('p1', 'DMSO'),
-                    combo.call('p1', 'drugA'),
-                    combo.call('p1', 'drugC'),
-                    combo.call('p2', 'drugB'),
+                    plate_partition_key.call('p1', 'DMSO'),
+                    plate_partition_key.call('p1', 'drugA'),
+                    plate_partition_key.call('p1', 'drugC'),
+                    plate_partition_key.call('p2', 'drugB'),
                 ]
                 """
             }
@@ -173,7 +173,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
+                def plate_partition_key = { plate, treatment -> [Metadata_treatment: treatment, project: 'demo', plate_id: plate] }
                 input[0] = [
                     name: 'moa',
                     grouping_column: 'Metadata_treatment',
@@ -183,7 +183,7 @@ nextflow_function {
                     filter: [:],
                     subgroup_columns: [],
                 ]
-                input[1] = ['DMSO', 'drugA', 'drugB', 'drugD', 'drugE'].collect { treatment -> combo.call('p1', treatment) }
+                input[1] = ['DMSO', 'drugA', 'drugB', 'drugD', 'drugE'].collect { treatment -> plate_partition_key.call('p1', treatment) }
                 """
             }
         }
@@ -207,7 +207,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { plate, cell_type, treatment ->
+                def plate_partition_key = { plate, cell_type, treatment ->
                     [Metadata_cell_type: cell_type, Metadata_treatment: treatment, project: 'demo', plate_id: plate]
                 }
                 input[0] = [
@@ -220,9 +220,9 @@ nextflow_function {
                     subgroup_columns: [],
                 ]
                 input[1] = [
-                    combo.call('p1', 'lineA', 'DMSO'),
-                    combo.call('p1', 'lineA', 'drugA'),
-                    combo.call('p2', 'lineB', 'DMSO'),
+                    plate_partition_key.call('p1', 'lineA', 'DMSO'),
+                    plate_partition_key.call('p1', 'lineA', 'drugA'),
+                    plate_partition_key.call('p2', 'lineB', 'DMSO'),
                 ]
                 """
             }
@@ -246,7 +246,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { plate, treatment, cell_type ->
+                def plate_partition_key = { plate, treatment, cell_type ->
                     [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
                 }
                 input[0] = [
@@ -259,11 +259,11 @@ nextflow_function {
                     subgroup_columns: ['Metadata_cell_type'],
                 ]
                 input[1] = [
-                    combo.call('p1', 'drugA', 'lineA'),
-                    combo.call('p1', 'DMSO', 'lineA'),
-                    combo.call('p2', 'drugA', 'lineB'),
-                    combo.call('p2', 'DMSO', 'lineB'),
-                    combo.call('p2', 'drugB', 'lineB'),
+                    plate_partition_key.call('p1', 'drugA', 'lineA'),
+                    plate_partition_key.call('p1', 'DMSO', 'lineA'),
+                    plate_partition_key.call('p2', 'drugA', 'lineB'),
+                    plate_partition_key.call('p2', 'DMSO', 'lineB'),
+                    plate_partition_key.call('p2', 'drugB', 'lineB'),
                 ]
                 """
             }
@@ -289,7 +289,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { project, treatment -> [Metadata_treatment: treatment, project: project, plate_id: project + '_p1'] }
+                def plate_partition_key = { project, treatment -> [Metadata_treatment: treatment, project: project, plate_id: project + '_p1'] }
                 input[0] = [
                     name: 'treatment',
                     grouping_column: 'Metadata_treatment',
@@ -300,10 +300,10 @@ nextflow_function {
                     subgroup_columns: [],
                 ]
                 input[1] = [
-                    combo.call('projA', 'DMSO'),
-                    combo.call('projA', 'drugA'),
-                    combo.call('projB', 'DMSO'),
-                    combo.call('projB', 'drugA'),
+                    plate_partition_key.call('projA', 'DMSO'),
+                    plate_partition_key.call('projA', 'drugA'),
+                    plate_partition_key.call('projB', 'DMSO'),
+                    plate_partition_key.call('projB', 'drugA'),
                 ]
                 """
             }
@@ -469,7 +469,7 @@ nextflow_function {
         when {
             function {
                 """
-                def combo = { plate, treatment, cell_type ->
+                def plate_partition_key = { plate, treatment, cell_type ->
                     [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
                 }
                 input[0] = [
@@ -487,11 +487,11 @@ nextflow_function {
                     well: [],
                 ]
                 input[1] = [
-                    combo.call('p1', 'DMSO', 'lineA'),
-                    combo.call('p1', 'drugA', 'lineA'),
-                    combo.call('p1', 'drugE', 'lineA'),
-                    combo.call('p2', 'DMSO', 'lineA'),
-                    combo.call('p2', 'drugD', 'lineA'),
+                    plate_partition_key.call('p1', 'DMSO', 'lineA'),
+                    plate_partition_key.call('p1', 'drugA', 'lineA'),
+                    plate_partition_key.call('p1', 'drugE', 'lineA'),
+                    plate_partition_key.call('p2', 'DMSO', 'lineA'),
+                    plate_partition_key.call('p2', 'drugD', 'lineA'),
                 ]
                 """
             }
@@ -517,7 +517,7 @@ nextflow_function {
             // partition keys come back as strings (see the assignGroupingSets note)
             def pk = { treatment -> "{Metadata_treatment=${treatment}, Metadata_cell_type=lineA, project=demo}".toString() }
             assert function.result.partition_columns == ['Metadata_treatment', 'Metadata_cell_type']
-            // every observed partition is a known key in every level, even with no groups there
+            // every observed partition is a known key in every aggregate level, even with no groups there
             assert function.result.well.keySet() == function.result.cell.keySet()
             assert function.result.well.values().every { groups -> groups == [] }
             // kinase_inhibitor: p1 drugA + DMSO from p1 and p2 = 3 items
@@ -532,7 +532,7 @@ nextflow_function {
         }
     }
 
-    test("buildAnalysisGroups: one_per_value group ids use the value; default groupings appear in both levels") {
+    test("buildAnalysisGroups: one_per_value group ids use the value; default groupings appear in both aggregate levels") {
 
         function "buildAnalysisGroups"
 
@@ -559,16 +559,16 @@ nextflow_function {
 
         then {
             assert function.success
-            def group_meta = { level ->
+            def group_meta = { aggregate_level ->
                 [
                     project: 'demo',
-                    aggregate_level: level,
+                    aggregate_level: aggregate_level,
                     grouping_name: 'treatment',
                     grouping_column: 'Metadata_treatment',
                     group: 'drugA',
                     subgroup_values: [:],
                     group_id: 'treatment=drugA',
-                    group_tag: "${level}__treatment__treatment=drugA".toString(),
+                    group_tag: "${aggregate_level}__treatment__treatment=drugA".toString(),
                 ]
             }
             // partition keys come back as strings (see the assignGroupingSets note)
@@ -581,7 +581,7 @@ nextflow_function {
         }
     }
 
-    test("buildAnalysisGroups: no analysis groups file gives one 'all' group per level and project") {
+    test("buildAnalysisGroups: no analysis groups file gives one 'all' group per aggregate level and project") {
 
         function "buildAnalysisGroups"
 
@@ -608,16 +608,16 @@ nextflow_function {
 
         then {
             assert function.success
-            def group_meta = { level ->
+            def group_meta = { aggregate_level ->
                 [
                     project: 'demo',
-                    aggregate_level: level,
+                    aggregate_level: aggregate_level,
                     grouping_name: 'all',
                     grouping_column: null,
                     group: 'all_values',
                     subgroup_values: [:],
                     group_id: 'all',
-                    group_tag: "${level}__all".toString(),
+                    group_tag: "${aggregate_level}__all".toString(),
                 ]
             }
             assert function.result == [

@@ -8,13 +8,13 @@ include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pi
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_morphport_pipeline'
 include { CYTOTABLE_CONVERT      } from '../modules/local/cytotable'
 include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
-include { PARTITION_CONDITIONS   } from '../modules/local/partition_conditions'
+include { PARTITION_PROFILES     } from '../modules/local/partition_profiles'
 include { PYCYTOMINER_ANNOTATE             } from '../modules/local/pycytominer/annotate'
 include { PYCYTOMINER_AGGREGATE            } from '../modules/local/pycytominer/aggregate'
 include { PYCYTOMINER_NORMALIZE            } from '../modules/local/pycytominer/normalize'
 include { PYCYTOMINER_FEATURE_SELECT       } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS               } from '../modules/local/compute_embeddings'
-include { HIERARCHICAL_CLUSTERING_SAMPLES  } from '../modules/local/hierarchical_clustering_samples'
+include { HIERARCHICAL_CLUSTERING_PROFILES } from '../modules/local/hierarchical_clustering_profiles'
 include { HIERARCHICAL_CLUSTERING_FEATURES } from '../modules/local/hierarchical_clustering_features'
 include { CREATE_ANALYSIS_GROUPS           } from '../subworkflows/local/create_analysis_groups'
 include { partitionKey                     } from '../subworkflows/local/create_analysis_groups'
@@ -28,7 +28,7 @@ include { partitionKey                     } from '../subworkflows/local/create_
 workflow MORPHPORT {
     take:
     ch_samplesheet       // channel: samplesheet read in from --input
-    analysis_groups_file // string: path to the analysis groups file (null for a single group per level)
+    analysis_groups_file // string: path to the analysis groups file (null for a single group per aggregate level)
     outdir
 
     main:
@@ -36,7 +36,7 @@ workflow MORPHPORT {
     // Parse the analysis groups file, check the groups against every plate's platemap
     // and build the analysis groups lookup (see CREATE_ANALYSIS_GROUPS).
     // Downstream steps use the samplesheet emitted by CREATE_ANALYSIS_GROUPS rather than ch_samplesheet
-    // so no process starts until the checks pass; it also adds the partition columns to plate_metadata_columns.
+    // so no process starts until the checks pass; it also adds the partition columns to platemap_columns.
     CREATE_ANALYSIS_GROUPS(
         ch_samplesheet,
         analysis_groups_file,
@@ -102,10 +102,10 @@ workflow MORPHPORT {
         ]
     }
 
-    // make well-level aggregates with pycytominer
+    // make per-well profiles by aggregating the per-cell profiles with pycytominer
     PYCYTOMINER_AGGREGATE(ch_filtered, params.pycytominer_aggregate_operation)
 
-    // combine well- and cell-level data into a single channel
+    // combine per-well and per-cell profiles into a single channel
     ch_pre_normalize = ch_filtered.mix(PYCYTOMINER_AGGREGATE.out.result)
         .map { meta, parquet ->
             // add the correct normalization method to the tuple based on the aggregate level
@@ -122,7 +122,7 @@ workflow MORPHPORT {
 
     PYCYTOMINER_NORMALIZE(
         ch_pre_normalize.normalize.map { meta, parquet, normalize_method ->
-            [meta, parquet, params.pycytominer_normalize_samples, normalize_method]
+            [meta, parquet, params.pycytominer_normalize_reference_profiles, normalize_method]
         },
     )
 
@@ -131,11 +131,11 @@ workflow MORPHPORT {
         ch_pre_normalize.skip.map { meta, parquet, _normalize_method -> [meta, parquet] }
     )
 
-    // Partition analyses by condition
-    // This does both cell and well level partitioning;
+    // Partition profiles by the partition columns
+    // This partitions both the per-cell and per-well profiles;
     // we separate them out again later using the aggregate_level metadata.
     // The analysis_groups value channel carries the partition column set;
-    // branch on it so PARTITION_CONDITIONS only runs when there is something to partition.
+    // branch on it so PARTITION_PROFILES only runs when there is something to partition.
     // Only the partition columns are passed on, so edits to the rest of the lookup
     // (group names, membership) don't invalidate cached partitioning tasks on -resume.
     // Note that because ch_analysis_groups is a value channel,
@@ -147,10 +147,10 @@ workflow MORPHPORT {
             skip:      true
         }
 
-    PARTITION_CONDITIONS(ch_prepartition.partition)
-    ch_partitioned = PARTITION_CONDITIONS.out.partitions
-        // expand each Hive directory into one tuple per partition with the conditions
-        // from the partition manifest added to meta
+    PARTITION_PROFILES(ch_prepartition.partition)
+    ch_partitioned = PARTITION_PROFILES.out.partitions
+        // expand each Hive directory into one tuple per partition with the partition column
+        // values from the partition manifest added to meta
         .flatMap { meta, partition_dir, manifest -> expandHivePartitions(meta, partition_dir, manifest) }
         // the skip branch wasn't partitioned, so just pass the files through with the original meta
         .mix(ch_prepartition.skip.map { meta, parquet, _partition_columns -> [meta, [parquet] as List] })
@@ -189,23 +189,23 @@ workflow MORPHPORT {
         params.embedding_umap_neighbors,
         params.embedding_umap_min_dist,
         params.random_seed,
-        params.sample_max_nan_fraction,
+        params.profile_max_nan_fraction,
         params.embedding_min_rows,
     )
 
-    // cluster the samples on either the feature-selected profiles or their PCs;
+    // cluster the profiles on either the feature-selected profiles or their PCs;
     // empty lists stand in for the optional features file and embeddings summary
-    ch_clustering_samples_input = params.clustering_samples_input == 'pcs'
+    ch_clustering_profiles_input = params.clustering_profiles_input == 'pcs'
         ? COMPUTE_EMBEDDINGS.out.result
             .map { meta, embeddings_parquet, summary_json -> [meta, [embeddings_parquet], [], summary_json] }
         : ch_feature_selected.has_features
             .map { meta, _plate_metas, parquets, features -> [meta, parquets, features, []] }
 
-    HIERARCHICAL_CLUSTERING_SAMPLES(
-        ch_clustering_samples_input,
-        params.clustering_samples_distance_metric,
-        params.sample_max_nan_fraction,
-        params.clustering_max_samples,
+    HIERARCHICAL_CLUSTERING_PROFILES(
+        ch_clustering_profiles_input,
+        params.clustering_profiles_distance_metric,
+        params.profile_max_nan_fraction,
+        params.clustering_max_profiles,
     )
 
     // cluster the selected features from the full feature-selected matrix
@@ -213,7 +213,7 @@ workflow MORPHPORT {
         ch_feature_selected.has_features,
         params.clustering_features_linkage_method,
         params.clustering_features_distance_metric,
-        params.sample_max_nan_fraction,
+        params.profile_max_nan_fraction,
     )
 
     //
@@ -278,10 +278,10 @@ workflow MORPHPORT {
 */
 
 //
-// Given a Hive partition directory and the manifest written alongside it by PARTITION_CONDITIONS,
+// Given a Hive partition directory and the manifest written alongside it by PARTITION_PROFILES,
 // find the parquet files in each partition, returning a list of tuples of the form:
-//   [meta + partition_conditions, list_of_parquet_files]
-// The partition conditions come from the manifest rather than the directory names, because
+//   [meta + partition_values, list_of_parquet_files]
+// The partition column values come from the manifest rather than the directory names, because
 // DuckDB percent-encodes values in directory names (e.g. 'drug A' → 'drug%20A').
 // Each manifest entry has the form:
 //   [path: 'Metadata_treatment=drug%20A', values: [Metadata_treatment: 'drug A']]
@@ -294,7 +294,7 @@ def expandHivePartitions(meta, partition_dir, manifest_file) {
             def parquets = dir.listFiles()?.findAll { f -> f.name.endsWith('.parquet') } ?: []
             [meta + (partition['values'] as Map), parquets]
         }
-        .findAll { _conditions, parquets -> parquets }
+        .findAll { _partition_values, parquets -> parquets }
 }
 
 //
@@ -303,22 +303,22 @@ def expandHivePartitions(meta, partition_dir, manifest_file) {
 // by its aggregate level and partition key (partition column values plus project), and fanned
 // out into one tuple per group it belongs to, keyed by groupKey(group_meta, size) so groupTuple
 // can release each group as soon as size items have arrived.
-// A partition that belongs to no group at its level (filtered out or excluded) emits nothing.
+// A partition that belongs to no group at its aggregate level (filtered out or excluded) emits nothing.
 //
 def createGroupChannels(ch_partitioned, ch_analysis_groups) {
     def ch_grouping = ch_partitioned
         // add the analysis groups lookup to each ch_partitioned tuple
         .combine(ch_analysis_groups)
         .flatMap { meta, parquets, groups ->
-            def agg_level = meta.aggregate_level
+            def aggregate_level = meta.aggregate_level
             def partition_key = partitionKey(meta, groups.partition_columns)
-            def level_groups = groups[agg_level] ?: [:]
+            def aggregate_level_groups = groups[aggregate_level] ?: [:]
             // every partition value comes from a platemap (or samplesheet) read during
             // initialisation, so a partition missing from the lookup is a pipeline bug
-            if (!level_groups.containsKey(partition_key)) {
-                error("Internal error: no analysis groups lookup entry for ${agg_level} partition ${partition_key} (plate '${meta.plate_id}')")
+            if (!aggregate_level_groups.containsKey(partition_key)) {
+                error("Internal error: no analysis groups lookup entry for ${aggregate_level} partition ${partition_key} (plate '${meta.plate_id}')")
             }
-            level_groups[partition_key].collect { group_meta, expected_size ->
+            aggregate_level_groups[partition_key].collect { group_meta, expected_size ->
                 // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate groups.
                 // Each variant gets every partition, so the expected size is the same for both.
                 def key_data = params.edge_well_filter == 'both'

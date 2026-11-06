@@ -1,6 +1,6 @@
-// Computes hierarchical clustering of the samples within one analysis group,
+// Computes hierarchical clustering of the profiles within one analysis group,
 // using either the feature-selected profiles or the PCA embeddings.
-process HIERARCHICAL_CLUSTERING_SAMPLES {
+process HIERARCHICAL_CLUSTERING_PROFILES {
     tag "${meta.group_tag}"
     label 'process_single'
     // clustering is single-threaded, but can take hours for large groups
@@ -20,10 +20,10 @@ process HIERARCHICAL_CLUSTERING_SAMPLES {
     tuple val(meta), path(parquets, stageAs: 'input_parquet/input*.parquet'), path(features_file), path(embeddings_summary_json)
     val(distance_metric)
     val(max_nan_fraction)
-    val(max_samples)
+    val(max_profiles)
 
     output:
-    tuple val(meta), path("clustering_samples_linkage_${meta.group_tag}.parquet"), path("clustering_samples_leaves_${meta.group_tag}.parquet"), path("clustering_samples_summary_${meta.group_tag}.json"), emit: result
+    tuple val(meta), path("clustering_profiles_linkage_${meta.group_tag}.parquet"), path("clustering_profiles_leaves_${meta.group_tag}.parquet"), path("clustering_profiles_summary_${meta.group_tag}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
@@ -31,13 +31,13 @@ process HIERARCHICAL_CLUSTERING_SAMPLES {
     // optional inputs are empty lists when not provided
     features_file_name = features_file ?: ''
     embeddings_summary_name = embeddings_summary_json ?: ''
-    template 'hierarchical_clustering_samples.py'
+    template 'hierarchical_clustering_profiles.py'
 
     stub:
     """
-    touch clustering_samples_linkage_${meta.group_tag}.parquet
-    touch clustering_samples_leaves_${meta.group_tag}.parquet
-    cat <<-END_JSON > clustering_samples_summary_${meta.group_tag}.json
+    touch clustering_profiles_linkage_${meta.group_tag}.parquet
+    touch clustering_profiles_leaves_${meta.group_tag}.parquet
+    cat <<-END_JSON > clustering_profiles_summary_${meta.group_tag}.json
     {
         "group_tag": "${meta.group_tag}",
         "aggregate_level": "${meta.aggregate_level}",

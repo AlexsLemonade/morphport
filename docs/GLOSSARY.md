@@ -19,9 +19,10 @@ A multi-well plate of cells that was imaged; the unit of input to the pipeline.
 **Platemap**:
 The per-well metadata table (cell type, treatment, and so on) for a plate layout; several plates may share one platemap.
 
-**Samplesheet**:
+**Sample sheet**:
 The input table listing the plates to process, with one row per plate.
 Despite the name, each row is a plate, not a biological sample.
+Either "sample sheet" or "samplesheet" is acceptable (the nf-core template uses `samplesheet` in files, parameters, and code); prefer two words in prose.
 
 ### Experimental design
 
@@ -48,15 +49,15 @@ One stain or imaging mode captured for each image (e.g., DNA, ER, RNA, AGP, Mito
 "Channel" on its own refers to a Nextflow channel, not an imaging channel.
 _Avoid_: fluorescence channel, stain (when referring to the channel)
 
-**Aggregation level**:
-Whether profiles describe individual cells (`cell`) or whole wells (`well`); well-level profiles are aggregated from the cell-level profiles in each well.
+**Aggregate level**:
+Whether profiles describe individual cells (`cell`) or whole wells (`well`); per-well profiles are aggregated from the per-cell profiles in each well.
 "Per-cell", "per-well", and "well summary" are acceptable descriptions of the two levels.
-_Avoid_: level (on its own), data type
+_Avoid_: aggregation level, level (on its own), data type
 
 ### Partitions
 
 **Partition**:
-The profiles from one plate at one aggregation level that share one combination of partition-column values.
+The profiles from one plate at one aggregate level that share one combination of partition-column values.
 
 **Partition columns**:
 The platemap columns that any grouping uses to select or divide profiles, such as `Metadata_treatment`.
@@ -69,8 +70,16 @@ _Avoid_: condition, combo, condition combo
 
 **Grouping**:
 A named rule in the analysis groups file that defines how profiles are divided into analysis groups (e.g., `moa_grouping`).
-_Avoid_: grouping entry, grouping criteria
+"Grouping entry" is an acceptable term when referring to how a grouping is written in the analysis groups file.
+_Avoid_: grouping criteria
 
 **Analysis group**:
 A set of profiles that are analyzed together, produced by a grouping (e.g., `kinase_inhibitor` from `moa_grouping`).
 "Group" is an acceptable shorthand.
+
+**Subgroup**:
+The profiles that share one combination of values of a grouping's subgroup columns.
+The grouping is applied separately within each subgroup, so every analysis group belongs to one subgroup.
+
+**Group tag**:
+The string that names an analysis group and its output files, made from the aggregate level, the grouping name, and the grouping and subgroup column values that identify the group (e.g., `cell__moa_by_cell_line__treatment=kinase_inhibitor__cell_type=lineA`).

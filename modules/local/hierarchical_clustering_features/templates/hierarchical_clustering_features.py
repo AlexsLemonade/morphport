@@ -18,8 +18,8 @@ clustering on the columns (features) of the feature matrix. Writes three files:
 - clustering_features_summary_{group_tag}.json: clustering parameters and skip status.
 
 Pairwise feature distances take memory proportional to the square of the
-number of features, and time linear in the number of samples, so all groups
-are clustered, including cell-level groups.
+number of features, and time linear in the number of profiles, so all groups
+are clustered, including groups of per-cell profiles.
 
 NOTE: features are clustered without any additional scaling. This module
 assumes the upstream pycytominer normalization has already produced
@@ -148,7 +148,7 @@ def main():
         raise RuntimeError(f"No input parquet files found in {parquet_dir}/.")
 
     # ---- Load and concatenate input parquets -------------------------------
-    # Only the feature columns are needed; sample metadata is not used.
+    # Only the feature columns are needed; profile metadata is not used.
     input_df = (
         pl.concat(
             [pl.scan_parquet(p) for p in parquet_paths],
@@ -166,7 +166,7 @@ def main():
 
     # ---- Handle NaN rows -----------------------------------------------------
     # Per-row NaN handling, expressed as a fraction of feature columns
-    # (matching compute_embeddings). Input rows (samples) are the columns of
+    # (matching compute_embeddings). Input rows (profiles) are the columns of
     # feature_mat here.
     #   * rows with nan_fraction > max_nan_fraction are dropped
     #   * surviving rows with any NaN have those entries filled with 0
@@ -179,22 +179,22 @@ def main():
         feature_mat = feature_mat[:, keep_mask]
     np.nan_to_num(feature_mat, copy=False, nan=0.0)
 
-    n_samples = feature_mat.shape[1]
+    n_profiles = feature_mat.shape[1]
     summary.update(
         {
             "n_rows_input": n_rows_input,
             "n_rows_dropped_nan": n_rows_dropped,
             "n_rows_nan_filled": n_rows_nan_filled,
-            "n_samples": n_samples,
+            "n_profiles": n_profiles,
         }
     )
-    if n_samples < 2:
+    if n_profiles < 2:
         write_skipped(
             linkage_parquet,
             leaves_parquet,
             clustering_summary_json,
             summary,
-            f"n_samples ({n_samples}) < 2 after NaN filtering; cannot cluster",
+            f"n_profiles ({n_profiles}) < 2 after NaN filtering; cannot cluster",
         )
         return
 

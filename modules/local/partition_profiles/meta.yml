@@ -1,4 +1,4 @@
-name: partition_conditions
+name: partition_profiles
 description: Joins platemap metadata into a per-plate parquet file and writes Hive-style partitioned output
 keywords:
   - cell painting
@@ -30,7 +30,7 @@ input:
         type: list
         description: |
           Metadata_-prefixed platemap columns to partition by,
-          e.g. [ 'Metadata_cell_line', 'Metadata_treatment' ]
+          e.g. [ 'Metadata_cell_type', 'Metadata_treatment' ]
 
 output:
   - partitions:

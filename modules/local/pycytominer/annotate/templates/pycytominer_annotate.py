@@ -8,7 +8,7 @@ The delimiter is chosen by file extension, matching readPlatemap in the create_a
 The annotated output is written in parquet format.
 
 All platemap metadata columns (except plate_map_name) are added to the parquet file by pycytominer annotate as 'Metadata_'-prefixed columns
-We also ensure that all columns specified in the meta.plate_metadata_columns variable from Nextflow are present.
+We also ensure that all columns specified in the meta.platemap_columns variable from Nextflow are present.
 Any listed metadata column absent from the platemap is filled with '_Absent_' to ensure it is available for downstream steps.
 Platemap values are read as literal text with whitespace stripped; blank values are filled with '_NA_' before merging.
 
@@ -157,10 +157,10 @@ def main():
     plate_id = "${meta.plate_id}"
     task_process = "${task.process}"
     # merge the metadata column list during import from Nextflow to make them a string
-    plate_metadata_columns = "${meta.plate_metadata_columns.join(',')}"
+    platemap_columns = "${meta.platemap_columns.join(',')}"
 
     # Read every platemap value as literal text so values match what Nextflow reads from the
-    # same file when predicting analysis groups (enumeratePlatemapCombos): no type inference
+    # same file when predicting analysis groups (enumeratePlatemapPartitionValues): no type inference
     # (e.g. '010' stays '010', not 10.0), no NA-like strings ('NA', 'null') converted to nulls,
     # and surrounding whitespace stripped. Only blank cells become '_NA_'.
     # choose the delimiter by extension, matching platemapSeparator in Nextflow
@@ -192,7 +192,7 @@ def main():
     # either with raw names or without the Metadata_ prefix;
     # all will have the prefix added by pycytominer.annotate
     existing_cols = set(platemap_df.columns)
-    for col in plate_metadata_columns.split(","):
+    for col in platemap_columns.split(","):
         if (
             col not in existing_cols
             and col.removeprefix("Metadata_") not in existing_cols

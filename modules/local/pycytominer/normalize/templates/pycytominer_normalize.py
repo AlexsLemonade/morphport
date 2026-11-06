@@ -31,7 +31,7 @@ def main():
     parquet_file = "${parquet_file}"
     plate_id = "${meta.plate_id}"
     aggregate_level = "${meta.aggregate_level}"
-    normalize_samples = "${normalize_samples}"
+    reference_profiles = "${reference_profiles}"
     normalize_method = "${normalize_method}"
     task_process = "${task.process}"
 
@@ -52,7 +52,7 @@ def main():
         profiles=profiles_df,
         features="infer",
         meta_features="infer",
-        samples=normalize_samples,
+        samples=reference_profiles,
         method=normalize_method,
     )
 

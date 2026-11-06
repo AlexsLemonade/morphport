@@ -7,11 +7,11 @@
 # ]
 # ///
 """
-Generate the small parquet fixtures for the hierarchical_clustering_samples module tests.
+Generate the small parquet fixtures for the hierarchical_clustering_profiles module tests.
 
 Writes to the directory containing this script:
 
-- profiles_nan_rows.parquet, profiles_constant_row.parquet: well-level feature-selected
+- profiles_nan_rows.parquet, profiles_constant_row.parquet: per-well feature-selected
   profiles for plates P1 and P2 (6 wells each) with Metadata_Plate, Metadata_Well,
   Metadata_cell_line, and Metadata_timepoint columns, and features feat_a..feat_e.
   - profiles_nan_rows.parquet (P1):
@@ -27,7 +27,7 @@ The text and JSON fixtures (features.txt, embeddings_summary*.json) are written 
 
 Usage (from the repository root):
 
-    uv run modules/local/hierarchical_clustering_samples/tests/fixtures/generate_fixtures.py
+    uv run modules/local/hierarchical_clustering_profiles/tests/fixtures/generate_fixtures.py
 """
 
 import pathlib
