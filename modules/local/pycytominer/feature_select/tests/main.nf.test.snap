@@ -1,0 +1,42 @@
+{
+    "stub": {
+        "content": [
+            {
+                "project": "test",
+                "aggregate_level": "well",
+                "grouping_name": "by_cell_line",
+                "grouping_column": "Metadata_cell_line",
+                "group": "U2-OS",
+                "subgroup_values": {
+                    
+                },
+                "group_id": "cell_line=U2-OS",
+                "group_tag": "well__by_cell_line__cell_line=U2-OS",
+                "plate_ids": [
+                    "P1",
+                    "P2"
+                ]
+            },
+            [
+                {
+                    "plate_id": "P1"
+                },
+                {
+                    "plate_id": "P2"
+                }
+            ],
+            "features_well__by_cell_line__cell_line=U2-OS.txt:md5,53d8ec25a66f004b4f22aead355dc744",
+            [
+                "feature_select_summary_well__by_cell_line__cell_line=U2-OS.json:md5,a363397214704583bdded7512a6ea189"
+            ],
+            [
+                "versions.yml:md5,fd78d153b3d88c51cf713acec9b2c894"
+            ]
+        ],
+        "timestamp": "2026-11-06T13:37:57.064455041",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.10.5"
+        }
+    }
+}
