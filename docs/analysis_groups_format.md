@@ -28,9 +28,11 @@ Every grouping entry is an object:
 ```yaml
 - name: moa_grouping # required; see "`name`" below
   grouping_column: treatment # required; exactly one column
-  groups: one_per_value # required; see "groups" below
+  groups: # required; see "groups" below
+    kinase_inhibitor: [drugA, drugB]
+    hdac_inhibitor: [drugD]
   always_include: [DMSO] # optional
-  excluded: [vehicle_control_2] # optional
+  excluded: [drugC] # optional
   filter: { timepoint: [24h] } # optional; see "filter" below
   subgroup_columns: [cell_type] # optional; see "subgroup_columns" below
   comparison_column: treatment # optional, per-well only; see "comparison_column" below
