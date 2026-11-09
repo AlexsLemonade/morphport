@@ -33,6 +33,8 @@ Every grouping entry is an object:
   excluded: [vehicle_control_2] # optional
   filter: { timepoint: [24h] } # optional; see "filter" below
   subgroup_columns: [cell_type] # optional; see "subgroup_columns" below
+  comparison_column: treatment # optional, per-well only; see "comparison_column" below
+  comparison_reference: { treatment: [DMSO] } # optional; see "comparison_reference" below
 ```
 
 Values are compared to the platemap as text, but YAML converts some unquoted values to other types first.
@@ -186,6 +188,63 @@ With `groups: all_values`, it yields one group per subgroup value, each pooling 
 - **`excluded` and the accounting rule apply across all subgroups combined.** They are statements about values of `grouping_column`, regardless of subgroup: a value is accounted for if it is named anywhere in the grouping, and need not appear in every subgroup. A named group that happens to have no members in a particular subgroup simply produces no group for that subgroup.
 - **Subgroup columns behave like grouping columns when absent from a platemap.** Rows from a plate whose platemap omits a `subgroup_columns` column form an `_Absent_` subgroup, the same graceful degradation as `grouping_column`, rather than being dropped as `filter` would.
 
+### `comparison_column` (optional)
+
+The column whose values are compared _within_ each of the grouping's per-well groups (e.g., treatments within one cell type).
+Per-well profiles that share a value are replicates of one compared item.
+Setting it enables analyses that compare these values within each group, such as profile similarity and mean average precision (mAP).
+
+Exactly one metadata column, with the same `Metadata_` normalization as `grouping_column`.
+The column is added to the partition columns, so that wells with different values are kept apart.
+
+Comparisons use per-well profiles only:
+
+- A grouping under `cell` with `comparison_column` is an **error**.
+- A grouping under `default` with `comparison_column` runs comparisons for its `well` copy only; its `cell` copy ignores the key.
+
+The column must vary within a group, or each group would have a single value to compare.
+It is therefore an **error** for `comparison_column` to be the `grouping_column` with `groups: one_per_value`, or to be one of the `subgroup_columns`.
+It may be the `grouping_column` with named groups or `groups: all_values`, e.g. to compare the treatments within each mechanism of action.
+
+`comparison_column` must be present in every platemap the grouping uses (after `filter`); a missing column is an **error**, as for `filter`.
+
+Two examples, for the two directions of comparison:
+
+```yaml
+well:
+  # Treatments compared within each cell type
+  - name: treatments_by_cell_type
+    grouping_column: cell_type
+    groups: one_per_value
+    comparison_column: treatment
+    comparison_reference: { treatment: [DMSO] }
+
+  # Cell types compared within each treatment
+  # DMSO joins every treatment's group so that it can serve as the reference
+  - name: cell_types_by_treatment
+    grouping_column: treatment
+    groups: one_per_value
+    always_include: [DMSO]
+    comparison_column: cell_type
+    comparison_reference: { treatment: [DMSO] }
+```
+
+In the second example, the compared values are cell types, and each cell type's DMSO wells serve as its reference.
+
+### `comparison_reference` (optional)
+
+The wells that the compared values are measured against, usually a control such as DMSO.
+It has the same form as `filter`: a mapping of metadata columns to lists of values, where a well is a reference well if it matches one of the listed values for every column.
+For a screen without controls, a reference cell type also works, e.g. `comparison_reference: {cell_type: [U2-OS]}`.
+
+Reference wells serve as the baseline for the comparisons and are not compared themselves.
+A reference is recommended for drug screens.
+
+`comparison_reference` is only valid together with `comparison_column`; on its own it is an **error**.
+Its columns are added to the partition columns, and each must be present in every platemap the grouping uses (after `filter`); a missing column is an **error**.
+Each listed value must be found in the grouping's rows after `filter` and `excluded` are applied; a missing value is an **error**, since it is most likely a typo.
+A group or plate that happens to have no reference wells is not an error here; it is handled by the analyses that use the reference.
+
 ## Full example
 
 This is the same as [`assets/analysis_groups_example.yaml`](../assets/analysis_groups_example.yaml).
@@ -237,9 +296,24 @@ cell:
 
 well:
   # grouping of per-well profiles by cell type, added to the default treatment grouping
+  # Treatments are compared within each cell type,
+  # each measured against the DMSO wells on the same plate
   - name: cell_type
     grouping_column: cell_type
     groups: one_per_value
+    comparison_column: treatment
+    comparison_reference:
+      treatment: [DMSO]
+
+  # Comparisons in the other direction: the cell types within each treatment
+  # DMSO joins every treatment's group so each cell type can be measured against its own DMSO wells
+  - name: cell_types_by_treatment
+    grouping_column: treatment
+    groups: one_per_value
+    always_include: [DMSO]
+    comparison_column: cell_type
+    comparison_reference:
+      treatment: [DMSO]
 ```
 
 ## What this format does not (yet) support
