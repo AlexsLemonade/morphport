@@ -627,4 +627,64 @@ nextflow_function {
             ]
         }
     }
+
+    test("buildAnalysisGroups: comparison keys are added to per-well group metas only") {
+
+        function "buildAnalysisGroups"
+
+        when {
+            function {
+                """
+                def grouping = { name, extra ->
+                    [
+                        name: name,
+                        grouping_column: 'Metadata_cell_type',
+                        groups: 'one_per_value',
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                        comparison_column: null,
+                        comparison_reference: [:],
+                    ] + extra
+                }
+                // a default grouping is in both aggregate levels
+                def with_reference = grouping.call('with_reference', [comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']]])
+                input[0] = [
+                    cell: [with_reference],
+                    well: [
+                        with_reference,
+                        grouping.call('no_reference', [comparison_column: 'Metadata_treatment']),
+                        grouping.call('no_comparison', [:]),
+                    ],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'DMSO', Metadata_cell_type: 'lineA', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'drugA', Metadata_cell_type: 'lineA', project: 'demo', plate_id: 'p1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def metas = { aggregate_level ->
+                function.result[aggregate_level].values().collectMany { groups -> groups.collect { group_meta, _size -> group_meta } }.unique()
+            }
+            def well_metas = metas.call('well').collectEntries { group_meta -> [(group_meta.grouping_name): group_meta] }
+            assert well_metas.keySet() == ['with_reference', 'no_reference', 'no_comparison'] as Set
+            assert well_metas.with_reference.comparison_column == 'Metadata_treatment'
+            assert well_metas.with_reference.comparison_reference == [Metadata_treatment: ['DMSO']]
+            assert well_metas.no_reference.comparison_column == 'Metadata_treatment'
+            assert well_metas.no_reference.containsKey('comparison_reference')
+            assert well_metas.no_reference.comparison_reference == null
+            assert !well_metas.no_comparison.containsKey('comparison_column')
+            assert !well_metas.no_comparison.containsKey('comparison_reference')
+            def cell_metas = metas.call('cell')
+            assert cell_metas.size() == 1
+            assert !cell_metas[0].containsKey('comparison_column')
+            assert !cell_metas[0].containsKey('comparison_reference')
+            assert function.result.partition_columns == ['Metadata_cell_type', 'Metadata_treatment']
+        }
+    }
 }

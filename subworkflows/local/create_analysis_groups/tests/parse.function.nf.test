@@ -47,6 +47,8 @@ nextflow_function {
                 excluded: [],
                 filter: [:],
                 subgroup_columns: [],
+                comparison_column: null,
+                comparison_reference: [:],
             ]
             assert function.result == [
                 cell: [
@@ -59,6 +61,8 @@ nextflow_function {
                         excluded: ['drugE'],
                         filter: [Metadata_timepoint: ['24h']],
                         subgroup_columns: ['Metadata_cell_type'],
+                        comparison_column: null,
+                        comparison_reference: [:],
                     ],
                 ],
                 well: [treatment],
@@ -97,6 +101,36 @@ nextflow_function {
             assert grouping.excluded == ['true']
             assert grouping.filter == [Metadata_replicate: ['1']]
             assert function.result.cell == []
+        }
+    }
+
+    test("normalizeGroupings: comparison keys are prefixed and reference values are coerced to strings") {
+
+        function "normalizeGroupings"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    well: [
+                        [
+                            name: 'treatments_by_line',
+                            grouping_column: 'cell_type',
+                            groups: 'one_per_value',
+                            comparison_column: 'treatment',
+                            comparison_reference: [treatment: ['DMSO'], Metadata_dose: [0]],
+                        ],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def grouping = function.result.well[0]
+            assert grouping.comparison_column == 'Metadata_treatment'
+            assert grouping.comparison_reference == [Metadata_treatment: ['DMSO'], Metadata_dose: ['0']]
         }
     }
 
@@ -517,6 +551,77 @@ nextflow_function {
         }
     }
 
+    test("validateGroupingStructure: valid comparison keys produce no errors") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    // comparison keys are allowed in default groupings; their per-cell groups just do not get them
+                    'default': [
+                        [name: 'treatments_by_line', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', comparison_reference: [treatment: ['DMSO']]],
+                    ],
+                    well: [
+                        // cell types compared within each treatment, with a reference cell type
+                        [name: 'lines_by_treatment', grouping_column: 'treatment', groups: 'one_per_value', comparison_column: 'cell_type', comparison_reference: [cell_type: ['U2-OS']]],
+                        // the comparison column may be the grouping column when groups have several values
+                        [name: 'moa', grouping_column: 'treatment', groups: [kinase_inhibitor: ['drugA', 'drugB']], always_include: ['DMSO'], comparison_column: 'treatment', comparison_reference: [treatment: ['DMSO']]],
+                        [name: 'all_treatments', grouping_column: 'treatment', groups: 'all_values', comparison_column: 'Metadata_treatment'],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [errors: [], warnings: []]
+        }
+    }
+
+    test("validateGroupingStructure: invalid comparison keys are errors") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [name: 'per_cell', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment'],
+                    ],
+                    well: [
+                        [name: 'list_column', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: ['treatment']],
+                        // prefix normalization applies before comparing
+                        [name: 'same_as_grouping', grouping_column: 'treatment', groups: 'one_per_value', comparison_column: 'Metadata_treatment'],
+                        [name: 'in_subgroups', grouping_column: 'treatment', groups: 'all_values', subgroup_columns: ['cell_type'], comparison_column: 'cell_type'],
+                        [name: 'reference_only', grouping_column: 'cell_type', groups: 'one_per_value', comparison_reference: [treatment: ['DMSO']]],
+                        [name: 'reference_list', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', comparison_reference: ['DMSO']],
+                        [name: 'reference_scalar', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', comparison_reference: [treatment: 'DMSO']],
+                        [name: 'reference_empty', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', comparison_reference: [treatment: []]],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 8
+            assert errors.any { err -> err.contains("'per_cell'") && err.contains('per-well') }
+            assert errors.any { err -> err.contains("'list_column'") && err.contains('single column') }
+            assert errors.any { err -> err.contains("'same_as_grouping'") && err.contains('grouping_column') }
+            assert errors.any { err -> err.contains("'in_subgroups'") && err.contains('subgroup_columns') }
+            assert errors.any { err -> err.contains("'reference_only'") && err.contains('requires comparison_column') }
+            ['reference_list', 'reference_scalar', 'reference_empty'].each { name ->
+                assert errors.any { err -> err.contains("'${name}'") && err.contains('comparison_reference') }
+            }
+        }
+    }
+
     //
     // parseGroupings
     //
@@ -543,6 +648,8 @@ nextflow_function {
                 excluded: [],
                 filter: [:],
                 subgroup_columns: [],
+                comparison_column: null,
+                comparison_reference: [:],
             ]
             assert function.result == [cell: [all_grouping], well: [all_grouping]]
         }
@@ -569,7 +676,10 @@ nextflow_function {
                 'moa_grouping',
                 'treatment_by_cell_line',
             ]
-            assert function.result.well*.name == ['treatment', 'cell_type']
+            assert function.result.well*.name == ['treatment', 'cell_type', 'cell_types_by_treatment']
+            def cell_type = function.result.well.find { grouping -> grouping.name == 'cell_type' }
+            assert cell_type.comparison_column == 'Metadata_treatment'
+            assert cell_type.comparison_reference == [Metadata_treatment: ['DMSO']]
             def moa = function.result.cell.find { grouping -> grouping.name == 'moa_grouping' }
             assert moa.groups == [
                 kinase_inhibitor: ['drugA', 'drugB', 'drugC'],
@@ -646,6 +756,35 @@ nextflow_function {
         then {
             assert function.success
             assert function.result == ['Metadata_treatment', 'Metadata_cell_type', 'Metadata_timepoint']
+        }
+    }
+
+    test("groupingPartitionColumns: includes comparison_column and comparison_reference columns") {
+
+        function "groupingPartitionColumns"
+
+        when {
+            function {
+                """
+                def grouping = [
+                    name: 'treatments_by_line',
+                    grouping_column: 'Metadata_cell_type',
+                    groups: 'one_per_value',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                    comparison_column: 'Metadata_treatment',
+                    comparison_reference: [Metadata_treatment: ['DMSO'], Metadata_dose: ['0']],
+                ]
+                input[0] = [cell: [grouping], well: [grouping]]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == ['Metadata_cell_type', 'Metadata_treatment', 'Metadata_dose']
         }
     }
 
