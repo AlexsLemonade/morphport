@@ -96,15 +96,23 @@ The grouping is applied separately within each subgroup, so every analysis group
 **Group tag**:
 The string that names an analysis group and its output files, made from the aggregate level, the grouping name, and the grouping and subgroup column values that identify the group (e.g., `cell__moa_by_cell_line__treatment=kinase_inhibitor__cell_type=lineA`).
 
-### Consensus similarity
+### Comparisons and consensus similarity
 
-**Consensus column**:
-The platemap column whose values define the consensus profiles compared within an analysis group (e.g., `treatment` to compare treatments within one cell type, or `cell_type` to compare cell types within one treatment).
-It is set per grouping, and a grouping without one has no consensus similarity analysis.
+**Comparison column**:
+The platemap column whose values are compared within an analysis group (e.g., `treatment` to compare treatments within one cell type, or `cell_type` to compare cell types within one treatment).
+Per-well profiles that share a value are replicates of one compared item.
+It is set per grouping, and a grouping without one has no comparisons.
+_Avoid_: consensus column, replicate column (a platemap may have a replicate number column)
+
+**Comparison reference**:
+The wells that the compared items of an analysis group are measured against, chosen by platemap column values (usually a control such as DMSO).
+A grouping may name one only together with a comparison column.
+_Avoid_: consensus reference, baseline, negative control (when referring to the wells chosen for this purpose)
 
 **Consensus profile**:
-A single profile summarizing all the per-well profiles in an analysis group that share one value of the consensus column, pooled across every plate and batch in the group.
-Consensus profiles are built only from per-well profiles, and never span projects.
+A single profile summarizing all the per-well profiles in an analysis group that share one value of the comparison column, pooled across every plate and batch in the group.
+Consensus profiles are built only from per-well profiles, never span projects, and never include reference wells.
+When the group has a comparison reference, each well is first expressed as its difference from the reference wells on its plate, so the consensus profile describes a change from the reference; without one, consensus profiles are built from the plate-normalized profiles as they are.
 _Avoid_: signature, level 5 profile, treatment profile
 
 **Consensus similarity**:
