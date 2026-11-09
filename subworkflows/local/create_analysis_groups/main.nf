@@ -233,7 +233,10 @@ def validateGrouping(grouping, top_level_key, position) {
     def label = grouping.name != null ? "Grouping '${grouping.name}' in '${top_level_key}'" : "Grouping ${position} in '${top_level_key}'"
 
     // check that all keys are known and the required keys are present
-    def known_keys = ['name', 'grouping_column', 'groups', 'always_include', 'excluded', 'filter', 'subgroup_columns']
+    def known_keys = [
+        'name', 'grouping_column', 'groups', 'always_include', 'excluded', 'filter', 'subgroup_columns',
+        'comparison_column', 'comparison_reference',
+    ]
     (grouping.keySet().collect { key -> key as String } - known_keys).each { key ->
         errors << "${label}: unknown key '${key}'."
     }
@@ -293,6 +296,45 @@ def validateGrouping(grouping, top_level_key, position) {
         }
     }
 
+    // check the comparison keys, which enable comparison analyses for per-well groupings
+    def comparison_column = null
+    if (grouping.comparison_column != null) {
+        if (!(grouping.comparison_column instanceof String) || (grouping.comparison_column as String).contains(',')) {
+            errors << "${label}: comparison_column must be a single column name."
+        }
+        else {
+            comparison_column = addMetadataPrefix(grouping.comparison_column as String)
+        }
+        if (top_level_key == 'cell') {
+            errors << "${label}: comparison_column is only supported for per-well profiles; move the grouping to 'well' or 'default'."
+        }
+    }
+    if (grouping.comparison_reference != null) {
+        if (grouping.comparison_column == null) {
+            errors << "${label}: comparison_reference requires comparison_column."
+        }
+        if (!(grouping.comparison_reference instanceof Map) || grouping.comparison_reference.isEmpty()) {
+            errors << "${label}: comparison_reference must be a mapping of column names to lists of values."
+        }
+        else {
+            grouping.comparison_reference.each { col, values ->
+                if (!isFlatList(values) || values.isEmpty()) {
+                    errors << "${label}: comparison_reference column '${col}' must be a non-empty list of values, without nested lists or mappings."
+                }
+            }
+        }
+    }
+
+    // a comparison column that is constant within each group would leave nothing to compare
+    if (comparison_column) {
+        if (comparison_column == grouping_column && groups == 'one_per_value') {
+            errors << "${label}: comparison_column must not be the grouping_column with 'groups: one_per_value', since each group would have a single value to compare."
+        }
+        if (grouping.subgroup_columns instanceof List && grouping.subgroup_columns.any { col -> addMetadataPrefix(col as String) == comparison_column }) {
+            errors << "${label}: comparison_column must not be one of the subgroup_columns, since each group would have a single value to compare."
+        }
+    }
+
     // check that filter and subgroup_columns don't name the grouping_column
     if (grouping_column) {
         if (grouping.filter instanceof Map && grouping.filter.keySet().any { col -> addMetadataPrefix(col as String) == grouping_column }) {
@@ -343,7 +385,9 @@ def isFlatList(values) {
 //
 // Normalize a structurally valid parsed analysis groups file into a map of
 // aggregate_level ('cell'/'well') → list of groupings. Each grouping has every key filled in:
-//   [name, grouping_column, groups, always_include, excluded, filter, subgroup_columns]
+//   [name, grouping_column, groups, always_include, excluded, filter, subgroup_columns,
+//    comparison_column, comparison_reference]
+// comparison_column is null and comparison_reference is empty when not given.
 // Column names get the Metadata_ prefix, and all values are coerced to strings to match
 // the values read from platemaps. 'default' groupings are placed first in each aggregate level.
 //
@@ -369,6 +413,8 @@ def normalizeGrouping(grouping) {
         excluded: toStringList(grouping.excluded),
         filter: (grouping.filter ?: [:]).collectEntries { col, values -> [(addMetadataPrefix(col as String)): toStringList(values)] },
         subgroup_columns: (grouping.subgroup_columns ?: []).collect { col -> addMetadataPrefix(col as String) },
+        comparison_column: grouping.comparison_column != null ? addMetadataPrefix(grouping.comparison_column as String) : null,
+        comparison_reference: (grouping.comparison_reference ?: [:]).collectEntries { col, values -> [(addMetadataPrefix(col as String)): toStringList(values)] },
     ]
 }
 
@@ -396,6 +442,8 @@ def parseGroupings(groups_file) {
             excluded: [],
             filter: [:],
             subgroup_columns: [],
+            comparison_column: null,
+            comparison_reference: [:],
         ]
         return [cell: [all_grouping], well: [all_grouping]]
     }
@@ -413,12 +461,14 @@ def parseGroupings(groups_file) {
 
 //
 // Columns PARTITION_PROFILES must split by: the union of every grouping's grouping_column,
-// subgroup_columns, and filter columns across both aggregate levels.
+// subgroup_columns, filter, comparison_column, and comparison_reference columns across both aggregate levels.
 //
 def groupingPartitionColumns(parsed_groups) {
     def groupings = parsed_groups.cell + parsed_groups.well
     def columns = groupings.collectMany { grouping ->
-        [grouping.grouping_column] + grouping.subgroup_columns + grouping.filter.keySet()
+        def grouping_columns = [grouping.grouping_column] + grouping.subgroup_columns + grouping.filter.keySet()
+        def comparison_columns = [grouping.comparison_column] + (grouping.comparison_reference ?: [:]).keySet()
+        grouping_columns + comparison_columns
     }
     return columns.findAll().unique() as List<String>
 }
@@ -441,6 +491,8 @@ def groupingPartitionColumns(parsed_groups) {
 // group_meta identifies the group:
 //   [project, aggregate_level, grouping_name, grouping_column, group, subgroup_values, group_id, group_tag]
 // group_tag (see groupTag) names the group's output files.
+// Per-well groups of a grouping with a comparison_column also get comparison_column and
+// comparison_reference (null if not given). Per-cell groups never include these keys.
 // Expected sizes count the plate partition keys in each group. They're used as the `size`
 // argument to groupKey(...) so groupTuple can emit each group eagerly rather than waiting for
 // the upstream channel to close.
@@ -485,6 +537,13 @@ def buildAnalysisGroups(parsed_groups, plate_partition_keys) {
                     group_id: groupId(grouping.grouping_column, group_key.group, group_key.subgroup_values),
                 ]
                 group_meta = group_meta + [group_tag: groupTag(group_meta)]
+                // comparisons run on per-well profiles only
+                if (aggregate_level == 'well' && grouping.comparison_column) {
+                    group_meta = group_meta + [
+                        comparison_column: grouping.comparison_column,
+                        comparison_reference: grouping.comparison_reference ?: null,
+                    ]
+                }
                 def group_with_size = [group_meta, members.size()]
                 // the same partition key can come from several plates; list each group once
                 def member_keys = members.collect { plate_partition_key -> partitionKey(plate_partition_key, partition_columns) } as Set
@@ -629,6 +688,7 @@ def validateGroupTags(analysis_groups) {
 //   - named groups that don't account for an observed (filtered) value
 //   - always_include values absent from the filtered rows
 //   - always_include values absent from any subgroup (within a project) that has other rows
+//   - comparison_column or comparison_reference problems (see comparisonDataErrors)
 // Groupings shared by both aggregate levels (default groupings) are checked once.
 //
 def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
@@ -650,6 +710,7 @@ def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
             errors << "${label}: filter ${grouping.filter} matches no rows."
             return
         }
+        errors.addAll(comparisonDataErrors(grouping, filtered, label))
         def observed = filtered.collect { plate_partition_key -> plate_partition_key[grouping.grouping_column] }.unique()
 
         // accounting rule for named groups
@@ -682,6 +743,44 @@ def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
             if (subgroup_missing) {
                 errors << "${label}: always_include values ${subgroup_missing} were not found in subgroup ${subgroup}."
             }
+        }
+    }
+    return errors
+}
+
+//
+// Check a grouping's comparison keys against its plate partition keys after filtering (`filtered`),
+// for validateGroupingsAgainstData. Returns a list of error messages:
+//   - a comparison_column or comparison_reference column missing from any of those plates' platemaps
+//   - comparison_reference values found in none of the grouping's rows (after filter and excluded)
+// Reference wells missing from a particular group or plate are not errors; the analyses that use them handle that.
+//
+def comparisonDataErrors(grouping, filtered, label) {
+    if (!grouping.comparison_column) {
+        return []
+    }
+    def errors = []
+    def reference = grouping.comparison_reference ?: [:]
+
+    // as for filter columns, these columns must be present in every platemap: a missing comparison_column would put
+    // all of a plate's wells under a single '_Absent_' value, and a missing reference column would leave it without reference wells
+    def absent_columns = []
+    ([grouping.comparison_column] + reference.keySet()).unique().each { col ->
+        def plates = filtered.findAll { plate_partition_key -> plate_partition_key[col] == '_Absent_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
+        if (plates) {
+            def key = col == grouping.comparison_column ? 'comparison_column' : 'comparison_reference column'
+            errors << "${label}: ${key} '${col}' is missing from the platemap for plate(s) ${plates.join(', ')}."
+            absent_columns << col
+        }
+    }
+
+    def (shared, core) = splitGroupingPlatePartitionKeys(grouping, filtered)
+    def kept = shared + core
+    reference.findAll { col, _values -> !(col in absent_columns) }.each { col, values ->
+        def observed = kept.collect { plate_partition_key -> plate_partition_key[col] } as Set
+        def missing = values.findAll { value -> !(value in observed) }
+        if (missing) {
+            errors << "${label}: comparison_reference values ${missing} were not found in '${col}' after applying filter and excluded."
         }
     }
     return errors

@@ -26,18 +26,17 @@ The pipeline adheres to nf-core guidelines as much as possible to promote modula
 
 ## Testing
 
-- After finishing a set of edits, stop and describe the changes; do NOT run the full nf-test suite until the human says to.
-  Quick, targeted checks (e.g. running a template helper on a small synthetic DataFrame) are fine once testing is approved.
-- Pipeline tests use nf-test, with tests in `tests/` (e.g. `tests/default.nf.test` and its snapshot).
-- Module tests live in `modules/local/<module>/tests/main.nf.test`; run a single module's tests with e.g. `nf-test test modules/local/<module>/tests/main.nf.test`.
+- Run module, subworkflow, and function tests, and quick targeted checks (e.g. a template helper on a small synthetic DataFrame), whenever they help; no permission needed.
+  These live in `modules/local/<module>/tests/` and `subworkflows/local/<subworkflow>/tests/`; run them by path, e.g. `nf-test test modules/local/<module>/tests/main.nf.test`.
+- Ask the human before running pipeline tests (in `tests/`, e.g. `tests/default.nf.test` and its snapshot) or the whole suite (`nf-test test` with no path).
 - Check parquet outputs property by property (row count, column names, schema, specific values) with `path(file).parquet` (the nft-parquet plugin); never snapshot parquet md5s or calculated values.
   See `tests/README.md` for usage.
 - The synthetic test profiles are not tracked by git; generate them first with `uv run scripts/generate_test_data.py` (see `tests/data/README.md`).
-- Run the tests with both the default Nextflow version and the version pinned in CI (`.github/workflows/nf-test.yml`, currently 25.10.4):
+- Run tests with both the default Nextflow version and the version pinned in CI (`.github/workflows/nf-test.yml`, currently 25.10.4):
 
   ```bash
-  nf-test test
-  NXF_VER=25.10.4 nf-test test
+  nf-test test <path>
+  NXF_VER=25.10.4 nf-test test <path>
   ```
 
 - `nf-test.config` only applies the `test` profile, so tests that run real processes (e.g. the `-profile test` pipeline test) need a software environment.

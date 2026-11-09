@@ -47,6 +47,21 @@ cell:
 
 well:
   # grouping of per-well profiles by cell type, added to the default treatment grouping
+  # Treatments are compared within each cell type,
+  # each measured against the DMSO wells on the same plate
   - name: cell_type
     grouping_column: cell_type
     groups: one_per_value
+    comparison_column: treatment
+    comparison_reference:
+      treatment: [DMSO]
+
+  # Comparisons in the other direction: the cell types within each treatment
+  # DMSO joins every treatment's group so each cell type can be measured against its own DMSO wells
+  - name: cell_types_by_treatment
+    grouping_column: treatment
+    groups: one_per_value
+    always_include: [DMSO]
+    comparison_column: cell_type
+    comparison_reference:
+      treatment: [DMSO]

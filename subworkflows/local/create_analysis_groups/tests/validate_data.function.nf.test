@@ -427,6 +427,153 @@ nextflow_function {
         }
     }
 
+    test("validateGroupingsAgainstData: valid comparison keys produce no errors") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def plate_partition_key = { plate, treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
+                }
+                def grouping = { name, extra ->
+                    [
+                        name: name,
+                        grouping_column: 'Metadata_cell_type',
+                        groups: 'one_per_value',
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                        comparison_column: 'Metadata_treatment',
+                        comparison_reference: [:],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [],
+                    well: [
+                        grouping.call('no_reference', [:]),
+                        grouping.call('dmso_reference', [comparison_reference: [Metadata_treatment: ['DMSO']]]),
+                        // reference values need only appear somewhere in the grouping, not on every plate
+                        grouping.call('line_reference', [grouping_column: 'Metadata_treatment', comparison_column: 'Metadata_cell_type', comparison_reference: [Metadata_cell_type: ['lineB']]]),
+                    ],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', 'DMSO', 'lineA'),
+                    plate_partition_key.call('p1', 'drugA', 'lineA'),
+                    plate_partition_key.call('p2', 'drugA', 'lineB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
+    test("validateGroupingsAgainstData: comparison columns missing from a platemap are errors naming the plate") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def plate_partition_key = { plate, treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
+                }
+                def grouping = { name, extra ->
+                    [
+                        name: name,
+                        grouping_column: 'Metadata_cell_type',
+                        groups: 'one_per_value',
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                        comparison_column: 'Metadata_treatment',
+                        comparison_reference: [:],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [],
+                    well: [
+                        grouping.call('missing_comparison', [:]),
+                        grouping.call('missing_reference', [comparison_column: 'Metadata_dose', comparison_reference: [Metadata_treatment: ['DMSO']]]),
+                    ],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', 'DMSO', 'lineA') + [Metadata_dose: '1'],
+                    plate_partition_key.call('p2', '_Absent_', 'lineB') + [Metadata_dose: '1'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result
+            // a reference column missing from a platemap is not also reported as missing values
+            assert errors.size() == 2
+            assert errors.any { err -> err.contains("'missing_comparison'") && err.contains("comparison_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
+            assert errors.any { err -> err.contains("'missing_reference'") && err.contains("comparison_reference column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
+        }
+    }
+
+    test("validateGroupingsAgainstData: comparison_reference values not in the grouping's rows are errors") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def plate_partition_key = { plate, treatment, cell_type ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, project: 'demo', plate_id: plate]
+                }
+                def grouping = { name, extra ->
+                    [
+                        name: name,
+                        grouping_column: 'Metadata_cell_type',
+                        groups: 'one_per_value',
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                        comparison_column: 'Metadata_treatment',
+                        comparison_reference: [:],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [],
+                    well: [
+                        grouping.call('typo', [comparison_reference: [Metadata_treatment: ['DMSO', 'DSMO']]]),
+                        // DMSO wells are dropped by the filter
+                        grouping.call('filtered_out', [grouping_column: 'Metadata_treatment', groups: 'all_values', filter: [Metadata_cell_type: ['lineB']], comparison_reference: [Metadata_treatment: ['DMSO']]]),
+                        // DMSO wells are dropped by excluded
+                        grouping.call('excluded_reference', [grouping_column: 'Metadata_treatment', groups: 'all_values', excluded: ['DMSO'], comparison_reference: [Metadata_treatment: ['DMSO']]]),
+                    ],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', 'DMSO', 'lineA'),
+                    plate_partition_key.call('p1', 'drugA', 'lineA'),
+                    plate_partition_key.call('p2', 'drugA', 'lineB'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result
+            assert errors.size() == 3
+            assert errors.any { err -> err.contains("'typo'") && err.contains('[DSMO]') }
+            assert errors.any { err -> err.contains("'filtered_out'") && err.contains('[DMSO]') }
+            assert errors.any { err -> err.contains("'excluded_reference'") && err.contains('[DMSO]') }
+        }
+    }
+
     //
     // validateGroupTags
     //
