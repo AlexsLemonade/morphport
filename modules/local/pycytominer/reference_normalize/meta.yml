@@ -55,7 +55,7 @@ output:
           type: file
           description: |
             Reference-normalized profiles: metadata columns and kept features, reference wells included,
-            wells of plates without enough reference wells removed. No rows if the group was skipped.
+            wells of plates without enough reference wells removed. No rows, and metadata columns only, if the group was skipped.
           pattern: "reference_normalized_*.parquet"
       - "reference_normalized_features_*.txt":
           type: file

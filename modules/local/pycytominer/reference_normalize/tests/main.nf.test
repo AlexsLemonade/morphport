@@ -278,7 +278,7 @@ nextflow_process {
             assert meta.reference_normalized == true
             with(path(profiles).parquet) {
                 assert rowCount == 0
-                assert columnNames == metadataColumns + allFeatures
+                assert columnNames == metadataColumns
             }
             assert path(features).readLines() == []
 
