@@ -23,3 +23,8 @@ tests/data/**/*.parquet
 
 # local issue tracker for agent skills
 .scratch/
+
+# upstream PCCMA metadata copied by assets/pccma/scripts/build_source.py:
+# track only the provenance README (license notices are in assets/pccma/README.md)
+assets/pccma/source/*
+!assets/pccma/source/README.md
