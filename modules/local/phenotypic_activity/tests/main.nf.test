@@ -1,0 +1,261 @@
+nextflow_process {
+
+    name "Test Process PHENOTYPIC_ACTIVITY"
+    script "../main.nf"
+    process "PHENOTYPIC_ACTIVITY"
+    tag "modules"
+    tag "modules_local"
+    tag "phenotypic_activity"
+
+    // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring).
+    // They stand in for reference-normalized profiles, built from fixed directions with no random noise,
+    // so which items are active does not depend on the null's seed: an active item's wells all rank
+    // ahead of its reference wells, and an inactive item's wells all rank behind them.
+    // - profiles_treatments.parquet: one cell type on two plates, with drugActive, drugInactive, and
+    //   drugSingle (one well) wells, and one missing feature value
+    // - profiles_pooled_cell_types.parquet: two cell types with orthogonal baselines; drugA (lineA)
+    //   is inactive and drugB (lineB) is active, each against its own cell type's DMSO wells
+    // - profiles_cell_types.parquet: two cell types treated with drugA; lineA's drugA wells are active,
+    //   and lineB's are not
+    // Tests check which items are active, never exact mAP or p-values.
+
+    // Group metadata for comparing treatments within a cell type, as Groovy source text
+    def treatmentMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'cell_type',
+        grouping_column: 'Metadata_cell_type', group: 'lineA', subgroup_values: [:],
+        group_id: 'cell_type=lineA', group_tag: 'well__cell_type__cell_type=lineA',
+        plate_ids: ['P1', 'P2'],
+        comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
+        reference_normalized: true, reference_normalization_method: 'mad_robustize',
+    ]"""
+
+    // Group metadata for comparing treatments within a group that pools two cell types
+    def pooledCellTypesMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'cell_type_sets',
+        grouping_column: 'Metadata_cell_type', group: 'both_lines', subgroup_values: [:],
+        group_id: 'cell_type=both_lines', group_tag: 'well__cell_type_sets__cell_type=both_lines',
+        plate_ids: ['P1'],
+        comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
+        reference_normalized: true, reference_normalization_method: 'mad_robustize',
+    ]"""
+
+    // Group metadata for comparing cell types within a treatment
+    def cellTypeMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'cell_types_by_treatment',
+        grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
+        group_id: 'treatment=drugA', group_tag: 'well__cell_types_by_treatment__treatment=drugA',
+        plate_ids: ['P1'],
+        comparison_column: 'Metadata_cell_type', comparison_reference: [Metadata_treatment: ['DMSO']],
+        reference_normalized: true, reference_normalization_method: 'mad_robustize',
+    ]"""
+
+    // Process inputs, as Groovy source text; a closure because moduleDir is only defined inside a test.
+    // Uses a smaller null than the pipeline default, to keep the tests fast.
+    def defaultOptions = [distance: 'cosine', null_method: 'permutation', null_size: 10000, fdr_threshold: 0.05, seed: 1674, min_wells: 2]
+    def processInputs = { fixtureDir, meta, profiles, features = 'features.txt', options = defaultOptions -> """
+        input[0] = [
+            ${meta},
+            file('${fixtureDir}/${profiles}'),
+            file('${fixtureDir}/${features}'),
+        ]
+        input[1] = ${options.inspect()}
+    """ }
+
+    def activityColumns = { comparisonColumn ->
+        [comparisonColumn, 'n_wells', 'n_plates', 'n_reference_wells', 'mean_average_precision', 'p_value', 'corrected_p_value', 'active']
+    }
+    def activitySchema = { comparisonColumn ->
+        [(comparisonColumn): String, n_wells: Long, n_plates: Long, n_reference_wells: Long,
+         mean_average_precision: Double, p_value: Double, corrected_p_value: Double, active: Boolean]
+    }
+    // Rows of a parquet as maps
+    def rowMaps = { parquet -> parquet.rows.collect { row -> [parquet.columnNames.toList(), row.toList()].transpose().collectEntries() } }
+
+    test("treatments within a cell type") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", treatmentMeta, 'profiles_treatments.parquet')
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, activityFile, summaryFile) = process.out.result[0]
+            assert meta.group_tag == 'well__cell_type__cell_type=lineA'
+
+            def rows
+            with(path(activityFile).parquet) {
+                // drugSingle (one well) is dropped, and the reference wells (DMSO) are not scored
+                assert rowCount == 2
+                assert columnNames == activityColumns('Metadata_treatment')
+                assert schema == activitySchema('Metadata_treatment')
+                rows = rowMaps(delegate)
+            }
+            def byItem = rows.collectEntries { row -> [row.Metadata_treatment, row] }
+            assert byItem.keySet() == ['drugActive', 'drugInactive'] as Set
+            // drugActive is shifted from the DMSO wells; drugInactive is not
+            assert byItem.drugActive.active == true
+            assert byItem.drugInactive.active == false
+            // active is set from the corrected p-value and the threshold
+            byItem.values().each { row ->
+                assert row.active == (row.corrected_p_value < 0.05)
+            }
+            // 4 wells per plate on two plates; every DMSO well (8 per plate) is a negative
+            byItem.values().each { row ->
+                assert row.n_wells == 8
+                assert row.n_plates == 2
+                assert row.n_reference_wells == 16
+            }
+
+            def summary = path(summaryFile).json
+            assert summary.comparison_column == 'Metadata_treatment'
+            assert summary.comparison_reference == [Metadata_treatment: ['DMSO']]
+            assert summary.distance == 'cosine'
+            assert summary.null == 'permutation'
+            assert summary.null_size == 10000
+            assert summary.fdr_threshold == 0.05
+            assert summary.seed == 1674
+            assert summary.min_wells == 2
+            assert summary.copairs_version == '0.6.0'
+            assert summary.pos_sameby == ['Metadata_treatment']
+            assert summary.neg_sameby == ['Metadata_cell_type']
+            assert summary.neg_diffby == ['Metadata_treatment']
+            assert summary.reference_normalization_method == 'mad_robustize'
+            assert summary.n_wells_input == 33
+            assert summary.n_features_input == 44
+            assert summary.features_dropped_nan == ['Cytoplasm_Intensity_MeanIntensity_Mito']
+            assert summary.n_features_scored == 43
+            assert summary.items_dropped_too_few_wells == [drugSingle: 1]
+            assert summary.n_wells_scored == 16
+            assert summary.n_reference_wells == 16
+            assert summary.n_items_scored == 2
+            assert summary.n_items_active == 1
+            assert summary.skipped == false
+            assert summary.skip_reason == null
+
+            def versions = path(process.out.versions[0]).yaml
+            assert versions['PHENOTYPIC_ACTIVITY'].keySet() == ['python', 'pandas', 'copairs'] as Set
+        }
+    }
+
+    test("treatments within a group pooling two cell types - negatives matched on cell type") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", pooledCellTypesMeta, 'profiles_pooled_cell_types.parquet')
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, activityFile, summaryFile) = process.out.result[0]
+            def rows = rowMaps(path(activityFile).parquet)
+            def byItem = rows.collectEntries { row -> [row.Metadata_treatment, row] }
+            assert byItem.keySet() == ['drugA', 'drugB'] as Set
+            // drugA (lineA) is like lineA's DMSO wells, but not lineB's: it is not active
+            assert byItem.drugA.active == false
+            // drugB (lineB) is shifted from lineB's DMSO wells
+            assert byItem.drugB.active == true
+            // each item's negatives are its own cell type's 8 DMSO wells, not all 16
+            assert byItem.drugA.n_reference_wells == 8
+            assert byItem.drugB.n_reference_wells == 8
+
+            def summary = path(summaryFile).json
+            assert summary.neg_sameby == ['Metadata_cell_type']
+            assert summary.neg_diffby == ['Metadata_treatment']
+            assert summary.n_items_active == 1
+        }
+    }
+
+    test("cell types within a treatment - negatives matched on cell type") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", cellTypeMeta, 'profiles_cell_types.parquet')
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, activityFile, summaryFile) = process.out.result[0]
+            def rows
+            with(path(activityFile).parquet) {
+                assert rowCount == 2
+                assert columnNames == activityColumns('Metadata_cell_type')
+                assert schema == activitySchema('Metadata_cell_type')
+                rows = rowMaps(delegate)
+            }
+            def byItem = rows.collectEntries { row -> [row.Metadata_cell_type, row] }
+            // lineA's drugA wells are shifted from lineA's DMSO wells; lineB's are like lineB's DMSO wells
+            assert byItem.lineA.active == true
+            assert byItem.lineB.active == false
+            byItem.values().each { row ->
+                assert row.n_wells == 6
+                assert row.n_plates == 1
+                assert row.n_reference_wells == 8
+            }
+
+            def summary = path(summaryFile).json
+            // the comparison column is not a reference column, so it is matched rather than differed
+            assert summary.neg_sameby == ['Metadata_cell_type']
+            assert summary.neg_diffby == []
+        }
+    }
+
+    test("no item with enough wells - skipped") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", treatmentMeta, 'profiles_treatments.parquet', 'features.txt', defaultOptions + [min_wells: 9])
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, activityFile, summaryFile) = process.out.result[0]
+            with(path(activityFile).parquet) {
+                assert rowCount == 0
+                assert columnNames == activityColumns('Metadata_treatment')
+                assert schema == activitySchema('Metadata_treatment')
+            }
+            def summary = path(summaryFile).json
+            assert summary.skipped == true
+            assert summary.skip_reason == 'no compared item has at least 9 wells'
+            assert summary.items_dropped_too_few_wells == [drugActive: 8, drugInactive: 8, drugSingle: 1]
+            assert summary.n_items_scored == 0
+        }
+    }
+
+    test("misspelled option - fails") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", treatmentMeta, 'profiles_treatments.parquet', 'features.txt', defaultOptions - [fdr_threshold: 0.05] + [fdr_treshold: 0.05])
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("options is missing keys [fdr_threshold] or has unknown keys [fdr_treshold]") }
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", treatmentMeta, 'profiles_treatments.parquet')
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, activityFile, summaryFile) = process.out.result[0]
+            assert new File(activityFile).name == 'phenotypic_activity_well__cell_type__cell_type=lineA.parquet'
+            assert snapshot(meta, summaryFile, process.out.versions).match()
+        }
+    }
+}
