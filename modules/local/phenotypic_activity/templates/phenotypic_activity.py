@@ -182,12 +182,13 @@ def main():
     features_file = "${features_file}"
     # raw string so JSON escapes in metadata values survive
     meta = json.loads(r"""${meta_json}""")
-    distance = "${distance}"
-    null_method = "${null_method}"
-    null_size = int("${null_size}")
-    fdr_threshold = float("${fdr_threshold}")
-    seed = int("${seed}")
-    min_wells = int("${min_wells}")
+    options = json.loads(r"""${options_json}""")
+    distance = options["distance"]
+    null_method = options["null_method"]
+    null_size = int(options["null_size"])
+    fdr_threshold = float(options["fdr_threshold"])
+    seed = int(options["seed"])
+    min_wells = int(options["min_wells"])
     task_process = "${task.process}"
 
     validate_params(

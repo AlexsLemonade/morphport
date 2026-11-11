@@ -1,0 +1,101 @@
+name: phenotypic_activity
+description: |
+  Scores the phenotypic activity of each compared item in an analysis group with
+  mean average precision (mAP) from copairs: whether the item's reference-normalized
+  per-well profiles are retrieved ahead of the comparison reference wells (e.g. a
+  treatment's wells ahead of the DMSO wells of the same cell type).
+  An item's wells are its positives, and its negatives are the reference wells that
+  share the values of the group-defining columns that are not reference columns
+  (e.g. the same cell type). p-values come from a copairs null distribution, with
+  Benjamini-Hochberg correction across the items in the group; an item is active when
+  its corrected p-value is below the threshold.
+keywords:
+  - cell painting
+  - phenotypic activity
+  - mean average precision
+  - copairs
+
+tools:
+  - copairs:
+      description: Library for finding pairs of profiles and computing average precision and mean average precision.
+      homepage: https://github.com/cytomining/copairs
+      documentation: https://github.com/cytomining/copairs
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+  - pandas:
+      description: Data analysis library used for parquet IO and per-item counts.
+      homepage: https://pandas.pydata.org
+      documentation: https://pandas.pydata.org/docs
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Group meta map from PYCYTOMINER_REFERENCE_NORMALIZE, with comparison_column and
+          comparison_reference set, e.g.,
+          [ project:'cpg0016', aggregate_level:'well', grouping_name:'cell_type',
+            grouping_column:'Metadata_cell_type', group:'lineA', subgroup_values:[:],
+            group_id:'cell_type=lineA', group_tag:'well__cell_type__cell_type=lineA',
+            plate_ids:['plate_001','plate_002'], comparison_column:'Metadata_treatment',
+            comparison_reference:[Metadata_treatment:['DMSO']],
+            reference_normalized:true, reference_normalization_method:'mad_robustize' ]
+    - profiles:
+        type: file
+        description: |
+          Reference-normalized per-well profiles for this group, including the reference
+          wells. A parquet with no rows (a group skipped by reference normalization) gives
+          a skipped output.
+        pattern: "reference_normalized_*.parquet"
+    - features_file:
+        type: file
+        description: |
+          Feature list (one column name per line) from PYCYTOMINER_REFERENCE_NORMALIZE.
+          An empty file gives a skipped output.
+        pattern: "reference_normalized_features_*.txt"
+  - - options:
+        type: map
+        description: |
+          Named scoring options. Every key is required, and unknown keys are an error.
+            distance: Distance copairs uses to rank profiles (e.g. cosine, euclidean, correlation)
+            null_method: copairs null distribution of an item's mAP: permutation (label permutation
+              using the observed similarities) or copied (the copairs 0.5.x null)
+            null_size: Number of draws from the null distribution (at least 1)
+            fdr_threshold: Threshold (between 0 and 1) on the Benjamini-Hochberg corrected p-value
+              below which an item is active
+            seed: Random seed for the null distribution (at least 0)
+            min_wells: Minimum number of wells for an item to be scored; items with fewer wells are
+              dropped and listed in the summary. Items always need at least 2 wells (their positive pairs).
+          e.g. [ distance:'cosine', null_method:'permutation', null_size:1000000,
+                 fdr_threshold:0.05, seed:1674, min_wells:2 ]
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Group meta map (unchanged from input).
+      - "phenotypic_activity_*.parquet":
+          type: file
+          description: |
+            One row per scored item, with the comparison column, n_wells, n_plates,
+            n_reference_wells (distinct reference wells used as the item's negatives),
+            mean_average_precision, p_value, corrected_p_value, and active.
+            Reference wells are not scored. Empty (zero rows, same columns) for skipped groups.
+          pattern: "phenotypic_activity_*.parquet"
+      - "phenotypic_activity_summary_*.json":
+          type: file
+          description: |
+            Summary JSON with group identity, scoring parameters, copairs version, pairing
+            columns, dropped features and items, normalization settings, item counts, and
+            skip status (skipped and skip_reason).
+          pattern: "phenotypic_activity_summary_*.json"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module.
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
