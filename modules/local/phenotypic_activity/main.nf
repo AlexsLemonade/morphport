@@ -25,12 +25,11 @@ process PHENOTYPIC_ACTIVITY {
     script:
     assert meta.comparison_column && meta.comparison_reference
         : "PHENOTYPIC_ACTIVITY: group ${meta.group_tag} has no comparison_column or comparison_reference"
-    // Every option must be given, and no others, so a misspelled key fails rather than being ignored
+    // Every option must be given; other keys are ignored
     def option_keys = ['distance', 'null_method', 'null_size', 'fdr_threshold', 'seed', 'min_wells']
     def missing_keys = option_keys - options.keySet()
-    def unknown_keys = options.keySet() - option_keys
-    assert !missing_keys && !unknown_keys
-        : "PHENOTYPIC_ACTIVITY: options is missing keys ${missing_keys} or has unknown keys ${unknown_keys}"
+    assert !missing_keys
+        : "PHENOTYPIC_ACTIVITY: options is missing keys ${missing_keys}"
     meta_json = groovy.json.JsonOutput.toJson(meta)
     options_json = groovy.json.JsonOutput.toJson(options)
     template 'phenotypic_activity.py'

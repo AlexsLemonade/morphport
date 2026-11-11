@@ -247,8 +247,9 @@ nextflow_process {
         }
     }
 
-    test("misspelled option - fails") {
+    test("missing option - fails") {
 
+        // fdr_threshold is misspelled: the unknown key is ignored, and the missing one fails
         when {
             process {
                 processInputs("${moduleDir}/tests/fixtures", treatmentMeta, 'profiles_treatments.parquet', 'features.txt', defaultOptions - [fdr_threshold: 0.05] + [fdr_treshold: 0.05])
@@ -257,7 +258,7 @@ nextflow_process {
 
         then {
             assert process.failed
-            assert process.stdout.any { line -> line.contains("options is missing keys [fdr_threshold] or has unknown keys [fdr_treshold]") }
+            assert process.stdout.any { line -> line.contains("options is missing keys [fdr_threshold]") }
         }
     }
 

@@ -58,7 +58,7 @@ input:
   - - options:
         type: map
         description: |
-          Named scoring options. Every key is required, and unknown keys are an error.
+          Named scoring options. Every key is required; other keys are ignored.
             distance: Distance copairs uses to rank profiles (e.g. cosine, euclidean, correlation)
             null_method: copairs null distribution of a comparison value's mAP: permutation (label permutation
               using the observed similarities) or copied (the copairs 0.5.x null)
@@ -71,7 +71,7 @@ input:
               Wells are only compared within a cell type (more precisely, within one combination of the
               matched columns), so a treatment's wells in a cell type where it has too few are dropped
               and listed in the summary, and a treatment with no wells left is not scored.
-              Values below 2 are treated as 2, since a well needs at least one other well to match.
+              Must be at least 1, and 1 is treated as 2, since a well needs at least one other well to match.
           e.g. [ distance:'cosine', null_method:'permutation', null_size:1000000,
                  fdr_threshold:0.05, seed:1674, min_wells:2 ]
 

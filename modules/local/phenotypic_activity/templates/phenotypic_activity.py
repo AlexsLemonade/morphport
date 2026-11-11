@@ -14,9 +14,9 @@ features_file, and then:
 1. Drops features with any NaN value (copairs needs complete profiles).
 2. Drops non-reference wells with no comparison column value, and the wells of a comparison
    column value (e.g. a treatment) in any cell type (more precisely, any combination of the
-   match columns, below) where it has fewer than min_wells wells. Values of min_wells below 2
-   are treated as 2, since a well needs at least one other well to match. A treatment with no
-   wells left is not scored.
+   match columns, below) where it has fewer than min_wells wells. min_wells must be at least
+   1, and 1 is treated as 2, since a well needs at least one other well to match. A treatment
+   with no wells left is not scored.
 3. Computes the average precision (AP) of every well with copairs. A well's pairs are matched
    on the match columns: the columns that define the analysis group (grouping, subgroup, and
    comparison columns) that are not reference columns. These are the same columns that split
