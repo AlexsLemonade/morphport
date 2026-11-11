@@ -28,3 +28,6 @@ tests/data/**/*.parquet
 # track only the provenance README (license notices are in assets/pccma/README.md)
 assets/pccma/source/*
 !assets/pccma/source/README.md
+
+# PCCMA platemaps built from source/ by assets/pccma/scripts/build_platemaps.py
+assets/pccma/platemaps/
