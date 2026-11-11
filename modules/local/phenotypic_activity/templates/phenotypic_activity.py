@@ -1,34 +1,40 @@
 #!/usr/bin/env python3
 """
-Nextflow template script to score the phenotypic activity of each compared item in one
+Nextflow template script to score the phenotypic activity of each comparison value in one
 analysis group with mean average precision (mAP), using copairs.
 
-A compared item is the set of non-reference wells that share one value of the comparison
-column (e.g. one treatment, when comparing treatments within a cell type). An item is active
-when its wells are retrieved ahead of the comparison reference wells (e.g. DMSO wells) more
-often than expected by chance.
+A comparison value is one value of the comparison column (e.g. one treatment, when comparing
+treatments within a cell type), together with the non-reference wells that share it. It is
+active when its wells are retrieved ahead of the comparison reference wells (e.g. DMSO wells)
+more often than expected by chance.
 
 Reads the reference-normalized profiles, keeps the metadata columns and the features listed in
 features_file, and then:
 
 1. Drops features with any NaN value (copairs needs complete profiles).
-2. Drops non-reference wells with no comparison column value, and compared items with fewer
-   than min_wells wells (at least 2, since an item's wells are its positive pairs).
-3. Computes the average precision (AP) of every well with copairs, using these pairs:
-   - positives: wells of the same item (same comparison column value, not reference wells);
-   - negatives: an item's wells paired with reference wells that share the values of the
-     match columns: the columns that define the analysis group (grouping, subgroup, and
-     comparison columns) that are not reference columns. These are the same columns that
-     split the normalization sets in reference normalization, so each well is compared with
-     the reference wells it was normalized to (e.g. its own cell type's DMSO wells).
-4. Drops the reference wells' AP rows, and computes each item's mAP and its p-value against
-   a null distribution (copairs mean_average_precision), with Benjamini-Hochberg correction
-   across the items in the group.
-   An item is active when its corrected p-value is below fdr_threshold.
+2. Drops non-reference wells with no comparison column value, and the wells of a comparison
+   column value (e.g. a treatment) in any cell type (more precisely, any combination of the
+   match columns, below) where it has fewer than min_wells wells. Values of min_wells below 2
+   are treated as 2, since a well needs at least one other well to match. A treatment with no
+   wells left is not scored.
+3. Computes the average precision (AP) of every well with copairs. A well's pairs are matched
+   on the match columns: the columns that define the analysis group (grouping, subgroup, and
+   comparison columns) that are not reference columns. These are the same columns that split
+   the normalization sets in reference normalization, so, e.g., a well is compared only with
+   wells of its own cell type, whose reference wells it was normalized to.
+   - positives: the other wells of the same comparison value (not reference wells) that share
+     the match columns;
+   - negatives: the reference wells that share the match columns.
+   In a group that pools cell types and compares treatments, a treatment's wells in one cell
+   type are therefore neither positives nor negatives of its wells in another.
+4. Drops the reference wells' AP rows, and computes each comparison value's mAP and its
+   p-value against a null distribution (copairs mean_average_precision), with
+   Benjamini-Hochberg correction across the comparison values in the group.
+   A comparison value is active when its corrected p-value is below fdr_threshold.
 
-Writes one row per scored item, with per-item counts, mAP, p-values, and the active flag, and
-a JSON summary. Groups with no profiles (skipped by reference normalization), no complete
-features, or no compared item with enough wells are skipped: the table has no rows.
+Writes one row per scored comparison value, with its counts, mAP, p-values, and the active
+flag, and a JSON summary. Groups with no profiles (skipped by reference normalization), no
+complete features, or no comparison value with enough wells are skipped: the table has no rows.
 """
 
 import json
@@ -41,10 +47,10 @@ from copairs.matching import assign_reference_index
 
 PLATE_COLUMN = "Metadata_Plate"
 # Temporary column: each reference well gets its own index, and other wells get -1,
-# so reference wells are never positives of each other or of the compared items
+# so reference wells are never positives of each other or of the comparison values' wells
 REFERENCE_INDEX = "Metadata__reference_index"
 NON_REFERENCE = -1
-# An item needs at least two wells: its wells' positive pairs are each other
+# A comparison value needs at least two wells in a cell type: its wells' positives are each other
 MIN_SCORABLE_WELLS = 2
 NULL_METHODS = ("permutation", "copied")
 
@@ -85,12 +91,12 @@ def match_columns(
     reference_columns: list[str],
 ) -> list[str]:
     """
-    Columns whose values an item's well and its negative (reference) wells must share.
+    Columns whose values a well and its positive and negative wells must share.
 
     These are the columns that define the analysis group (the grouping column, the subgroup columns,
     and the comparison column) except the reference columns, matching the columns (other than plate)
     that split the normalization sets in reference normalization. Reference columns are left out
-    because the reference wells differ from the item's wells in them by definition.
+    because the reference wells differ from the comparison values' wells in them by definition.
     Columns with a single value in the group add no constraint. Duplicates are listed once, in order.
     """
     context_columns = [grouping_column, *subgroup_columns, comparison_column]
@@ -99,6 +105,13 @@ def match_columns(
         for col in dict.fromkeys(context_columns)
         if col is not None and col != PLATE_COLUMN and col not in reference_columns
     ]
+
+
+def set_label(columns: list[str], key) -> dict:
+    """Map a groupby key over columns to a {column: value} dict, with values as text."""
+    if not isinstance(key, tuple):
+        key = (key,)
+    return {col: (None if pd.isna(val) else str(val)) for col, val in zip(columns, key)}
 
 
 def empty_activity_table(comparison_column: str) -> pd.DataFrame:
@@ -119,19 +132,19 @@ def empty_activity_table(comparison_column: str) -> pd.DataFrame:
 
 def write_summary(
     summary: dict,
-    n_items_scored: int,
-    n_items_active: int,
+    n_comparison_values_scored: int,
+    n_comparison_values_active: int,
     skip_reason: str | None,
     group_tag: str,
 ):
     """
-    Write phenotypic_activity_summary_{group_tag}.json: summary, plus the item counts and skip status.
+    Write phenotypic_activity_summary_{group_tag}.json: summary, plus the comparison value counts and skip status.
     summary is not modified.
     """
     output_summary = {
         **summary,
-        "n_items_scored": n_items_scored,
-        "n_items_active": n_items_active,
+        "n_comparison_values_scored": n_comparison_values_scored,
+        "n_comparison_values_active": n_comparison_values_active,
         "skipped": skip_reason is not None,
         "skip_reason": skip_reason,
     }
@@ -149,31 +162,31 @@ def write_skipped(
     )
     write_summary(
         summary=summary,
-        n_items_scored=0,
-        n_items_active=0,
+        n_comparison_values_scored=0,
+        n_comparison_values_active=0,
         skip_reason=skip_reason,
         group_tag=group_tag,
     )
 
 
-def reference_wells_per_item(
-    neg_pairs, items: pd.Series, is_reference: pd.Series
+def reference_wells_per_comparison_value(
+    neg_pairs, comparison_values: pd.Series, is_reference: pd.Series
 ) -> pd.Series:
     """
-    Number of distinct reference wells used as negatives by each item's wells.
+    Number of distinct reference wells used as negatives by each comparison value's wells.
 
-    neg_pairs is copairs' (n, 2) array of negative pairs, indexing the rows of items and is_reference.
-    A pair is unordered, so each pair is read in both orientations, keeping those from an item's
+    neg_pairs is copairs' (n, 2) array of negative pairs, indexing the rows of comparison_values and is_reference.
+    A pair is unordered, so each pair is read in both orientations, keeping those from a comparison value's
     well to a reference well.
     """
     pairs = pd.DataFrame(neg_pairs, columns=["first", "second"])
     reversed_pairs = pairs.rename(columns={"first": "second", "second": "first"})
     both_orientations = pd.concat([pairs, reversed_pairs], ignore_index=True)
-    from_item = ~is_reference.loc[both_orientations["first"]].to_numpy()
+    from_comparison_value = ~is_reference.loc[both_orientations["first"]].to_numpy()
     to_reference = is_reference.loc[both_orientations["second"]].to_numpy()
-    item_to_reference = both_orientations[from_item & to_reference]
-    item_values = items.loc[item_to_reference["first"]].to_numpy()
-    return item_to_reference["second"].groupby(item_values).nunique()
+    value_to_reference = both_orientations[from_comparison_value & to_reference]
+    pair_values = comparison_values.loc[value_to_reference["first"]].to_numpy()
+    return value_to_reference["second"].groupby(pair_values).nunique()
 
 
 def main():
@@ -205,23 +218,27 @@ def main():
     activity_path = f"phenotypic_activity_{group_tag}.parquet"
     comparison_column = meta["comparison_column"]
     comparison_reference = meta["comparison_reference"]
-    negatives_match_by = match_columns(
+    match_by = match_columns(
         grouping_column=meta["grouping_column"],
         subgroup_columns=list(meta["subgroup_values"].keys()),
         comparison_column=comparison_column,
         reference_columns=list(comparison_reference.keys()),
     )
-    # items whose wells are positives of each other: one per comparison column value, excluding reference wells
-    pos_sameby = [comparison_column, REFERENCE_INDEX]
-    # negatives: an item's wells paired with the reference wells that share the match columns.
+    # columns a comparison value's wells are split by before scoring: within a comparison value, only wells that share
+    # these values are positives of each other (the comparison column, then the other match columns)
+    value_set_by = list(dict.fromkeys([comparison_column, *match_by]))
+    # positives: wells of the same comparison value that share the match columns, excluding reference wells
+    # (each reference well has its own reference index)
+    pos_sameby = [*value_set_by, REFERENCE_INDEX]
+    # negatives: a comparison value's wells paired with the reference wells that share the match columns.
     # When the comparison column is a reference column (e.g. treatments, reference DMSO), it is also
     # in neg_diffby, as in the copairs phenotypic activity recipe.
-    neg_sameby = negatives_match_by
+    neg_sameby = match_by
     if comparison_column in comparison_reference:
         neg_diffby = [comparison_column, REFERENCE_INDEX]
     else:
         neg_diffby = [REFERENCE_INDEX]
-    # an item needs at least two wells to have positive pairs, whatever min_wells is
+    # a comparison value needs at least two wells in a cell type to have positive pairs, whatever min_wells is
     effective_min_wells = max(min_wells, MIN_SCORABLE_WELLS)
 
     summary = {
@@ -240,7 +257,7 @@ def main():
         "seed": seed,
         "min_wells": min_wells,
         "copairs_version": version("copairs"),
-        "pos_sameby": [comparison_column],
+        "pos_sameby": value_set_by,
         "neg_sameby": neg_sameby,
         "neg_diffby": [col for col in neg_diffby if col != REFERENCE_INDEX],
         "reference_normalization_method": meta.get("reference_normalization_method"),
@@ -259,7 +276,7 @@ def main():
     summary["n_features_input"] = len(features)
     if not features or len(df) == 0:
         summary["features_dropped_nan"] = []
-        summary["items_dropped_too_few_wells"] = {}
+        summary["comparison_value_wells_dropped_too_few_wells"] = []
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
@@ -275,7 +292,7 @@ def main():
             [
                 comparison_column,
                 PLATE_COLUMN,
-                *negatives_match_by,
+                *match_by,
                 *comparison_reference,
             ]
         )
@@ -299,7 +316,7 @@ def main():
     summary["features_dropped_nan"] = dropped_features
     summary["n_features_scored"] = len(kept_features)
     if not kept_features:
-        summary["items_dropped_too_few_wells"] = {}
+        summary["comparison_value_wells_dropped_too_few_wells"] = []
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
@@ -318,17 +335,24 @@ def main():
         is_reference = is_reference & matches_column
     is_reference = is_reference.astype(bool)
 
-    # ---- Drop wells that can't be scored, and items with too few wells --------
-    # non-reference wells with no comparison value belong to no item
-    no_item = ~is_reference & df[comparison_column].isna()
-    summary["n_wells_dropped_no_comparison_value"] = int(no_item.sum())
-    item_sizes = df[~is_reference & ~no_item].groupby(comparison_column).size()
-    small_items = item_sizes[item_sizes < effective_min_wells]
-    summary["items_dropped_too_few_wells"] = {
-        str(item): int(n_wells) for item, n_wells in small_items.items()
-    }
-    in_small_item = ~is_reference & df[comparison_column].isin(small_items.index)
-    keep_wells = ~no_item & ~in_small_item
+    # ---- Drop wells that can't be scored -------------------------------------
+    # non-reference wells with no comparison column value can't be scored
+    no_comparison_value = ~is_reference & df[comparison_column].isna()
+    summary["n_wells_dropped_no_comparison_value"] = int(no_comparison_value.sum())
+    # A comparison value's wells are scored only against the other wells that share the match columns (e.g. its
+    # wells in the same cell type), so each such set of wells needs at least effective_min_wells wells.
+    # Small sets are dropped, and a comparison value whose sets are all small is dropped with them.
+    value_wells = df[~is_reference & ~no_comparison_value]
+    in_small_set = pd.Series(False, index=df.index)
+    small_sets = []
+    for key, set_df in value_wells.groupby(value_set_by, dropna=False, sort=True):
+        if len(set_df) < effective_min_wells:
+            in_small_set[set_df.index] = True
+            small_sets.append(
+                {**set_label(columns=value_set_by, key=key), "n_wells": len(set_df)}
+            )
+    summary["comparison_value_wells_dropped_too_few_wells"] = small_sets
+    keep_wells = ~no_comparison_value & ~in_small_set
     df = df[keep_wells].reset_index(drop=True)
     is_reference = is_reference[keep_wells].reset_index(drop=True)
     summary["n_wells_scored"] = int((~is_reference).sum())
@@ -337,7 +361,7 @@ def main():
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
-            skip_reason=f"no compared item has at least {effective_min_wells} wells",
+            skip_reason=f"no comparison value has at least {effective_min_wells} wells with the same values of {value_set_by}",
             group_tag=group_tag,
         )
         return
@@ -361,15 +385,15 @@ def main():
         progress_bar=False,
         return_pairs=True,
     )
-    n_reference_wells = reference_wells_per_item(
+    n_reference_wells = reference_wells_per_comparison_value(
         neg_pairs=pairs["neg"],
-        items=df[comparison_column],
+        comparison_values=df[comparison_column],
         is_reference=is_reference,
     )
     # the reference wells' APs are not tested
     ap_scores = ap_scores[ap_scores[REFERENCE_INDEX] == NON_REFERENCE]
 
-    # ---- mAP and significance of each item -----------------------------------
+    # ---- mAP and significance of each comparison value -----------------------
     map_scores = mean_average_precision(
         ap_scores,
         sameby=[comparison_column],
@@ -380,9 +404,9 @@ def main():
         null=null_method,
     )
 
-    # ---- Per-item counts, and the activity table ----------------------------
-    item_wells = df[~is_reference]
-    counts = item_wells.groupby(comparison_column).agg(
+    # ---- Counts per comparison value, and the activity table -----------------
+    value_wells = df[~is_reference]
+    counts = value_wells.groupby(comparison_column).agg(
         n_wells=(PLATE_COLUMN, "size"), n_plates=(PLATE_COLUMN, "nunique")
     )
     counts["n_reference_wells"] = n_reference_wells.reindex(counts.index, fill_value=0)
@@ -409,8 +433,8 @@ def main():
     activity.to_parquet(activity_path, index=False)
     write_summary(
         summary=summary,
-        n_items_scored=len(activity),
-        n_items_active=int(activity["active"].sum()),
+        n_comparison_values_scored=len(activity),
+        n_comparison_values_active=int(activity["active"].sum()),
         skip_reason=None,
         group_tag=group_tag,
     )

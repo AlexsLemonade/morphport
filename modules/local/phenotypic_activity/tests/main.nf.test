@@ -9,15 +9,16 @@ nextflow_process {
 
     // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring).
     // They stand in for reference-normalized profiles, built from fixed directions with no random noise,
-    // so which items are active does not depend on the null's seed: an active item's wells all rank
-    // ahead of its reference wells, and an inactive item's wells all rank behind them.
+    // so which comparison values are active does not depend on the null's seed: an active comparison
+    // value's wells all rank ahead of its reference wells, and an inactive one's all rank behind them.
     // - profiles_treatments.parquet: one cell type on two plates, with drugActive, drugInactive, and
     //   drugSingle (one well) wells, and one missing feature value
     // - profiles_pooled_cell_types.parquet: two cell types with orthogonal baselines; drugA (lineA)
-    //   is inactive and drugB (lineB) is active, each against its own cell type's DMSO wells
+    //   is inactive and drugB (lineB) is active, each against its own cell type's DMSO wells; drugC
+    //   (both cell types) is active; one drugB well in lineA has no other drugB well in its cell type
     // - profiles_cell_types.parquet: two cell types treated with drugA; lineA's drugA wells are active,
     //   and lineB's are not
-    // Tests check which items are active, never exact mAP or p-values.
+    // Tests check which comparison values are active, never exact mAP or p-values.
 
     // Group metadata for comparing treatments within a cell type, as Groovy source text
     def treatmentMeta = """[
@@ -92,17 +93,17 @@ nextflow_process {
                 assert schema == activitySchema('Metadata_treatment')
                 rows = rowMaps(delegate)
             }
-            def byItem = rows.collectEntries { row -> [row.Metadata_treatment, row] }
-            assert byItem.keySet() == ['drugActive', 'drugInactive'] as Set
+            def byValue = rows.collectEntries { row -> [row.Metadata_treatment, row] }
+            assert byValue.keySet() == ['drugActive', 'drugInactive'] as Set
             // drugActive is shifted from the DMSO wells; drugInactive is not
-            assert byItem.drugActive.active == true
-            assert byItem.drugInactive.active == false
+            assert byValue.drugActive.active == true
+            assert byValue.drugInactive.active == false
             // active is set from the corrected p-value and the threshold
-            byItem.values().each { row ->
+            byValue.values().each { row ->
                 assert row.active == (row.corrected_p_value < 0.05)
             }
             // 4 wells per plate on two plates; every DMSO well (8 per plate) is a negative
-            byItem.values().each { row ->
+            byValue.values().each { row ->
                 assert row.n_wells == 8
                 assert row.n_plates == 2
                 assert row.n_reference_wells == 16
@@ -118,7 +119,7 @@ nextflow_process {
             assert summary.seed == 1674
             assert summary.min_wells == 2
             assert summary.copairs_version == '0.6.0'
-            assert summary.pos_sameby == ['Metadata_treatment']
+            assert summary.pos_sameby == ['Metadata_treatment', 'Metadata_cell_type']
             assert summary.neg_sameby == ['Metadata_cell_type']
             assert summary.neg_diffby == ['Metadata_treatment']
             assert summary.reference_normalization_method == 'mad_robustize'
@@ -126,11 +127,13 @@ nextflow_process {
             assert summary.n_features_input == 44
             assert summary.features_dropped_nan == ['Cytoplasm_Intensity_MeanIntensity_Mito']
             assert summary.n_features_scored == 43
-            assert summary.items_dropped_too_few_wells == [drugSingle: 1]
+            assert summary.comparison_value_wells_dropped_too_few_wells == [
+                [Metadata_treatment: 'drugSingle', Metadata_cell_type: 'lineA', n_wells: 1],
+            ]
             assert summary.n_wells_scored == 16
             assert summary.n_reference_wells == 16
-            assert summary.n_items_scored == 2
-            assert summary.n_items_active == 1
+            assert summary.n_comparison_values_scored == 2
+            assert summary.n_comparison_values_active == 1
             assert summary.skipped == false
             assert summary.skip_reason == null
 
@@ -139,7 +142,7 @@ nextflow_process {
         }
     }
 
-    test("treatments within a group pooling two cell types - negatives matched on cell type") {
+    test("treatments within a group pooling two cell types - pairs matched on cell type") {
 
         when {
             process {
@@ -151,20 +154,31 @@ nextflow_process {
             assert process.success
             def (_meta, activityFile, summaryFile) = process.out.result[0]
             def rows = rowMaps(path(activityFile).parquet)
-            def byItem = rows.collectEntries { row -> [row.Metadata_treatment, row] }
-            assert byItem.keySet() == ['drugA', 'drugB'] as Set
+            def byValue = rows.collectEntries { row -> [row.Metadata_treatment, row] }
+            assert byValue.keySet() == ['drugA', 'drugB', 'drugC'] as Set
             // drugA (lineA) is like lineA's DMSO wells, but not lineB's: it is not active
-            assert byItem.drugA.active == false
-            // drugB (lineB) is shifted from lineB's DMSO wells
-            assert byItem.drugB.active == true
-            // each item's negatives are its own cell type's 8 DMSO wells, not all 16
-            assert byItem.drugA.n_reference_wells == 8
-            assert byItem.drugB.n_reference_wells == 8
+            assert byValue.drugA.active == false
+            // drugB (lineB) and drugC (both cell types) are shifted from their cell type's DMSO wells
+            assert byValue.drugB.active == true
+            assert byValue.drugC.active == true
+            // each well's negatives are its own cell type's 8 DMSO wells, not all 16;
+            // drugC has wells in both cell types, so it uses both cell types' DMSO wells
+            assert byValue.drugA.n_reference_wells == 8
+            assert byValue.drugB.n_reference_wells == 8
+            assert byValue.drugC.n_reference_wells == 16
+            // drugB's single lineA well has no other drugB well in its cell type, so it is dropped
+            assert byValue.drugB.n_wells == 6
+            assert byValue.drugC.n_wells == 6
 
             def summary = path(summaryFile).json
+            // positives and negatives are both matched on cell type
+            assert summary.pos_sameby == ['Metadata_treatment', 'Metadata_cell_type']
             assert summary.neg_sameby == ['Metadata_cell_type']
             assert summary.neg_diffby == ['Metadata_treatment']
-            assert summary.n_items_active == 1
+            assert summary.comparison_value_wells_dropped_too_few_wells == [
+                [Metadata_treatment: 'drugB', Metadata_cell_type: 'lineA', n_wells: 1],
+            ]
+            assert summary.n_comparison_values_active == 2
         }
     }
 
@@ -186,11 +200,11 @@ nextflow_process {
                 assert schema == activitySchema('Metadata_cell_type')
                 rows = rowMaps(delegate)
             }
-            def byItem = rows.collectEntries { row -> [row.Metadata_cell_type, row] }
+            def byValue = rows.collectEntries { row -> [row.Metadata_cell_type, row] }
             // lineA's drugA wells are shifted from lineA's DMSO wells; lineB's are like lineB's DMSO wells
-            assert byItem.lineA.active == true
-            assert byItem.lineB.active == false
-            byItem.values().each { row ->
+            assert byValue.lineA.active == true
+            assert byValue.lineB.active == false
+            byValue.values().each { row ->
                 assert row.n_wells == 6
                 assert row.n_plates == 1
                 assert row.n_reference_wells == 8
@@ -198,12 +212,13 @@ nextflow_process {
 
             def summary = path(summaryFile).json
             // the comparison column is not a reference column, so it is matched rather than differed
+            assert summary.pos_sameby == ['Metadata_cell_type']
             assert summary.neg_sameby == ['Metadata_cell_type']
             assert summary.neg_diffby == []
         }
     }
 
-    test("no item with enough wells - skipped") {
+    test("no comparison value with enough wells - skipped") {
 
         when {
             process {
@@ -221,9 +236,13 @@ nextflow_process {
             }
             def summary = path(summaryFile).json
             assert summary.skipped == true
-            assert summary.skip_reason == 'no compared item has at least 9 wells'
-            assert summary.items_dropped_too_few_wells == [drugActive: 8, drugInactive: 8, drugSingle: 1]
-            assert summary.n_items_scored == 0
+            assert summary.skip_reason == "no comparison value has at least 9 wells with the same values of ['Metadata_treatment', 'Metadata_cell_type']"
+            assert summary.comparison_value_wells_dropped_too_few_wells == [
+                [Metadata_treatment: 'drugActive', Metadata_cell_type: 'lineA', n_wells: 8],
+                [Metadata_treatment: 'drugInactive', Metadata_cell_type: 'lineA', n_wells: 8],
+                [Metadata_treatment: 'drugSingle', Metadata_cell_type: 'lineA', n_wells: 1],
+            ]
+            assert summary.n_comparison_values_scored == 0
         }
     }
 

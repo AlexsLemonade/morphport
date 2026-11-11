@@ -1,4 +1,4 @@
-// Scores the phenotypic activity of each compared item in one analysis group: whether the item's
+// Scores the phenotypic activity of each comparison value in one analysis group: whether its
 // reference-normalized per-well profiles are retrieved ahead of the comparison reference wells,
 // measured as mean average precision (mAP) with copairs.
 process PHENOTYPIC_ACTIVITY {

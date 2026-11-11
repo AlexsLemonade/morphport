@@ -1,14 +1,15 @@
 name: phenotypic_activity
 description: |
-  Scores the phenotypic activity of each compared item in an analysis group with
-  mean average precision (mAP) from copairs: whether the item's reference-normalized
+  Scores the phenotypic activity of each comparison value (e.g. each treatment) in an
+  analysis group with mean average precision (mAP) from copairs: whether its reference-normalized
   per-well profiles are retrieved ahead of the comparison reference wells (e.g. a
   treatment's wells ahead of the DMSO wells of the same cell type).
-  An item's wells are its positives, and its negatives are the reference wells that
-  share the values of the group-defining columns that are not reference columns
-  (e.g. the same cell type). p-values come from a copairs null distribution, with
-  Benjamini-Hochberg correction across the items in the group; an item is active when
-  its corrected p-value is below the threshold.
+  Pairs are matched on the group-defining columns that are not reference columns
+  (e.g. cell type): a well's positives are the other wells of its comparison value, and
+  its negatives the reference wells, that share those values (e.g. the same cell type),
+  and a comparison value's mAP averages over all its wells. p-values come from a copairs
+  null distribution, with Benjamini-Hochberg correction across the comparison values in
+  the group; a comparison value is active when its corrected p-value is below the threshold.
 keywords:
   - cell painting
   - phenotypic activity
@@ -23,7 +24,7 @@ tools:
       licence: ["BSD-3-Clause"]
       identifier: ""
   - pandas:
-      description: Data analysis library used for parquet IO and per-item counts.
+      description: Data analysis library used for parquet IO and counts per comparison value.
       homepage: https://pandas.pydata.org
       documentation: https://pandas.pydata.org/docs
       licence: ["BSD-3-Clause"]
@@ -59,14 +60,18 @@ input:
         description: |
           Named scoring options. Every key is required, and unknown keys are an error.
             distance: Distance copairs uses to rank profiles (e.g. cosine, euclidean, correlation)
-            null_method: copairs null distribution of an item's mAP: permutation (label permutation
+            null_method: copairs null distribution of a comparison value's mAP: permutation (label permutation
               using the observed similarities) or copied (the copairs 0.5.x null)
             null_size: Number of draws from the null distribution (at least 1)
             fdr_threshold: Threshold (between 0 and 1) on the Benjamini-Hochberg corrected p-value
-              below which an item is active
+              below which a comparison value is active
             seed: Random seed for the null distribution (at least 0)
-            min_wells: Minimum number of wells for an item to be scored; items with fewer wells are
-              dropped and listed in the summary. Items always need at least 2 wells (their positive pairs).
+            min_wells: Minimum number of wells a comparison column value (e.g. a treatment) needs in a
+              cell type to be scored in that cell type.
+              Wells are only compared within a cell type (more precisely, within one combination of the
+              matched columns), so a treatment's wells in a cell type where it has too few are dropped
+              and listed in the summary, and a treatment with no wells left is not scored.
+              Values below 2 are treated as 2, since a well needs at least one other well to match.
           e.g. [ distance:'cosine', null_method:'permutation', null_size:1000000,
                  fdr_threshold:0.05, seed:1674, min_wells:2 ]
 
@@ -78,8 +83,8 @@ output:
       - "phenotypic_activity_*.parquet":
           type: file
           description: |
-            One row per scored item, with the comparison column, n_wells, n_plates,
-            n_reference_wells (distinct reference wells used as the item's negatives),
+            One row per scored comparison value, with the comparison column, n_wells, n_plates,
+            n_reference_wells (distinct reference wells used as its wells' negatives),
             mean_average_precision, p_value, corrected_p_value, and active.
             Reference wells are not scored. Empty (zero rows, same columns) for skipped groups.
           pattern: "phenotypic_activity_*.parquet"
@@ -87,7 +92,7 @@ output:
           type: file
           description: |
             Summary JSON with group identity, scoring parameters, copairs version, pairing
-            columns, dropped features and items, normalization settings, item counts, and
+            columns, dropped features and wells, normalization settings, comparison value counts, and
             skip status (skipped and skip_reason).
           pattern: "phenotypic_activity_summary_*.json"
   - versions:

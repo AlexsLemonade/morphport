@@ -10,13 +10,13 @@ Generate the small parquet fixtures for the phenotypic_activity module tests.
 
 The fixtures stand in for reference-normalized per-well profiles (the output of the
 pycytominer reference_normalize module). They have no random noise: profiles are built from
-fixed, orthogonal directions, so the rankings copairs computes, and so which items are active,
+fixed, orthogonal directions, so the rankings copairs computes, and so which comparison values are active,
 do not depend on any seed. This is unrealistic, but makes the tests deterministic.
 
 Each profile is the sum of:
 
 - a cell type baseline: Cells_Baseline_A (lineA) or Cells_Baseline_B (lineB) set to BASELINE (4);
-- for treated wells of an active item, a treatment effect: Cells_Shift set to SHIFT (4);
+- for treated wells of an active comparison value, a treatment effect: Cells_Shift set to SHIFT (4);
 - a well-specific offset: a Nuclei_Unique_NN column of the well's own, so no two wells are
   identical. Reference (DMSO) wells get offsets 0.40, 0.42, 0.44, ... and treated wells get
   offsets 1.00, 1.02, 1.04, ..., numbered separately through each fixture. The offsets differ
@@ -27,15 +27,15 @@ Each profile is the sum of:
 With cosine similarity, this fixes the rankings. For a well with offset d, a reference well
 with offset r, and another treated well with offset e (r < d and r < e):
 
-- An inactive item's wells (baseline plus offset) are more similar to each of their reference
+- An inactive comparison value's wells (baseline plus offset) are more similar to each of their reference
   wells (cosine 16 / sqrt((16 + d^2)(16 + r^2)), about 0.96) than to each other
   (16 / sqrt((16 + d^2)(16 + e^2)), about 0.94). Every positive ranks after every negative, so
-  the item's mAP is as low as it can be and its p-value is 1, whatever the null draws.
-- An active item's wells (baseline, shift, and offset) are more similar to each other (about
-  0.97) than to their reference wells (about 0.69). Every positive ranks first, so the item's
+  its mAP is as low as it can be and its p-value is 1, whatever the null draws.
+- An active comparison value's wells (baseline, shift, and offset) are more similar to each other (about
+  0.97) than to their reference wells (about 0.69). Every positive ranks first, so its
   mAP is 1 and its p-value is near the smallest possible (well below 0.05).
 - Wells of different cell types are orthogonal apart from their offsets (cosine 0), so the
-  tests can tell whether an item's negatives are matched on cell type.
+  tests can tell whether a well's negatives are matched on cell type.
 
 Writes these files to the directory containing this script:
 
@@ -49,6 +49,10 @@ Writes these files to the directory containing this script:
   within a group that pools both cell types (comparison column Metadata_treatment, reference DMSO).
   lineA has 8 DMSO and 6 drugA (not active) wells; lineB has 8 DMSO and 6 drugB (active) wells.
   drugA's negatives should be lineA's 8 DMSO wells only, not all 16 DMSO wells.
+  drugC has 3 wells with the treatment effect in each cell type (active), so it is scored
+  against both cell types' DMSO wells, its wells matched to others of their own cell type.
+  lineA also has one drugB well, which has no other drugB wells in its cell type, so it is
+  dropped while drugB's lineB wells are scored.
 - profiles_cell_types.parquet: two cell types on one plate (P1), for comparing cell types within
   a treatment (comparison column Metadata_cell_type, reference DMSO): each cell type has 8 DMSO
   wells; lineA has 6 drugA wells with the treatment effect (active), and lineB has 6 drugA wells
@@ -70,7 +74,7 @@ BASELINE_COLUMNS = {"lineA": "Cells_Baseline_A", "lineB": "Cells_Baseline_B"}
 SHIFT_COLUMN = "Cells_Shift"
 # The feature with a missing value in profiles_treatments.parquet
 NAN_FEATURE = "Cytoplasm_Intensity_MeanIntensity_Mito"
-# Enough well-specific offset columns for the largest fixture (33 wells)
+# Enough well-specific offset columns for the largest fixture (35 wells)
 N_OFFSET_COLUMNS = 40
 OFFSET_COLUMNS = [f"Nuclei_Unique_{i:02d}" for i in range(N_OFFSET_COLUMNS)]
 FEATURES = [*BASELINE_COLUMNS.values(), SHIFT_COLUMN, NAN_FEATURE, *OFFSET_COLUMNS]
@@ -82,9 +86,9 @@ SHIFT = 4.0
 # Well-specific offsets: the first reference well's and the first treated well's, and the step
 # between consecutive wells. Reference wells' offsets stay below treated wells' (at most
 # 0.40 + 15 * 0.02 = 0.70 for the 16 reference wells of the largest fixture), so an inactive
-# item's wells are closer to the reference wells than to each other.
+# comparison value's wells are closer to the reference wells than to each other.
 FIRST_REFERENCE_OFFSET = 0.40
-FIRST_ITEM_OFFSET = 1.00
+FIRST_TREATED_OFFSET = 1.00
 OFFSET_STEP = 0.02
 REFERENCE_TREATMENT = "DMSO"
 
@@ -94,14 +98,14 @@ def build_profiles(layout: list[tuple]) -> pl.DataFrame:
     Build per-well profiles from a layout of (plate, cell_type, treatment, n_wells, shifted) tuples.
 
     Each well gets its own offset column, in order through the layout, with an offset that grows
-    from FIRST_REFERENCE_OFFSET (reference wells) or FIRST_ITEM_OFFSET (treated wells) by
+    from FIRST_REFERENCE_OFFSET (reference wells) or FIRST_TREATED_OFFSET (treated wells) by
     OFFSET_STEP per well; shifted adds the treatment effect. Wells are named in row A for lineA and row B for lineB, numbered from 1 on each plate
     and cell type.
     """
     rows = []
     next_well = {}
     n_reference_wells = 0
-    n_item_wells = 0
+    n_treated_wells = 0
     for plate, cell_type, treatment, n_wells, shifted in layout:
         for _ in range(n_wells):
             well_key = (plate, cell_type)
@@ -122,8 +126,8 @@ def build_profiles(layout: list[tuple]) -> pl.DataFrame:
                 offset = FIRST_REFERENCE_OFFSET + OFFSET_STEP * n_reference_wells
                 n_reference_wells = n_reference_wells + 1
             else:
-                offset = FIRST_ITEM_OFFSET + OFFSET_STEP * n_item_wells
-                n_item_wells = n_item_wells + 1
+                offset = FIRST_TREATED_OFFSET + OFFSET_STEP * n_treated_wells
+                n_treated_wells = n_treated_wells + 1
             row[OFFSET_COLUMNS[len(rows)]] = offset
             # differs between wells, so including it in scoring would change the rankings
             row[UNLISTED_FEATURE] = float(len(rows))
@@ -165,6 +169,9 @@ def pooled_cell_types_fixture() -> pl.DataFrame:
             ("P1", "lineA", "drugA", 6, False),
             ("P1", "lineB", "DMSO", 8, False),
             ("P1", "lineB", "drugB", 6, True),
+            ("P1", "lineA", "drugC", 3, True),
+            ("P1", "lineB", "drugC", 3, True),
+            ("P1", "lineA", "drugB", 1, True),
         ]
     )
 
