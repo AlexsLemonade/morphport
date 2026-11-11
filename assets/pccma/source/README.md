@@ -5,7 +5,7 @@ Do not edit these files by hand; they are written by `assets/pccma/scripts/build
 CSV and text files are copied unchanged, and Excel sheets are converted to CSV with every cell read as text.
 
 Only this README is tracked by git; the upstream license notices are in `assets/pccma/README.md`.
-To recreate the other files, clone each repository below, check out its pinned commit, and run the script.
+To recreate the other files, run the script, which downloads them from each repository below at its pinned commit.
 
 ## Upstream repositories
 

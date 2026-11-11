@@ -7,10 +7,11 @@
 # ]
 # ///
 """
-Copy the PCCMA source metadata files from local clones of the upstream repositories.
+Download the PCCMA source metadata files from the upstream GitHub repositories.
 
-Each upstream repository must be checked out at the commit pinned in UPSTREAM_REPOS below;
-to update the source files, change the pinned commit, check it out, and rerun this script.
+Files are downloaded at the commit pinned for each repository in UPSTREAM_REPOS below;
+to update the source files, change the pinned commit and rerun this script.
+The files matching each pattern are found from the repository's file list at that commit, from the GitHub API.
 CSV and text files are copied unchanged.
 Excel sheets are converted to CSV with every cell read as text, so values are not reformatted.
 Each file is written to the folder given for it in COPY_FILES or EXCEL_SHEETS, keeping its upstream file name;
@@ -19,15 +20,16 @@ The script also writes source/README.md, which lists every file with a link to i
 
 Usage, from the repository root:
 
-    uv run assets/pccma/scripts/build_source.py \\
-        --pccma-repo path/to/pccma \\
-        --repo1-repo path/to/pccma_repo1_screen_image_profiling
+    uv run assets/pccma/scripts/build_source.py
 """
 
 import argparse
+import io
+import json
 import shutil
-import subprocess
-from pathlib import Path
+import urllib.request
+from fnmatch import fnmatch
+from pathlib import Path, PurePosixPath
 
 import pandas as pd
 
@@ -43,7 +45,8 @@ UPSTREAM_REPOS = {
     },
 }
 
-# Files to copy unchanged: (repository, glob pattern relative to the repository root, folder in source/)
+# Files to copy unchanged: (repository, path relative to the repository root, folder in source/);
+# the file name part of a path may be a pattern with wildcards, which match files in that one folder
 COPY_FILES = [
     ("pccma", "LICENSE", "pccma"),
     ("pccma", "cell_lines/pccma_cell_line_metadata.csv", "pccma"),
@@ -74,20 +77,37 @@ EXCEL_SHEETS = [
 ]
 
 
-def check_commit(repo_dir: Path, expected_commit: str) -> None:
-    """Fail unless the repository at repo_dir is checked out at expected_commit."""
-    result = subprocess.run(
-        ["git", "-C", str(repo_dir), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=True,
+def download(url: str) -> bytes:
+    """Return the contents of a URL."""
+    with urllib.request.urlopen(url) as response:
+        return response.read()
+
+
+def list_repo_files(repo_key: str) -> list[str]:
+    """Return the paths of all files in a repository at its pinned commit, from the GitHub API."""
+    repo = UPSTREAM_REPOS[repo_key]
+    tree_url = f"https://api.github.com/repos/{repo['github']}/git/trees/{repo['commit']}?recursive=1"
+    tree = json.loads(download(tree_url))
+    if tree["truncated"]:
+        raise SystemExit(f"The GitHub file list for {repo['github']} is incomplete")
+    return [item["path"] for item in tree["tree"] if item["type"] == "blob"]
+
+
+def matching_paths(repo_files: list[str], pattern: str) -> list[str]:
+    """Return the repository files in the pattern's folder whose names match the pattern's file name part."""
+    pattern_path = PurePosixPath(pattern)
+    return sorted(
+        path
+        for path in repo_files
+        if PurePosixPath(path).parent == pattern_path.parent
+        and fnmatch(PurePosixPath(path).name, pattern_path.name)
     )
-    head_commit = result.stdout.strip()
-    if head_commit != expected_commit:
-        raise SystemExit(
-            f"{repo_dir} is at commit {head_commit}, but {expected_commit} is pinned. "
-            "Check out the pinned commit, or update the pin in this script."
-        )
+
+
+def raw_url(repo_key: str, upstream_path: str) -> str:
+    """Return the URL to download a file at the pinned commit of its repository."""
+    repo = UPSTREAM_REPOS[repo_key]
+    return f"https://raw.githubusercontent.com/{repo['github']}/{repo['commit']}/{upstream_path}"
 
 
 def upstream_url(repo_key: str, upstream_path: str) -> str:
@@ -96,21 +116,21 @@ def upstream_url(repo_key: str, upstream_path: str) -> str:
     return f"https://github.com/{repo['github']}/blob/{repo['commit']}/{upstream_path}"
 
 
-def plan_file_copies(repo_dirs: dict[str, Path]) -> list[dict]:
+def plan_file_copies(repo_files: dict[str, list[str]]) -> list[dict]:
     """List the files in COPY_FILES, with the path each will be copied to."""
     plan = []
     for repo_key, pattern, folder in COPY_FILES:
-        repo_dir = repo_dirs[repo_key]
-        matches = sorted(repo_dir.glob(pattern))
+        matches = matching_paths(repo_files=repo_files[repo_key], pattern=pattern)
         if not matches:
-            raise SystemExit(f"No files in {repo_dir} match {pattern}")
-        for source_path in matches:
-            upstream_path = str(source_path.relative_to(repo_dir))
+            raise SystemExit(
+                f"No files in {UPSTREAM_REPOS[repo_key]['github']} match {pattern}"
+            )
+        for upstream_path in matches:
             plan.append(
                 {
-                    "source_path": source_path,
+                    "raw_url": raw_url(repo_key=repo_key, upstream_path=upstream_path),
                     "sheet_name": None,
-                    "copy_path": f"{folder}/{source_path.name}",
+                    "copy_path": f"{folder}/{PurePosixPath(upstream_path).name}",
                     "upstream_path": upstream_path,
                     "url": upstream_url(repo_key=repo_key, upstream_path=upstream_path),
                     "conversion": "copied unchanged",
@@ -119,18 +139,18 @@ def plan_file_copies(repo_dirs: dict[str, Path]) -> list[dict]:
     return plan
 
 
-def plan_sheet_conversions(repo_dirs: dict[str, Path]) -> list[dict]:
+def plan_sheet_conversions() -> list[dict]:
     """List the Excel sheets in EXCEL_SHEETS, with the path each will be converted to."""
     plan = []
     for repo_key, workbook_path, sheet_names, folder in EXCEL_SHEETS:
-        workbook = repo_dirs[repo_key] / workbook_path
+        workbook_stem = PurePosixPath(workbook_path).stem
         for sheet_name in sheet_names:
             sheet_stem = sheet_name.replace(" ", "_")
             plan.append(
                 {
-                    "source_path": workbook,
+                    "raw_url": raw_url(repo_key=repo_key, upstream_path=workbook_path),
                     "sheet_name": sheet_name,
-                    "copy_path": f"{folder}/{workbook.stem}_{sheet_stem}.csv",
+                    "copy_path": f"{folder}/{workbook_stem}_{sheet_stem}.csv",
                     "upstream_path": workbook_path,
                     "url": upstream_url(repo_key=repo_key, upstream_path=workbook_path),
                     "conversion": f"sheet `{sheet_name}` converted to CSV",
@@ -149,15 +169,15 @@ def check_unique_destinations(plan: list[dict]) -> None:
         )
 
 
-def write_copy(entry: dict, output_dir: Path) -> None:
-    """Copy one file unchanged, or convert one Excel sheet to CSV, as described by a plan entry."""
+def write_copy(entry: dict, contents: bytes, output_dir: Path) -> None:
+    """Write one downloaded file unchanged, or convert one Excel sheet to CSV, as described by a plan entry."""
     destination = output_dir / entry["copy_path"]
     destination.parent.mkdir(parents=True, exist_ok=True)
     if entry["sheet_name"] is None:
-        shutil.copyfile(entry["source_path"], destination)
+        destination.write_bytes(contents)
     else:
         sheet = pd.read_excel(
-            entry["source_path"],
+            io.BytesIO(contents),
             sheet_name=entry["sheet_name"],
             dtype=str,
             na_filter=False,
@@ -175,7 +195,7 @@ def write_readme(manifest: list[dict], output_dir: Path) -> None:
         "CSV and text files are copied unchanged, and Excel sheets are converted to CSV with every cell read as text.",
         "",
         "Only this README is tracked by git; the upstream license notices are in `assets/pccma/README.md`.",
-        "To recreate the other files, clone each repository below, check out its pinned commit, and run the script.",
+        "To recreate the other files, run the script, which downloads them from each repository below at its pinned commit.",
         "",
         "## Upstream repositories",
         "",
@@ -211,15 +231,6 @@ def main() -> None:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "--pccma-repo", type=Path, required=True, help="local clone of WayScience/pccma"
-    )
-    parser.add_argument(
-        "--repo1-repo",
-        type=Path,
-        required=True,
-        help="local clone of WayScience/pccma_repo1_screen_image_profiling",
-    )
-    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path(__file__).resolve().parent.parent / "source",
@@ -227,23 +238,26 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    repo_dirs = {"pccma": args.pccma_repo, "repo1": args.repo1_repo}
-    for repo_key, repo_dir in repo_dirs.items():
-        check_commit(
-            repo_dir=repo_dir, expected_commit=UPSTREAM_REPOS[repo_key]["commit"]
-        )
+    repo_files = {repo_key: list_repo_files(repo_key) for repo_key in UPSTREAM_REPOS}
+    plan = plan_file_copies(repo_files=repo_files) + plan_sheet_conversions()
+    check_unique_destinations(plan=plan)
+
+    # Download every file before clearing the output directory, so a failed download leaves it intact
+    downloads = {
+        url: download(url) for url in sorted({entry["raw_url"] for entry in plan})
+    }
 
     # Start from an empty output directory, so files removed upstream do not linger
     if args.output_dir.exists():
         shutil.rmtree(args.output_dir)
     args.output_dir.mkdir(parents=True)
 
-    plan = plan_file_copies(repo_dirs=repo_dirs) + plan_sheet_conversions(
-        repo_dirs=repo_dirs
-    )
-    check_unique_destinations(plan=plan)
     for entry in plan:
-        write_copy(entry=entry, output_dir=args.output_dir)
+        write_copy(
+            entry=entry,
+            contents=downloads[entry["raw_url"]],
+            output_dir=args.output_dir,
+        )
     write_readme(manifest=plan, output_dir=args.output_dir)
     print(f"Wrote {len(plan)} files to {args.output_dir}")
 
