@@ -50,9 +50,10 @@ nextflow_process {
         reference_normalized: true, reference_normalization_method: 'mad_robustize',
     ]"""
 
-    // Process inputs, as Groovy source text; a closure because moduleDir is only defined inside a test.
-    // Uses a smaller null than the pipeline default, to keep the tests fast.
+    // Scoring options; uses a smaller null than the pipeline default, to keep the tests fast
     def defaultOptions = [distance: 'cosine', null_method: 'permutation', null_size: 10000, fdr_threshold: 0.05, seed: 1674, min_wells: 2]
+
+    // Process inputs, as Groovy source text; a closure because moduleDir is only defined inside a test.
     def processInputs = { fixtureDir, meta, profiles, features = 'features.txt', options = defaultOptions -> """
         input[0] = [
             ${meta},
