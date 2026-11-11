@@ -33,6 +33,8 @@ process PYCYTOMINER_REFERENCE_NORMALIZE {
         : "PYCYTOMINER_REFERENCE_NORMALIZE: group ${meta_in.group_tag} has no comparison_column or comparison_reference"
     meta = meta_in + [reference_normalized: true, reference_normalization_method: normalize_method]
     meta_json = groovy.json.JsonOutput.toJson(meta_in)
+    // per-plate metas carry each plate's normalization settings, which the group meta does not
+    plate_metas_json = groovy.json.JsonOutput.toJson(plate_metas)
     template 'pycytominer_reference_normalize.py'
 
     stub:

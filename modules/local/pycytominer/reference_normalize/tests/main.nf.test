@@ -21,7 +21,6 @@ nextflow_process {
         group_id: 'cell_type=lineA', group_tag: 'well__cell_type__cell_type=lineA',
         plate_ids: ['P1', 'P2', 'P3'],
         comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
-        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
     // Group metadata for comparing cell types within a treatment
@@ -31,7 +30,6 @@ nextflow_process {
         group_id: 'treatment=drugA', group_tag: 'well__cell_types_by_treatment__treatment=drugA',
         plate_ids: ['P1'],
         comparison_column: 'Metadata_cell_type', comparison_reference: [Metadata_treatment: ['DMSO']],
-        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
     // Group metadata for comparing treatments within a group that pools two cell types
@@ -42,13 +40,15 @@ nextflow_process {
         group_id: 'cell_type=both_lines', group_tag: 'well__cell_type_sets__cell_type=both_lines',
         plate_ids: ['P1'],
         comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
-        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
+
+    // Per-plate meta, as plate normalization leaves it (the group meta does not carry these keys)
+    def plateMeta = { plate -> [plate_id: plate, plate_normalized: true, plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'] }
 
     // Input tuples, as Groovy source text; closures because moduleDir is only defined inside a test.
     def plateInput = { fixtureDir, plates, meta = treatmentMeta -> """[
         ${meta},
-        ${plates.collect { plate -> [plate_id: plate] }.inspect()},
+        ${plates.collect { plate -> plateMeta(plate) }.inspect()},
         ${plates.collect { plate -> "file('${fixtureDir}/profiles_${plate}.parquet')" }},
         file('${fixtureDir}/features.txt'),
     ]""" }
@@ -92,10 +92,8 @@ nextflow_process {
             def (meta, plateMetas, profiles, features) = process.out.result[0]
             assert meta.reference_normalized == true
             assert meta.reference_normalization_method == 'mad_robustize'
-            // plate normalization keys are left unchanged
-            assert meta.plate_normalization_method == 'mad_robustize'
-            assert meta.plate_normalization_reference_profiles == 'all'
-            assert plateMetas == [[plate_id: 'P1'], [plate_id: 'P2'], [plate_id: 'P3']]
+            // the per-plate metas are passed through unchanged
+            assert plateMetas == ['P1', 'P2', 'P3'].collect { plate -> plateMeta(plate) }
 
             // Nuclei_AreaShape_Solidity has zero DMSO spread on P2
             assert path(features).readLines() == keptFeatures
@@ -144,7 +142,9 @@ nextflow_process {
             assert summary.n_features_input == 4
             assert summary.features_dropped_zero_spread == ['Nuclei_AreaShape_Solidity']
             assert summary.n_features_output == 3
-            assert summary.plate_normalization_method == 'mad_robustize'
+            // read from the per-plate metas
+            assert summary.plate_normalization_method == ['mad_robustize']
+            assert summary.plate_normalization_reference_profiles == ['all']
             assert summary.skipped == false
 
             // warnings: few reference wells on P2, too few on P3, and the dropped feature

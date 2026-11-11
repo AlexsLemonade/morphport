@@ -121,6 +121,15 @@ def normalization_columns(
     return [PLATE_COLUMN] + split_columns
 
 
+def distinct_values(plate_metas: list[dict], key: str) -> list:
+    """
+    Distinct values of key across the per-plate metas, in order of first appearance.
+    A plate meta without the key (e.g. a plate whose normalization was skipped) contributes None.
+    """
+    values = [plate_meta.get(key) for plate_meta in plate_metas]
+    return list(dict.fromkeys(values))
+
+
 def set_label(normalize_by: list[str], key) -> dict:
     """Map a normalization set's groupby key to a {column: value} dict."""
     if not isinstance(key, tuple):
@@ -175,6 +184,7 @@ def main():
     features_file = "${features_file}"
     # raw string so JSON escapes in metadata values survive
     meta = json.loads(r"""${meta_json}""")
+    plate_metas = json.loads(r"""${plate_metas_json}""")
     normalize_method = "${normalize_method}"
     task_process = "${task.process}"
 
@@ -206,9 +216,13 @@ def main():
         "comparison_reference": comparison_reference,
         "normalize_by": normalize_by,
         "min_reference_wells": MIN_REFERENCE_WELLS,
-        "plate_normalization_method": meta.get("plate_normalization_method"),
-        "plate_normalization_reference_profiles": meta.get(
-            "plate_normalization_reference_profiles"
+        # plate normalization settings are in the per-plate metas, not the group meta;
+        # they come from params, so normally each list has a single value
+        "plate_normalization_method": distinct_values(
+            plate_metas=plate_metas, key="plate_normalization_method"
+        ),
+        "plate_normalization_reference_profiles": distinct_values(
+            plate_metas=plate_metas, key="plate_normalization_reference_profiles"
         ),
     }
     messages = []
