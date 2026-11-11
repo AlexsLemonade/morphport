@@ -34,6 +34,17 @@ nextflow_process {
         plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
+    // Group metadata for comparing treatments within a group that pools two cell types
+    // (a defined group of the cell_type grouping column)
+    def pooledCellTypesMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'cell_type_sets',
+        grouping_column: 'Metadata_cell_type', group: 'both_lines', subgroup_values: [:],
+        group_id: 'cell_type=both_lines', group_tag: 'well__cell_type_sets__cell_type=both_lines',
+        plate_ids: ['P1'],
+        comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
+    ]"""
+
     // Input tuples, as Groovy source text; closures because moduleDir is only defined inside a test.
     def plateInput = { fixtureDir, plates, meta = treatmentMeta -> """[
         ${meta},
@@ -119,11 +130,12 @@ nextflow_process {
             assert summary.method == 'mad_robustize'
             assert summary.comparison_column == 'Metadata_treatment'
             assert summary.comparison_reference == [Metadata_treatment: ['DMSO']]
-            assert summary.normalize_by == ['Metadata_Plate']
+            // the grouping column (cell type) has one value in this group, so it adds no split
+            assert summary.normalize_by == ['Metadata_Plate', 'Metadata_cell_type']
             assert summary.normalization_sets == [
-                [Metadata_Plate: 'P1', n_wells: 12, n_reference_wells: 6],
-                [Metadata_Plate: 'P2', n_wells: 9, n_reference_wells: 3],
-                [Metadata_Plate: 'P3', n_wells: 4, n_reference_wells: 1],
+                [Metadata_Plate: 'P1', Metadata_cell_type: 'lineA', n_wells: 12, n_reference_wells: 6],
+                [Metadata_Plate: 'P2', Metadata_cell_type: 'lineA', n_wells: 9, n_reference_wells: 3],
+                [Metadata_Plate: 'P3', Metadata_cell_type: 'lineA', n_wells: 4, n_reference_wells: 1],
             ]
             assert summary.n_wells_input == 25
             assert summary.n_wells_dropped_no_reference == 4
@@ -136,7 +148,7 @@ nextflow_process {
             assert summary.skipped == false
 
             // warnings: few reference wells on P2, too few on P3, and the dropped feature
-            def (process_name, groupTag, warningsFile) = process.out.warnings[0]
+            def (_processName, groupTag, warningsFile) = process.out.warnings[0]
             assert groupTag == 'well__cell_type__cell_type=lineA'
             def warnings = path(warningsFile).readLines()
             assert warnings.size() == 3
@@ -186,8 +198,8 @@ nextflow_process {
 
             def summary = path(process.out.summary[0]).json
             assert summary.normalization_sets == [
-                [Metadata_Plate: 'P1', n_wells: 12, n_reference_wells: 6],
-                [Metadata_Plate: 'P2', n_wells: 9, n_reference_wells: 3],
+                [Metadata_Plate: 'P1', Metadata_cell_type: 'lineA', n_wells: 12, n_reference_wells: 6],
+                [Metadata_Plate: 'P2', Metadata_cell_type: 'lineA', n_wells: 9, n_reference_wells: 3],
             ]
             assert summary.n_wells_dropped_no_reference == 0
             assert summary.skipped == false
@@ -258,6 +270,40 @@ nextflow_process {
             ]
             assert summary.n_wells_dropped_no_reference == 0
             assert summary.skipped == false
+        }
+    }
+
+    test("treatments within a group pooling two cell types - each cell type normalized to its own reference wells") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['two_cell_types'], pooledCellTypesMeta)}
+                input[1] = 'mad_robustize'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, _plateMetas, profiles, features) = process.out.result[0]
+            def rows = rowMaps(path(profiles).parquet)
+            assert rows.size() == 14
+            // the grouping column (cell type) splits the plate, so lineB (offset by +100) is normalized
+            // to its own DMSO wells rather than to lineA's and lineB's DMSO wells pooled
+            ['lineA', 'lineB'].each { cellType ->
+                def dmso = rows.findAll { row -> row.Metadata_cell_type == cellType && row.Metadata_treatment == 'DMSO' }
+                path(features).readLines().each { feature ->
+                    assert Math.abs(median(dmso.collect { row -> row[feature] as double })) < 1e-9
+                }
+            }
+
+            def summary = path(process.out.summary[0]).json
+            assert summary.normalize_by == ['Metadata_Plate', 'Metadata_cell_type']
+            assert summary.normalization_sets == [
+                [Metadata_Plate: 'P1', Metadata_cell_type: 'lineA', n_wells: 7, n_reference_wells: 4],
+                [Metadata_Plate: 'P1', Metadata_cell_type: 'lineB', n_wells: 7, n_reference_wells: 4],
+            ]
         }
     }
 

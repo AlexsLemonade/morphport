@@ -111,7 +111,7 @@ _Avoid_: consensus reference, baseline, negative control (when referring to the 
 
 **Reference normalization**:
 Normalizing an analysis group's per-well profiles to its comparison reference wells, separately for each plate, so that each well describes a change from the reference on its own plate.
-When the comparison column is not one of the reference columns, each value of the comparison column (e.g. each cell type) is normalized to its own reference wells.
+Within each plate, each value of the columns that define the analysis group (other than the reference columns), such as each cell type, is normalized to its own reference wells.
 It is applied on top of plate normalization and only to groups with a comparison reference.
 _Avoid_: renormalization, DMSO normalization, centering (when referring to this step)
 

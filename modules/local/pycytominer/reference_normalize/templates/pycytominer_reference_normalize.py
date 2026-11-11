@@ -9,10 +9,11 @@ the features listed in features_file, and then:
 1. Identifies reference wells: wells whose value in every comparison_reference
    column is one of that column's listed values (compared as text).
 2. Splits the wells into normalization sets: the wells that are normalized
-   together, to the reference wells among them. Each plate is a normalization
-   set or, when the comparison column is not one of the reference columns, each
-   plate and comparison column value (so, e.g., each cell type is normalized to
-   its own reference wells). The columns that define the sets are normalize_by.
+   together, to the reference wells among them. Each plate is split by the
+   columns that define the analysis group (grouping, subgroup, and comparison
+   columns) that are not reference columns, so, e.g., each cell type is
+   normalized to its own reference wells, whichever direction the comparison
+   goes. The columns that define the sets are normalize_by.
 3. Drops the wells of normalization sets with fewer than MIN_REFERENCE_WELLS
    reference wells (the spread of a single well is zero), and warns about sets
    with fewer than FEW_REFERENCE_WELLS.
@@ -95,6 +96,31 @@ def has_zero_spread(values: pd.DataFrame, method: str) -> pd.Series:
     return (spread == 0) | is_constant
 
 
+def normalization_columns(
+    grouping_column: str | None,
+    subgroup_columns: list[str],
+    comparison_column: str,
+    reference_columns: list[str],
+) -> list[str]:
+    """
+    Columns that define the normalization sets: the wells normalized together, to the reference wells among them.
+
+    Each plate is split by every column that defines the analysis group (the grouping column, the subgroup
+    columns, and the comparison column) except the reference columns, so that each value of those columns
+    (e.g. each cell type) is normalized to its own reference wells. Reference columns are left out because
+    splitting on them would separate the reference wells from the wells they are the reference for.
+    Columns that have a single value in the group (e.g. the grouping column of a one_per_value group) add
+    no split. Duplicates are listed once, in order.
+    """
+    context_columns = [grouping_column, *subgroup_columns, comparison_column]
+    split_columns = [
+        col
+        for col in dict.fromkeys(context_columns)
+        if col is not None and col != PLATE_COLUMN and col not in reference_columns
+    ]
+    return [PLATE_COLUMN] + split_columns
+
+
 def set_label(normalize_by: list[str], key) -> dict:
     """Map a normalization set's groupby key to a {column: value} dict."""
     if not isinstance(key, tuple):
@@ -165,10 +191,12 @@ def main():
     # written up front so skipped groups report versions too
     write_versions(task_process)
 
-    # Columns defining the normalization sets: the wells normalized together, to the reference wells among them.
-    # Each plate is a set, split by comparison column value when that column does not define the reference.
-    match_comparison = comparison_column not in comparison_reference
-    normalize_by = [PLATE_COLUMN] + ([comparison_column] if match_comparison else [])
+    normalize_by = normalization_columns(
+        grouping_column=meta["grouping_column"],
+        subgroup_columns=list(meta["subgroup_values"].keys()),
+        comparison_column=comparison_column,
+        reference_columns=list(comparison_reference.keys()),
+    )
 
     summary = {
         "group_tag": group_tag,
@@ -196,7 +224,9 @@ def main():
     metadata_cols = [c for c in df.columns if c.startswith("Metadata_")]
     missing = [
         col
-        for col in [PLATE_COLUMN, comparison_column, *comparison_reference]
+        for col in dict.fromkeys(
+            [*normalize_by, comparison_column, *comparison_reference]
+        )
         if col not in metadata_cols
     ]
     if missing:
