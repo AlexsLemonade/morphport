@@ -184,10 +184,6 @@ def main():
     comparison_column = meta["comparison_column"]
     comparison_reference = meta["comparison_reference"]
 
-    if normalize_method not in METHODS:
-        raise ValueError(
-            f"normalize_method must be one of {METHODS}, got '{normalize_method}'"
-        )
     # written up front so skipped groups report versions too
     write_versions(task_process)
 
