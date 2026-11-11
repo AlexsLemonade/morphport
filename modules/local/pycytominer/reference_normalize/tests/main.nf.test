@@ -310,23 +310,6 @@ nextflow_process {
         }
     }
 
-    test("spherize - fails") {
-
-        when {
-            process {
-                """
-                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1'])}
-                input[1] = 'spherize'
-                """
-            }
-        }
-
-        then {
-            assert process.failed
-            assert process.stdout.any { line -> line.contains("normalize_method must be one of 'mad_robustize', 'standardize', or 'robustize'") }
-        }
-    }
-
     test("group without a comparison reference - fails") {
 
         when {

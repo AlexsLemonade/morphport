@@ -1,0 +1,53 @@
+{
+    "stub": {
+        "content": [
+            {
+                "project": "test",
+                "aggregate_level": "well",
+                "grouping_name": "cell_type",
+                "grouping_column": "Metadata_cell_type",
+                "group": "lineA",
+                "subgroup_values": {
+                    
+                },
+                "group_id": "cell_type=lineA",
+                "group_tag": "well__cell_type__cell_type=lineA",
+                "plate_ids": [
+                    "P1",
+                    "P2",
+                    "P3"
+                ],
+                "comparison_column": "Metadata_treatment",
+                "comparison_reference": {
+                    "Metadata_treatment": [
+                        "DMSO"
+                    ]
+                },
+                "plate_normalization_method": "mad_robustize",
+                "plate_normalization_reference_profiles": "all",
+                "reference_normalized": true,
+                "reference_normalization_method": "mad_robustize"
+            },
+            [
+                {
+                    "plate_id": "P1"
+                },
+                {
+                    "plate_id": "P2"
+                }
+            ],
+            "reference_normalized_features_well__cell_type__cell_type=lineA.txt:md5,53d8ec25a66f004b4f22aead355dc744",
+            [
+                "reference_normalization_summary_well__cell_type__cell_type=lineA.json:md5,0d0f0ccd8cccb4e505fe810344c25483"
+            ],
+            [
+                "versions.yml:md5,f6b0ce22a310164cc15f098da3ba4cdd"
+            ]
+        ],
+        "timestamp": "2026-11-10T14:49:09.927995167",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.10.5"
+        }
+    }
+}
