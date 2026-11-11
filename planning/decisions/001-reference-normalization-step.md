@@ -1,7 +1,7 @@
 # Reference normalization is a separate per-group step
 
 Plate normalization fits each plate to all of its wells by default, because some projects (such as the cell-line atlas) have no controls, but phenotypic activity and consensus similarity compare profiles to a comparison reference such as DMSO.
-We therefore apply reference normalization per analysis group, after feature selection and on top of plate normalization, in its own module (`PYCYTOMINER_REFERENCE_NORMALIZE`): each plate's per-well profiles are normalized (center and scale, with the per-well plate normalization method) to that plate's reference wells, matched on the comparison column when it is not a reference column.
+We therefore apply reference normalization per analysis group, after feature selection and on top of plate normalization, in its own module (`PYCYTOMINER_REFERENCE_NORMALIZE`): each plate's per-well profiles are normalized (center and scale, with its own method, `pycytominer_reference_normalize_method`) to that plate's reference wells, matched on the comparison column when it is not a reference column.
 Only groups with a comparison reference are reference normalized; phenotypic activity and consensus similarity both read its output for those groups, so both analyses use the same profiles.
 
 ## Considered options
@@ -15,5 +15,6 @@ Only groups with a comparison reference are reference normalized; phenotypic act
 
 - Median/MAD and mean/SD normalization are affine per feature, so normalizing plate-normalized profiles to the reference gives the same values as normalizing raw profiles to the reference; the plate normalization reference does not matter for these analyses.
   Feature selection, however, still runs on profiles normalized to all wells.
+- Reference normalization has its own method param rather than reusing the per-well plate normalization method, which also allows `spherize` (too few reference wells per plate to estimate feature covariance) and `none` (the analyses need reference-normalized profiles).
 - Features with zero spread in the reference wells are dropped, and wells on plates without reference wells are dropped.
 - Consensus similarity no longer centers profiles itself; it reads reference-normalized profiles for groups with a reference and feature-selected profiles otherwise.

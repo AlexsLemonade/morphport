@@ -39,6 +39,10 @@ process PYCYTOMINER_REFERENCE_NORMALIZE {
     template 'pycytominer_reference_normalize.py'
 
     stub:
+    assert normalize_method in ["mad_robustize", "standardize", "robustize"]
+        : "PYCYTOMINER_REFERENCE_NORMALIZE: normalize_method must be one of 'mad_robustize', 'standardize', or 'robustize', got '${normalize_method}'"
+    assert meta_in.comparison_column && meta_in.comparison_reference
+        : "PYCYTOMINER_REFERENCE_NORMALIZE: group ${meta_in.group_tag} has no comparison_column or comparison_reference"
     meta = meta_in + [reference_normalized: true, reference_normalization_method: normalize_method]
     """
     touch reference_normalized_${meta_in.group_tag}.parquet

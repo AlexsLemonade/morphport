@@ -41,7 +41,7 @@ input:
         pattern: "*.txt"
   - - normalize_method:
         type: string
-        description: Normalization method, one of mad_robustize, standardize, or robustize (spherize is not supported)
+        description: Normalization method (params.pycytominer_reference_normalize_method), one of mad_robustize, standardize, or robustize (spherize is not supported)
 
 output:
   - result:
