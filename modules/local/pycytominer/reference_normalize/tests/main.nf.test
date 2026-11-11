@@ -261,7 +261,7 @@ nextflow_process {
         }
     }
 
-    test("no plate with enough reference wells - skipped") {
+    test("no normalization set with enough reference wells - skipped") {
 
         when {
             process {
@@ -284,12 +284,12 @@ nextflow_process {
 
             def summary = path(process.out.summary[0]).json
             assert summary.skipped == true
-            assert summary.skip_reason == 'no plate has at least 2 reference wells'
+            assert summary.skip_reason == 'no normalization set has at least 2 reference wells'
             assert summary.n_wells_dropped_no_reference == 4
             assert summary.n_features_output == 0
 
             def warnings = path(process.out.warnings[0][2]).readLines()
-            assert warnings.last() == 'skipped: no plate has at least 2 reference wells'
+            assert warnings.last() == 'skipped: no normalization set has at least 2 reference wells'
         }
     }
 

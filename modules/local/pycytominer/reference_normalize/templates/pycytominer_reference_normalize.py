@@ -251,7 +251,9 @@ def main():
     if summary["n_reference_wells"] == 0:
         summary["features_dropped_zero_spread"] = []
         # skipped: write a profiles parquet with no rows (metadata columns only) and an empty features file
-        skip_reason = f"no plate has at least {MIN_REFERENCE_WELLS} reference wells"
+        skip_reason = (
+            f"no normalization set has at least {MIN_REFERENCE_WELLS} reference wells"
+        )
         df.iloc[0:0][metadata_cols].to_parquet(profiles_path, index=False)
         with open(features_path, "w"):
             pass
