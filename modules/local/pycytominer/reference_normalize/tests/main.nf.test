@@ -1,0 +1,367 @@
+nextflow_process {
+
+    name "Test Process PYCYTOMINER_REFERENCE_NORMALIZE"
+    script "../main.nf"
+    process "PYCYTOMINER_REFERENCE_NORMALIZE"
+    tag "modules"
+    tag "modules_local"
+    tag "pycytominer"
+    tag "pycytominer/reference_normalize"
+
+    // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
+    // - profiles_P1/P2/P3.parquet: one cell type on three plates, with 6, 3, and 1 DMSO wells;
+    //   P3's wells are dropped (fewer than 2 reference wells), and one feature has zero DMSO spread on P2
+    // - profiles_two_cell_types.parquet: two cell types on one plate, with lineB offset by +100
+    // - features.txt: the selected features
+
+    // Group metadata for comparing treatments within a cell type, as Groovy source text
+    def treatmentMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'cell_type',
+        grouping_column: 'Metadata_cell_type', group: 'lineA', subgroup_values: [:],
+        group_id: 'cell_type=lineA', group_tag: 'well__cell_type__cell_type=lineA',
+        plate_ids: ['P1', 'P2', 'P3'],
+        comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
+    ]"""
+
+    // Group metadata for comparing cell types within a treatment
+    def cellTypeMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'cell_types_by_treatment',
+        grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
+        group_id: 'treatment=drugA', group_tag: 'well__cell_types_by_treatment__treatment=drugA',
+        plate_ids: ['P1'],
+        comparison_column: 'Metadata_cell_type', comparison_reference: [Metadata_treatment: ['DMSO']],
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
+    ]"""
+
+    // Input tuples, as Groovy source text; closures because moduleDir is only defined inside a test.
+    def plateInput = { fixtureDir, plates, meta = treatmentMeta -> """[
+        ${meta},
+        ${plates.collect { plate -> [plate_id: plate] }.inspect()},
+        ${plates.collect { plate -> "file('${fixtureDir}/profiles_${plate}.parquet')" }},
+        file('${fixtureDir}/features.txt'),
+    ]""" }
+
+    def metadataColumns = ['Metadata_Plate', 'Metadata_Well', 'Metadata_cell_type', 'Metadata_treatment']
+    // the features in features.txt, and those kept when Nuclei_AreaShape_Solidity (zero DMSO spread on P2) is dropped
+    def allFeatures = [
+        'Cells_AreaShape_Eccentricity',
+        'Cells_Intensity_MeanIntensity_DNA',
+        'Nuclei_AreaShape_Solidity',
+        'Cytoplasm_Intensity_MeanIntensity_Mito',
+    ]
+    def keptFeatures = allFeatures - ['Nuclei_AreaShape_Solidity']
+
+    // Helpers for checking normalized values: rows of a parquet as maps, and simple statistics
+    def rowMaps = { parquet -> parquet.rows.collect { row -> [parquet.columnNames.toList(), row.toList()].transpose().collectEntries() } }
+    def median = { values ->
+        def sorted = values.sort(false)
+        def n = sorted.size()
+        n % 2 ? sorted[n.intdiv(2)] : (sorted[n.intdiv(2) - 1] + sorted[n.intdiv(2)]) / 2
+    }
+    def mean = { values -> values.sum() / values.size() }
+    def popSd = { values ->
+        def m = values.sum() / values.size()
+        Math.sqrt(values.collect { value -> (value - m) ** 2 }.sum() / values.size())
+    }
+
+    test("treatments within a cell type - mad_robustize") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1', 'P2', 'P3'])}
+                input[1] = 'mad_robustize'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, plateMetas, profiles, features) = process.out.result[0]
+            assert meta.reference_normalized == true
+            assert meta.reference_normalization_method == 'mad_robustize'
+            // plate normalization keys are left unchanged
+            assert meta.plate_normalization_method == 'mad_robustize'
+            assert meta.plate_normalization_reference_profiles == 'all'
+            assert plateMetas == [[plate_id: 'P1'], [plate_id: 'P2'], [plate_id: 'P3']]
+
+            // Nuclei_AreaShape_Solidity has zero DMSO spread on P2
+            assert path(features).readLines() == keptFeatures
+
+            def rows
+            with(path(profiles).parquet) {
+                // P3 (4 wells) is dropped: 12 + 9 wells remain
+                assert rowCount == 21
+                assert columnNames == metadataColumns + keptFeatures
+                rows = rowMaps(delegate)
+            }
+            assert rows.collect { row -> row.Metadata_Plate }.unique() == ['P1', 'P2']
+
+            // On each plate, the DMSO wells have median 0 and scaled MAD 1 for every feature
+            ['P1', 'P2'].each { plate ->
+                def dmso = rows.findAll { row -> row.Metadata_Plate == plate && row.Metadata_treatment == 'DMSO' }
+                keptFeatures.each { feature ->
+                    def values = dmso.collect { row -> row[feature] as double }
+                    def center = median(values)
+                    assert Math.abs(center) < 1e-9
+                    def mad = median(values.collect { value -> Math.abs(value - center) }) * 1.4826
+                    assert Math.abs(mad - 1) < 1e-6
+                }
+            }
+
+            // the missing value in the first drugA well of P1 stays missing (written as null)
+            def p1DrugA = rows.findAll { row -> row.Metadata_Plate == 'P1' && row.Metadata_treatment == 'drugA' }
+            assert p1DrugA[0].Cytoplasm_Intensity_MeanIntensity_Mito == null
+            assert p1DrugA[1].Cytoplasm_Intensity_MeanIntensity_Mito != null
+
+            def summary = path(process.out.summary[0]).json
+            assert summary.method == 'mad_robustize'
+            assert summary.comparison_column == 'Metadata_treatment'
+            assert summary.comparison_reference == [Metadata_treatment: ['DMSO']]
+            assert summary.normalize_by == ['Metadata_Plate']
+            assert summary.normalization_sets == [
+                [Metadata_Plate: 'P1', n_wells: 12, n_reference_wells: 6],
+                [Metadata_Plate: 'P2', n_wells: 9, n_reference_wells: 3],
+                [Metadata_Plate: 'P3', n_wells: 4, n_reference_wells: 1],
+            ]
+            assert summary.n_wells_input == 25
+            assert summary.n_wells_dropped_no_reference == 4
+            assert summary.n_wells_output == 21
+            assert summary.n_reference_wells == 9
+            assert summary.n_features_input == 4
+            assert summary.features_dropped_zero_spread == ['Nuclei_AreaShape_Solidity']
+            assert summary.n_features_output == 3
+            assert summary.plate_normalization_method == 'mad_robustize'
+            assert summary.skipped == false
+
+            // warnings: few reference wells on P2, too few on P3, and the dropped feature
+            def (process_name, groupTag, warningsFile) = process.out.warnings[0]
+            assert groupTag == 'well__cell_type__cell_type=lineA'
+            def warnings = path(warningsFile).readLines()
+            assert warnings.size() == 3
+            assert warnings[0].contains("'P2'") && warnings[0].contains('only 3 reference wells')
+            assert warnings[1].contains("'P3'") && warnings[1].contains('dropping its 4 well(s)')
+            assert warnings[2].contains('dropped 1 feature(s) with zero spread')
+
+            def versions = path(process.out.versions[0]).yaml
+            assert versions['PYCYTOMINER_REFERENCE_NORMALIZE'].keySet() == ['python', 'pycytominer', 'pandas', 'pyarrow'] as Set
+        }
+    }
+
+    test("plates split across several files, one per treatment") {
+
+        when {
+            process {
+                // files from the two plates interleaved, as partitioning and grouping may deliver them
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1_drugA', 'P2_DMSO', 'P1_DMSO', 'P2_drugB', 'P1_drugB', 'P2_drugA'])}
+                input[1] = 'mad_robustize'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, _plateMetas, profiles, features) = process.out.result[0]
+            assert path(features).readLines() == keptFeatures
+
+            def rows
+            with(path(profiles).parquet) {
+                // every well of P1 (12) and P2 (9), with treated wells normalized to their plate's DMSO wells
+                assert rowCount == 21
+                assert columnNames == metadataColumns + keptFeatures
+                rows = rowMaps(delegate)
+            }
+            ['P1', 'P2'].each { plate ->
+                def dmso = rows.findAll { row -> row.Metadata_Plate == plate && row.Metadata_treatment == 'DMSO' }
+                keptFeatures.each { feature ->
+                    def values = dmso.collect { row -> row[feature] as double }
+                    def center = median(values)
+                    assert Math.abs(center) < 1e-9
+                    def mad = median(values.collect { value -> Math.abs(value - center) }) * 1.4826
+                    assert Math.abs(mad - 1) < 1e-6
+                }
+            }
+
+            def summary = path(process.out.summary[0]).json
+            assert summary.normalization_sets == [
+                [Metadata_Plate: 'P1', n_wells: 12, n_reference_wells: 6],
+                [Metadata_Plate: 'P2', n_wells: 9, n_reference_wells: 3],
+            ]
+            assert summary.n_wells_dropped_no_reference == 0
+            assert summary.skipped == false
+        }
+    }
+
+    test("treatments within a cell type - standardize") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1', 'P2'])}
+                input[1] = 'standardize'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, _plateMetas, profiles, features) = process.out.result[0]
+            assert meta.reference_normalization_method == 'standardize'
+            assert path(features).readLines() == keptFeatures
+            def rows = rowMaps(path(profiles).parquet)
+            // On each plate, the DMSO wells have mean 0 and population SD 1 for every complete feature
+            ['P1', 'P2'].each { plate ->
+                def dmso = rows.findAll { row -> row.Metadata_Plate == plate && row.Metadata_treatment == 'DMSO' }
+                keptFeatures.each { feature ->
+                    def values = dmso.collect { row -> row[feature] as double }
+                    assert Math.abs(mean(values)) < 1e-9
+                    assert Math.abs(popSd(values) - 1) < 1e-6
+                }
+            }
+            assert path(process.out.summary[0]).json.method == 'standardize'
+        }
+    }
+
+    test("cell types within a treatment - each cell type normalized to its own reference wells") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['two_cell_types'], cellTypeMeta)}
+                input[1] = 'mad_robustize'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, _plateMetas, profiles, features) = process.out.result[0]
+            // no feature has zero DMSO spread on this plate
+            assert path(features).readLines() == allFeatures
+            def rows = rowMaps(path(profiles).parquet)
+            assert rows.size() == 14
+            // lineB is offset by +100; normalized to its own DMSO wells, its DMSO median is 0
+            ['lineA', 'lineB'].each { cellType ->
+                def dmso = rows.findAll { row -> row.Metadata_cell_type == cellType && row.Metadata_treatment == 'DMSO' }
+                path(features).readLines().each { feature ->
+                    assert Math.abs(median(dmso.collect { row -> row[feature] as double })) < 1e-9
+                }
+            }
+
+            def summary = path(process.out.summary[0]).json
+            assert summary.normalize_by == ['Metadata_Plate', 'Metadata_cell_type']
+            assert summary.normalization_sets == [
+                [Metadata_Plate: 'P1', Metadata_cell_type: 'lineA', n_wells: 7, n_reference_wells: 4],
+                [Metadata_Plate: 'P1', Metadata_cell_type: 'lineB', n_wells: 7, n_reference_wells: 4],
+            ]
+            assert summary.n_wells_dropped_no_reference == 0
+            assert summary.skipped == false
+        }
+    }
+
+    test("no plate with enough reference wells - skipped") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P3'])}
+                input[1] = 'mad_robustize'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, _plateMetas, profiles, features) = process.out.result[0]
+            assert meta.reference_normalized == true
+            with(path(profiles).parquet) {
+                assert rowCount == 0
+                assert columnNames == metadataColumns + allFeatures
+            }
+            assert path(features).readLines() == []
+
+            def summary = path(process.out.summary[0]).json
+            assert summary.skipped == true
+            assert summary.skip_reason == 'no plate has at least 2 reference wells'
+            assert summary.n_wells_dropped_no_reference == 4
+            assert summary.n_features_output == 0
+
+            def warnings = path(process.out.warnings[0][2]).readLines()
+            assert warnings.last() == 'skipped: no plate has at least 2 reference wells'
+        }
+    }
+
+    test("reference column missing from the profiles - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1'], treatmentMeta + " + [comparison_reference: [Metadata_dose: ['0']]]")}
+                input[1] = 'mad_robustize'
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("Metadata columns missing from the input profiles: ['Metadata_dose']") }
+        }
+    }
+
+    test("spherize - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1'])}
+                input[1] = 'spherize'
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("normalize_method must be one of 'mad_robustize', 'standardize', or 'robustize'") }
+        }
+    }
+
+    test("group without a comparison reference - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1'], treatmentMeta + " + [comparison_reference: null]")}
+                input[1] = 'mad_robustize'
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("has no comparison_column or comparison_reference") }
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1', 'P2'])}
+                input[1] = 'mad_robustize'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, plateMetas, profiles, features) = process.out.result[0]
+            assert new File(profiles).name == 'reference_normalized_well__cell_type__cell_type=lineA.parquet'
+            assert snapshot(meta, plateMetas, features, process.out.summary, process.out.versions).match()
+        }
+    }
+}
