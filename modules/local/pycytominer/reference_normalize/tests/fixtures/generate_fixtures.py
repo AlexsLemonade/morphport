@@ -32,7 +32,8 @@ Features (noise with a different offset and scale on each plate unless noted):
 
 - Cells_AreaShape_Eccentricity
 - Cells_Intensity_MeanIntensity_DNA: offset 10 and scale 3 on P2, so per-plate normalization matters
-- Nuclei_AreaShape_Solidity: constant (0.9) in P2's DMSO wells, so zero reference spread on P2
+- Nuclei_AreaShape_Solidity: constant (0.7) in P2's DMSO wells, so zero reference spread on P2
+  (0.7 because the floating-point standard deviation of three 0.7s is not exactly 0)
 - Cytoplasm_Intensity_MeanIntensity_Mito: missing in the first drugA well of P1 (NaN is kept)
 - Cells_AreaShape_Area: not in features.txt
 
@@ -85,11 +86,13 @@ def plate_profiles(
         data[feature] = (rng.normal(0, 1, n) * scale + shift + offset).tolist()
     df = pl.DataFrame(data)
     # Make Nuclei_AreaShape_Solidity constant in P2's DMSO (reference) wells, so it has zero
-    # reference spread on that plate and is dropped from the whole group.
+    # reference spread on that plate and is dropped from the whole group. The value 0.7 is chosen
+    # because the floating-point standard deviation of three 0.7s is about 1e-16, not exactly 0,
+    # which the zero-spread check must still catch for standardize.
     if plate == "P2":
         df = df.with_columns(
             pl.when(pl.col("Metadata_treatment") == "DMSO")
-            .then(0.9)
+            .then(0.7)
             .otherwise(pl.col("Nuclei_AreaShape_Solidity"))
             .alias("Nuclei_AreaShape_Solidity")
         )

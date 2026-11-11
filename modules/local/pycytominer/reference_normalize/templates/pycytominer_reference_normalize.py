@@ -28,7 +28,8 @@ Writes the normalized profiles (all kept wells, in input order), the list of
 kept features (one per line, the same format as pycytominer_feature_select),
 a JSON summary, and a warnings file when there is something to warn about.
 Groups with no usable reference wells or no features left are skipped: the
-profiles parquet has no rows and the features file is empty.
+profiles parquet has no rows and only the metadata columns, and the features
+file is empty.
 """
 
 import json
@@ -76,6 +77,22 @@ def reference_spread(values: pd.DataFrame, method: str) -> pd.Series:
     if method == "robustize":
         return values.quantile(0.75) - values.quantile(0.25)
     raise ValueError(f"normalize_method must be one of {METHODS}, got '{method}'")
+
+
+def has_zero_spread(values: pd.DataFrame, method: str) -> pd.Series:
+    """
+    Per-feature flag: True when the reference wells' spread, measured the way the method scales, is zero.
+
+    A feature whose non-NaN values are all equal (or that has no non-NaN values) is flagged directly:
+    the floating-point standard deviation of identical values can be a tiny nonzero number (about 1e-16)
+    rather than exactly zero, which would leave the feature centered but not scaled.
+    MAD and IQR can also be exactly zero when values are not all equal (e.g. most of them are), which
+    the spread check catches.
+    """
+    spread = reference_spread(values=values, method=method)
+    # nunique skips NaN, so a feature with no non-NaN values counts 0 and is flagged too
+    is_constant = values.nunique(dropna=True) <= 1
+    return (spread == 0) | is_constant
 
 
 def set_label(normalize_by: list[str], key) -> dict:
@@ -233,9 +250,9 @@ def main():
 
     if summary["n_reference_wells"] == 0:
         summary["features_dropped_zero_spread"] = []
-        # skipped: write a profiles parquet with no rows and an empty features file
+        # skipped: write a profiles parquet with no rows (metadata columns only) and an empty features file
         skip_reason = f"no plate has at least {MIN_REFERENCE_WELLS} reference wells"
-        df.iloc[0:0].drop(columns=REFERENCE_FLAG).to_parquet(profiles_path, index=False)
+        df.iloc[0:0][metadata_cols].to_parquet(profiles_path, index=False)
         with open(features_path, "w"):
             pass
         write_summary(
@@ -254,8 +271,10 @@ def main():
     # start with no features flagged, and flag those with zero spread in each set in turn.
     zero_spread = pd.Series(False, index=features)
     for _key, set_reference_df in reference_df.groupby(normalize_by, dropna=False):
-        set_spread = reference_spread(set_reference_df[features], normalize_method)
-        zero_spread = zero_spread | (set_spread == 0)
+        set_zero_spread = has_zero_spread(
+            values=set_reference_df[features], method=normalize_method
+        )
+        zero_spread = zero_spread | set_zero_spread
     dropped_features = [f for f in features if zero_spread[f]]
     kept_features = [f for f in features if not zero_spread[f]]
     summary["features_dropped_zero_spread"] = dropped_features
