@@ -74,7 +74,7 @@ def write_versions(task_process: str):
         f.write(f"    copairs: {version('copairs')}\\n")
 
 
-def match_columns(
+def get_match_columns(
     grouping_column: str | None,
     subgroup_columns: list[str],
     comparison_column: str,
@@ -93,13 +93,6 @@ def match_columns(
         for col in dict.fromkeys(context_columns)
         if col is not None and col != PLATE_COLUMN and col not in reference_columns
     ]
-
-
-def set_label(columns: list[str], key) -> dict:
-    """Map a groupby key over columns to a {column: value} dict, with values as text."""
-    if not isinstance(key, tuple):
-        key = (key,)
-    return {col: (None if pd.isna(val) else str(val)) for col, val in zip(columns, key)}
 
 
 def empty_activity_table(comparison_column: str) -> pd.DataFrame:
@@ -206,7 +199,7 @@ def main():
     activity_path = f"phenotypic_activity_{group_tag}.parquet"
     comparison_column = meta["comparison_column"]
     comparison_reference = meta["comparison_reference"]
-    match_by = match_columns(
+    match_by = get_match_columns(
         grouping_column=meta["grouping_column"],
         subgroup_columns=list(meta["subgroup_values"].keys()),
         comparison_column=comparison_column,
@@ -333,12 +326,17 @@ def main():
     value_wells = df[~is_reference & ~no_comparison_value]
     in_small_set = pd.Series(False, index=df.index)
     small_sets = []
-    for key, set_df in value_wells.groupby(value_set_by, dropna=False, sort=True):
+    for _key, set_df in value_wells.groupby(value_set_by, dropna=False, sort=True):
         if len(set_df) < effective_min_wells:
             in_small_set[set_df.index] = True
-            small_sets.append(
-                {**set_label(columns=value_set_by, key=key), "n_wells": len(set_df)}
-            )
+            # every well in the set shares the value_set_by values, so read them from the first well
+            first_well = set_df.iloc[0]
+            small_set = {
+                col: (None if pd.isna(first_well[col]) else str(first_well[col]))
+                for col in value_set_by
+            }
+            small_set["n_wells"] = len(set_df)
+            small_sets.append(small_set)
     summary["comparison_value_wells_dropped_too_few_wells"] = small_sets
     keep_wells = ~no_comparison_value & ~in_small_set
     df = df[keep_wells].reset_index(drop=True)
