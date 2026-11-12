@@ -120,6 +120,13 @@
                     "default": "all",
                     "description": "Reference population for fitting the normalizer. Use 'all' to fit on all profiles, or a pandas query string to fit on a subset (e.g. \"Metadata_treatment == 'DMSO'\")."
                 },
+                "pycytominer_reference_normalize_method": {
+                    "type": "string",
+                    "default": "mad_robustize",
+                    "description": "Normalization method used to normalize the per-well profiles of analysis groups with a comparison reference to their reference wells, separately for each plate.",
+                    "help_text": "Reference normalization always runs for analysis groups with a comparison reference, so 'none' is not an option. 'spherize' is not supported because each plate has too few reference wells to estimate the feature covariance.",
+                    "enum": ["mad_robustize", "standardize", "robustize"]
+                },
                 "feature_select_operations": {
                     "type": "string",
                     "default": "blocklist,drop_na_columns,variance_threshold,correlation_threshold",

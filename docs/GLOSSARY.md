@@ -117,11 +117,23 @@ The wells that the compared items of an analysis group are measured against, cho
 A grouping may name one only together with a comparison column.
 _Avoid_: consensus reference, baseline, negative control (when referring to the wells chosen for this purpose)
 
+**Reference normalization**:
+Normalizing an analysis group's per-well profiles to its comparison reference wells, separately for each plate, so that each well describes a change from the reference on its own plate.
+Within each plate, each value of the columns that define the analysis group (other than the reference columns), such as each cell type, is normalized to its own reference wells.
+It is applied on top of plate normalization and only to groups with a comparison reference.
+_Avoid_: renormalization, DMSO normalization, centering (when referring to this step)
+
 **Consensus profile**:
 A single profile summarizing all the per-well profiles in an analysis group that share one value of the comparison column, pooled across every plate and batch in the group.
 Consensus profiles are built only from per-well profiles, never span projects, and never include reference wells.
-When the group has a comparison reference, each well is first expressed as its difference from the reference wells on its plate, so the consensus profile describes a change from the reference; without one, consensus profiles are built from the plate-normalized profiles as they are.
+When the group has a comparison reference, consensus profiles are built from reference-normalized profiles, so they describe a change from the reference; without one, they are built from the plate-normalized profiles as they are.
 _Avoid_: signature, level 5 profile, treatment profile
 
 **Consensus similarity**:
 The pairwise similarity between the consensus profiles of one analysis group.
+
+**Phenotypic activity**:
+Whether the per-well profiles of one compared item are more similar to each other than to the comparison reference wells, scored by mean average precision (mAP) within one analysis group.
+An item is **active** when its mAP is significant after correcting for the number of items tested in the group.
+It is defined only for groups with a comparison reference.
+_Avoid_: activity score, hit (when referring to an active item)

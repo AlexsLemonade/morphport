@@ -1,0 +1,92 @@
+name: pycytominer_reference_normalize
+description: Normalize one analysis group's per-well profiles to its comparison reference wells, per plate, using pycytominer.normalize; emits the same tuple shape as pycytominer_feature_select.
+keywords:
+  - cell painting
+  - pycytominer
+  - normalization
+  - parquet
+
+tools:
+  - pycytominer:
+      description: >
+        pycytominer is a suite of common functions used to process high-throughput
+        cell morphology data. This process calls pycytominer.normalize.
+      homepage: https://github.com/cytomining/pycytominer
+      documentation: https://pycytominer.readthedocs.io
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Per-well group meta map with comparison keys, e.g.,
+          [ project:'cpg0016', aggregate_level:'well', grouping_name:'cell_type',
+            grouping_column:'Metadata_cell_type', group:'lineA', subgroup_values:[:],
+            group_id:'cell_type=lineA', group_tag:'well__cell_type__cell_type=lineA',
+            comparison_column:'Metadata_treatment',
+            comparison_reference:[Metadata_treatment:['DMSO']] ]
+          comparison_column and comparison_reference are required.
+    - plate_metas:
+        type: list
+        description: List of per-plate meta maps for the parquets in this group; their plate normalization settings are reported in the summary, and the list is passed through
+    - parquets:
+        type: list
+        description: One or more per-well parquet files for the analysis group; staged into input_parquet/ and read concatenated
+        pattern: "*.parquet"
+    - features_file:
+        type: file
+        description: Newline-delimited list of selected feature column names, from pycytominer_feature_select
+        pattern: "*.txt"
+  - - normalize_method:
+        type: string
+        description: Normalization method (params.pycytominer_reference_normalize_method), one of mad_robustize, standardize, or robustize (spherize is not supported)
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Group meta with reference_normalized (true) and reference_normalization_method added
+      - plate_metas:
+          type: list
+          description: Per-plate meta list passed through unchanged
+      - "reference_normalized_*.parquet":
+          type: file
+          description: |
+            Reference-normalized profiles: metadata columns and kept features, reference wells included,
+            wells of plates without enough reference wells removed. No rows, and metadata columns only, if the group was skipped.
+          pattern: "reference_normalized_*.parquet"
+      - "reference_normalized_features_*.txt":
+          type: file
+          description: Newline-delimited list of kept feature names (features with zero reference spread removed); empty if the group was skipped
+          pattern: "reference_normalized_features_*.txt"
+  - summary:
+      - "reference_normalization_summary_*.json":
+          type: file
+          description: JSON summary with grouping info, method, normalization sets (the wells normalized together) and their reference well counts, dropped wells and features, and skip status
+          pattern: "reference_normalization_summary_*.json"
+  - warnings:
+      - task.process:
+          type: string
+          description: The process name
+      - group_tag:
+          type: string
+          description: The group tag
+      - "reference_normalization_warnings_*.txt":
+          type: file
+          description: Optional file with one warning per line (normalization sets with few or no reference wells, dropped features, skips)
+          pattern: "reference_normalization_warnings_*.txt"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module
+
+extra:
+  additional-platforms:
+    - linux-aarch64
+    - osx-arm64
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
