@@ -254,6 +254,16 @@ The reference column is added to the partition columns, and must be present in e
 Each listed value must be found in the grouping's rows after `filter` and `excluded` are applied; a missing value is an **error**, since it is most likely a typo.
 A group or plate that happens to have no reference wells is not an error here; it is handled by the analyses that use the reference.
 
+### Blank values
+
+Blank platemap cells (empty or only whitespace) are read as the value `_NA_`, and a cell that already contains `_NA_` is treated the same way.
+Wells with a blank value in any column a grouping uses (its `grouping_column`, `subgroup_columns`, `comparison_column`, or `reference_column`) are left out of that grouping, with a warning naming the column and plates.
+They do not form a `_NA_` group or subgroup, and they do not need to be accounted for in named `groups`.
+
+- **Listing a blank value is an error.** `groups`, `always_include`, `excluded`, and `reference_values` must not list `_NA_` or an empty string, since those wells are already left out.
+- **Filters may select blank values.** `filter` columns are not checked for blanks, so `filter: {dose: [_NA_]}` keeps only wells with a blank dose.
+- **A grouping with no rows left is an error.** If every row (after `filter`) has a blank value in one of these columns, the grouping would produce no groups.
+
 ## Full example
 
 This is the same as [`assets/analysis_groups_example.yaml`](../assets/analysis_groups_example.yaml).

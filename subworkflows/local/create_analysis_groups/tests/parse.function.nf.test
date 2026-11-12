@@ -651,6 +651,40 @@ nextflow_function {
         }
     }
 
+    test("validateGroupingStructure: blank values listed in groups, always_include, excluded, or reference_values are errors") {
+
+        function "validateGroupingStructure"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    well: [
+                        [name: 'blank_group', grouping_column: 'treatment', groups: [kinase_inhibitor: ['drugA', '_NA_']]],
+                        [name: 'blank_always_include', grouping_column: 'treatment', groups: 'one_per_value', always_include: ['']],
+                        // values are trimmed before checking
+                        [name: 'blank_excluded', grouping_column: 'treatment', groups: 'one_per_value', excluded: [' _NA_ ']],
+                        [name: 'blank_reference', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', reference_values: ['_NA_']],
+                        // a filter may select blank values
+                        [name: 'blank_filter', grouping_column: 'treatment', groups: 'one_per_value', filter: [dose: ['_NA_']]],
+                    ],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result.errors
+            assert errors.size() == 4
+            assert errors.any { err -> err.contains("'blank_group'") && err.contains("group 'kinase_inhibitor' lists a blank value") }
+            assert errors.any { err -> err.contains("'blank_always_include'") && err.contains('always_include lists a blank value') }
+            assert errors.any { err -> err.contains("'blank_excluded'") && err.contains('excluded lists a blank value') }
+            assert errors.any { err -> err.contains("'blank_reference'") && err.contains('reference_values lists a blank value') }
+            assert !errors.any { err -> err.contains("'blank_filter'") }
+        }
+    }
+
     //
     // parseGroupings
     //

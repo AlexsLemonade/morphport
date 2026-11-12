@@ -282,6 +282,98 @@ nextflow_function {
         }
     }
 
+    test("assignGroupingSets: rows with blank (_NA_) grouping, subgroup, or comparison values are left out") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                def plate_partition_key = { plate, treatment, cell_type, timepoint ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, Metadata_timepoint: timepoint, project: 'demo', plate_id: plate]
+                }
+                input[0] = [
+                    name: 'treatment_by_cell_line',
+                    grouping_column: 'Metadata_treatment',
+                    groups: 'one_per_value',
+                    always_include: ['DMSO'],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: ['Metadata_cell_type'],
+                    comparison_column: 'Metadata_timepoint',
+                    reference_column: 'Metadata_timepoint',
+                    reference_values: ['0h'],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', 'DMSO', 'lineA', '0h'),
+                    plate_partition_key.call('p1', 'drugA', 'lineA', '0h'),
+                    plate_partition_key.call('p1', 'drugA', 'lineA', '24h'),
+                    // blank grouping column value: no '_NA_' group
+                    plate_partition_key.call('p1', '_NA_', 'lineA', '24h'),
+                    // blank subgroup value: no '_NA_' subgroup
+                    plate_partition_key.call('p1', 'drugA', '_NA_', '24h'),
+                    plate_partition_key.call('p1', 'DMSO', '_NA_', '0h'),
+                    // blank comparison value
+                    plate_partition_key.call('p1', 'drugA', 'lineA', '_NA_'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> "${m.plate_id}:${m.Metadata_treatment}:${m.Metadata_timepoint}".toString() }.sort()]
+            }
+            assert summary == [
+                '{project=demo, group=drugA, subgroup_values={Metadata_cell_type=lineA}}': ['p1:DMSO:0h', 'p1:drugA:0h', 'p1:drugA:24h'],
+            ]
+        }
+    }
+
+    test("assignGroupingSets: rows with a blank (_NA_) reference_column value are left out") {
+
+        function "assignGroupingSets"
+
+        when {
+            function {
+                """
+                // the reference column is not the grouping, subgroup, or comparison column
+                def plate_partition_key = { plate, cell_type, dose, treatment ->
+                    [Metadata_cell_type: cell_type, Metadata_dose: dose, Metadata_treatment: treatment, project: 'demo', plate_id: plate]
+                }
+                input[0] = [
+                    name: 'doses_by_line',
+                    grouping_column: 'Metadata_cell_type',
+                    groups: 'one_per_value',
+                    always_include: [],
+                    excluded: [],
+                    filter: [:],
+                    subgroup_columns: [],
+                    comparison_column: 'Metadata_dose',
+                    reference_column: 'Metadata_treatment',
+                    reference_values: ['DMSO'],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', 'lineA', '0', 'DMSO'),
+                    plate_partition_key.call('p1', 'lineA', '1', 'drugA'),
+                    plate_partition_key.call('p1', 'lineA', '1', '_NA_'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def summary = function.result.collectEntries { key, members ->
+                [(key): members.collect { m -> "${m.plate_id}:${m.Metadata_dose}:${m.Metadata_treatment}".toString() }.sort()]
+            }
+            assert summary == [
+                '{project=demo, group=lineA, subgroup_values={}}': ['p1:0:DMSO', 'p1:1:drugA'],
+            ]
+        }
+    }
+
     test("assignGroupingSets: groups and always_include stay within each project") {
 
         function "assignGroupingSets"
