@@ -114,16 +114,16 @@ nextflow_process {
             def summary = path(summaryFile).json
             assert summary.comparison_column == 'Metadata_treatment'
             assert summary.comparison_reference == [Metadata_treatment: ['DMSO']]
-            assert summary.distance == 'cosine'
-            assert summary.null == 'permutation'
-            assert summary.null_size == 10000
-            assert summary.fdr_threshold == 0.05
-            assert summary.seed == 1674
-            assert summary.min_wells == 2
+            assert summary.ap_distance == 'cosine'
+            assert summary.map_null_method == 'permutation'
+            assert summary.map_null_size == 10000
+            assert summary.map_fdr_threshold == 0.05
+            assert summary.map_null_seed == 1674
+            assert summary.min_wells_per_set == 2
             assert summary.copairs_version == '0.6.0'
-            assert summary.pos_sameby == ['Metadata_treatment', 'Metadata_cell_type']
-            assert summary.neg_sameby == ['Metadata_cell_type']
-            assert summary.neg_diffby == ['Metadata_treatment']
+            assert summary.positive_match_columns == ['Metadata_treatment', 'Metadata_cell_type']
+            assert summary.negative_match_columns == ['Metadata_cell_type']
+            assert summary.negative_differ_columns == ['Metadata_treatment']
             assert summary.reference_normalization_method == 'mad_robustize'
             assert summary.n_wells_input == 33
             assert summary.n_features_input == 44
@@ -174,9 +174,9 @@ nextflow_process {
 
             def summary = path(summaryFile).json
             // positives and negatives are both matched on cell type
-            assert summary.pos_sameby == ['Metadata_treatment', 'Metadata_cell_type']
-            assert summary.neg_sameby == ['Metadata_cell_type']
-            assert summary.neg_diffby == ['Metadata_treatment']
+            assert summary.positive_match_columns == ['Metadata_treatment', 'Metadata_cell_type']
+            assert summary.negative_match_columns == ['Metadata_cell_type']
+            assert summary.negative_differ_columns == ['Metadata_treatment']
             assert summary.test_condition_wells_dropped_too_few_wells == [
                 [Metadata_treatment: 'drugB', Metadata_cell_type: 'lineA', n_wells: 1],
             ]
@@ -214,9 +214,9 @@ nextflow_process {
 
             def summary = path(summaryFile).json
             // the comparison column is not a reference column, so it is matched rather than differed
-            assert summary.pos_sameby == ['Metadata_cell_type']
-            assert summary.neg_sameby == ['Metadata_cell_type']
-            assert summary.neg_diffby == []
+            assert summary.positive_match_columns == ['Metadata_cell_type']
+            assert summary.negative_match_columns == ['Metadata_cell_type']
+            assert summary.negative_differ_columns == []
         }
     }
 
