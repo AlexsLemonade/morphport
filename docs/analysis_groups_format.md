@@ -193,7 +193,7 @@ With `groups: all_values`, it yields one group per subgroup value, each pooling 
 ### `comparison_column` (optional)
 
 The column whose values are compared _within_ each of the grouping's per-well groups (e.g., treatments within one cell type).
-Per-well profiles that share a value are replicates of one comparison value.
+Per-well profiles that share a value are replicates of one test condition.
 Setting it enables analyses that compare these values within each group, such as profile similarity and mean average precision (mAP).
 
 Exactly one metadata column, with the same `Metadata_` normalization as `grouping_column`.

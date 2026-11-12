@@ -18,7 +18,7 @@ features_file, and then:
    Wells are compared only with wells that share their match column values (e.g. the same
    cell type). The match columns are the columns that define the analysis group, minus the
    reference columns.
-5. Computes each test condition (treatment)'s mAP (the mean of its wells' AP) and
+5. Computes each test condition's mAP (the mean of its wells' AP) and
    a p-value from a copairs null distribution, plus a BH-corrected p-value for the group.
    A test condition is called as active when its corrected p-value is below fdr_threshold.
 
@@ -31,6 +31,7 @@ import json
 import sys
 from importlib.metadata import version
 
+import numpy as np
 import pandas as pd
 from copairs.map import average_precision, mean_average_precision
 from copairs.matching import assign_reference_index
@@ -113,8 +114,8 @@ def empty_activity_table(comparison_column: str) -> pd.DataFrame:
 
 def write_summary(
     summary: dict,
-    n_comparison_values_scored: int,
-    n_comparison_values_active: int,
+    n_test_conditions_scored: int,
+    n_test_conditions_active: int,
     skip_reason: str | None,
     group_tag: str,
 ):
@@ -124,8 +125,8 @@ def write_summary(
     """
     output_summary = {
         **summary,
-        "n_comparison_values_scored": n_comparison_values_scored,
-        "n_comparison_values_active": n_comparison_values_active,
+        "n_test_conditions_scored": n_test_conditions_scored,
+        "n_test_conditions_active": n_test_conditions_active,
         "skipped": skip_reason is not None,
         "skip_reason": skip_reason,
     }
@@ -143,31 +144,47 @@ def write_skipped(
     )
     write_summary(
         summary=summary,
-        n_comparison_values_scored=0,
-        n_comparison_values_active=0,
+        n_test_conditions_scored=0,
+        n_test_conditions_active=0,
         skip_reason=skip_reason,
         group_tag=group_tag,
     )
 
 
-def reference_wells_per_comparison_value(
-    neg_pairs, comparison_values: pd.Series, is_reference: pd.Series
+def reference_wells_per_test_condition(
+    neg_pairs: np.ndarray, test_conditions: pd.Series, is_reference: pd.Series
 ) -> pd.Series:
     """
     Number of distinct reference wells used as negatives by each test condition's wells.
 
-    neg_pairs is copairs' (n, 2) array of negative pairs, indexing the rows of comparison_values and is_reference.
-    A pair is unordered, so each pair is read in both orientations, keeping those from a test condition's
-    well to a reference well.
+    neg_pairs is copairs' (n, 2) array of negative pairs. Each pair holds two row positions in
+    test_conditions and is_reference, in no particular order.
     """
-    pairs = pd.DataFrame(neg_pairs, columns=["first", "second"])
-    reversed_pairs = pairs.rename(columns={"first": "second", "second": "first"})
-    both_orientations = pd.concat([pairs, reversed_pairs], ignore_index=True)
-    from_comparison_value = ~is_reference.loc[both_orientations["first"]].to_numpy()
-    to_reference = is_reference.loc[both_orientations["second"]].to_numpy()
-    value_to_reference = both_orientations[from_comparison_value & to_reference]
-    pair_values = comparison_values.loc[value_to_reference["first"]].to_numpy()
-    return value_to_reference["second"].groupby(pair_values).nunique()
+    is_reference_array = is_reference.to_numpy()
+    first_well = neg_pairs[:, 0]
+    second_well = neg_pairs[:, 1]
+    first_is_reference = is_reference_array[first_well]
+    second_is_reference = is_reference_array[second_well]
+
+    # Keep pairs of one test condition well and one reference well
+    # (two reference wells can also be a negative pair, e.g. when comparing cell types).
+    one_reference = first_is_reference != second_is_reference
+    first_well = first_well[one_reference]
+    second_well = second_well[one_reference]
+    first_is_reference = first_is_reference[one_reference]
+
+    # Put each pair in the same order: the test condition well, then the reference well.
+    condition_well = np.where(first_is_reference, second_well, first_well)
+    reference_well = np.where(first_is_reference, first_well, second_well)
+
+    # Count the distinct reference wells paired with each test condition's wells.
+    condition_pairs = pd.DataFrame(
+        {
+            "test_condition": test_conditions.to_numpy()[condition_well],
+            "reference_well": reference_well,
+        }
+    )
+    return condition_pairs.groupby("test_condition")["reference_well"].nunique()
 
 
 def main():
@@ -207,10 +224,10 @@ def main():
     )
     # columns a test condition's wells are split by before scoring: within a test condition, only wells that share
     # these values are positives of each other (the comparison column, then the other match columns)
-    value_set_by = list(dict.fromkeys([comparison_column, *match_by]))
+    condition_set_by = list(dict.fromkeys([comparison_column, *match_by]))
     # positives: wells of the same test condition that share the match columns, excluding reference wells
     # (each reference well has its own reference index)
-    pos_sameby = [*value_set_by, REFERENCE_INDEX]
+    pos_sameby = [*condition_set_by, REFERENCE_INDEX]
     # negatives: a test condition's wells paired with the reference wells that share the match columns.
     # When the comparison column is a reference column (e.g. treatments, reference DMSO), it is also
     # in neg_diffby, as in the copairs phenotypic activity recipe.
@@ -238,7 +255,7 @@ def main():
         "seed": seed,
         "min_wells": min_wells,
         "copairs_version": version("copairs"),
-        "pos_sameby": value_set_by,
+        "pos_sameby": condition_set_by,
         "neg_sameby": neg_sameby,
         "neg_diffby": [col for col in neg_diffby if col != REFERENCE_INDEX],
         "reference_normalization_method": meta.get("reference_normalization_method"),
@@ -257,7 +274,7 @@ def main():
     summary["n_features_input"] = len(features)
     if not features or len(df) == 0:
         summary["features_dropped_nan"] = []
-        summary["comparison_value_wells_dropped_too_few_wells"] = []
+        summary["test_condition_wells_dropped_too_few_wells"] = []
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
@@ -297,7 +314,7 @@ def main():
     summary["features_dropped_nan"] = dropped_features
     summary["n_features_scored"] = len(kept_features)
     if not kept_features:
-        summary["comparison_value_wells_dropped_too_few_wells"] = []
+        summary["test_condition_wells_dropped_too_few_wells"] = []
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
@@ -318,27 +335,29 @@ def main():
 
     # ---- Drop wells that can't be scored -------------------------------------
     # non-reference wells with no comparison column value can't be scored
-    no_comparison_value = ~is_reference & df[comparison_column].isna()
-    summary["n_wells_dropped_no_comparison_value"] = int(no_comparison_value.sum())
-    # A test condition's wells are scored only against the other wells that share the match columns (e.g. its
-    # wells in the same cell type), so each such set of wells needs at least effective_min_wells wells.
+    no_test_condition = ~is_reference & df[comparison_column].isna()
+    summary["n_wells_dropped_no_test_condition"] = int(no_test_condition.sum())
+    # A test condition's wells are scored only against the other wells that share the match columns (e.g.,
+    # the same cell type), so each such set of wells needs at least effective_min_wells wells.
     # Small sets are dropped, and a test condition whose sets are all small is dropped with them.
-    value_wells = df[~is_reference & ~no_comparison_value]
+    condition_wells = df[~is_reference & ~no_test_condition]
     in_small_set = pd.Series(False, index=df.index)
     small_sets = []
-    for _key, set_df in value_wells.groupby(value_set_by, dropna=False, sort=True):
+    for _key, set_df in condition_wells.groupby(
+        condition_set_by, dropna=False, sort=True
+    ):
         if len(set_df) < effective_min_wells:
             in_small_set[set_df.index] = True
-            # every well in the set shares the value_set_by values, so read them from the first well
+            # every well in the set shares the condition_set_by values, so read them from the first well
             first_well = set_df.iloc[0]
             small_set = {
                 col: (None if pd.isna(first_well[col]) else str(first_well[col]))
-                for col in value_set_by
+                for col in condition_set_by
             }
             small_set["n_wells"] = len(set_df)
             small_sets.append(small_set)
-    summary["comparison_value_wells_dropped_too_few_wells"] = small_sets
-    keep_wells = ~no_comparison_value & ~in_small_set
+    summary["test_condition_wells_dropped_too_few_wells"] = small_sets
+    keep_wells = ~no_test_condition & ~in_small_set
     df = df[keep_wells].reset_index(drop=True)
     is_reference = is_reference[keep_wells].reset_index(drop=True)
     summary["n_wells_scored"] = int((~is_reference).sum())
@@ -347,7 +366,7 @@ def main():
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
-            skip_reason=f"no test condition has at least {effective_min_wells} wells with the same values of {value_set_by}",
+            skip_reason=f"no test condition has at least {effective_min_wells} wells with the same values of {condition_set_by}",
             group_tag=group_tag,
         )
         return
@@ -371,9 +390,9 @@ def main():
         progress_bar=False,
         return_pairs=True,
     )
-    n_reference_wells = reference_wells_per_comparison_value(
+    n_reference_wells = reference_wells_per_test_condition(
         neg_pairs=pairs["neg"],
-        comparison_values=df[comparison_column],
+        test_conditions=df[comparison_column],
         is_reference=is_reference,
     )
     # the reference wells' APs are not tested
@@ -391,8 +410,8 @@ def main():
     )
 
     # ---- Counts per test condition, and the activity table -----------------
-    value_wells = df[~is_reference]
-    counts = value_wells.groupby(comparison_column).agg(
+    condition_wells = df[~is_reference]
+    counts = condition_wells.groupby(comparison_column).agg(
         n_wells=(PLATE_COLUMN, "size"), n_plates=(PLATE_COLUMN, "nunique")
     )
     counts["n_reference_wells"] = n_reference_wells.reindex(counts.index, fill_value=0)
@@ -419,8 +438,8 @@ def main():
     activity.to_parquet(activity_path, index=False)
     write_summary(
         summary=summary,
-        n_comparison_values_scored=len(activity),
-        n_comparison_values_active=int(activity["active"].sum()),
+        n_test_conditions_scored=len(activity),
+        n_test_conditions_active=int(activity["active"].sum()),
         skip_reason=None,
         group_tag=group_tag,
     )

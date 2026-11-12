@@ -129,13 +129,13 @@ nextflow_process {
             assert summary.n_features_input == 44
             assert summary.features_dropped_nan == ['Cytoplasm_Intensity_MeanIntensity_Mito']
             assert summary.n_features_scored == 43
-            assert summary.comparison_value_wells_dropped_too_few_wells == [
+            assert summary.test_condition_wells_dropped_too_few_wells == [
                 [Metadata_treatment: 'drugSingle', Metadata_cell_type: 'lineA', n_wells: 1],
             ]
             assert summary.n_wells_scored == 16
             assert summary.n_reference_wells == 16
-            assert summary.n_comparison_values_scored == 2
-            assert summary.n_comparison_values_active == 1
+            assert summary.n_test_conditions_scored == 2
+            assert summary.n_test_conditions_active == 1
             assert summary.skipped == false
             assert summary.skip_reason == null
 
@@ -177,10 +177,10 @@ nextflow_process {
             assert summary.pos_sameby == ['Metadata_treatment', 'Metadata_cell_type']
             assert summary.neg_sameby == ['Metadata_cell_type']
             assert summary.neg_diffby == ['Metadata_treatment']
-            assert summary.comparison_value_wells_dropped_too_few_wells == [
+            assert summary.test_condition_wells_dropped_too_few_wells == [
                 [Metadata_treatment: 'drugB', Metadata_cell_type: 'lineA', n_wells: 1],
             ]
-            assert summary.n_comparison_values_active == 2
+            assert summary.n_test_conditions_active == 2
         }
     }
 
@@ -239,12 +239,12 @@ nextflow_process {
             def summary = path(summaryFile).json
             assert summary.skipped == true
             assert summary.skip_reason == "no test condition has at least 9 wells with the same values of ['Metadata_treatment', 'Metadata_cell_type']"
-            assert summary.comparison_value_wells_dropped_too_few_wells == [
+            assert summary.test_condition_wells_dropped_too_few_wells == [
                 [Metadata_treatment: 'drugActive', Metadata_cell_type: 'lineA', n_wells: 8],
                 [Metadata_treatment: 'drugInactive', Metadata_cell_type: 'lineA', n_wells: 8],
                 [Metadata_treatment: 'drugSingle', Metadata_cell_type: 'lineA', n_wells: 1],
             ]
-            assert summary.n_comparison_values_scored == 0
+            assert summary.n_test_conditions_scored == 0
         }
     }
 
