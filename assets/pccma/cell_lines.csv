@@ -1,0 +1,57 @@
+cell_line_key,cell_line,depmap_id,cancer_type,sex,age,subtype,source,origin,phase_of_disease,approx_doubling_time_observed,cell_line_link,media_formulation
+A673,A673,ACH-000052,Ewing's Sarcoma,Female,15.0,EWS_FLI,ATCC CRL-1598,Primary,,20 hours,https://www.atcc.org/products/crl-1598,DMEM + 10% FBS
+CCD841CON,CCD 841 CoN,,Normal (colon epithelium),Female,0.0,,ATCC CRL-1790,,,,https://www.atcc.org/products/crl-1790,EMEM + 10% FBS
+CF1500,CF1500,,Myoepithelial Carcinoma (MEC),,,,cureMEC (Cure MEC Line #2),,,,,"DMEM/F12 with 10% FBS, 1X L-Glutamine (2 mm), 1% Pen/Strep"
+CHLA10,CHLA10,ACH-001029,Primitive Neuroectodermal Tumor (PNET),Female,14.0,EWS_FLI,COG,Metastasis,PD,,https://www.cccells.org/tables/cellreq-tbl_eft_ewings.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA113,CHLA113,,PNET / Medulloblastoma,,,,COG,,PD,,https://www.cccells.org/tables/cellreq-tbl_eft_ewings.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA186,CHLA186,,Rhabdomyosarcoma,,,,COG,Metastasis,PD-BMT,,https://www.cccells.org/tables/cellreq-tbl_ped_sarcomas.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA194,CHLA194,,Retinoblastoma,,,,COG,,PD,,https://www.cccells.org/tables/cellreq-tbl_retinoblastoma.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA196,CHLA196,,Retinoblastoma,,,,COG,Primary,PD,,https://www.cccells.org/tables/cellreq-tbl_retinoblastoma.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA200,CHLA200,,Glioblastoma Multiforme,Male,12.0,,COG,Primary,PD-PM,,https://www.cccells.org/PDF_Files/Brain/CHLA-200.pdf,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA203,CHLA203,,Retinoblastoma,,,,COG,,PD,,https://www.cccells.org/tables/cellreq-tbl_retinoblastoma.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA210,CHLA210,,Retinoblastoma,,,,COG,Primary,P-EBR,,https://www.cccells.org/tables/cellreq-tbl_retinoblastoma.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA218,CHLA218,ACH-001030,Primitive Neuroectodermal Tumor (PNET),Female,,,COG,Primary,PD,,https://www.cccells.org/tables/cellreq-tbl_eft_ewings.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA25,CHLA25,,Primitive Neuroectodermal Tumor (PNET),Female,2.6,EWS_ERG,COG,Primary,PD,,https://www.cccells.org/PDF_Files/Ewings/CHLA-25%20Cell%20Line%20Data%20Sheet.pdf,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA258,CHLA258,ACH-001282,Primitive Neuroectodermal Tumor (PNET),Female,14.0,EWS_FLI,COG,Metastasis,PD-BMT,,https://www.cccells.org/tables/cellreq-tbl_eft_ewings.php,IMDM + 20 % FBS + 1x ITS + P/S
+CHLA262,CHLA262,,Rhabdomyosarcoma,,,,COG,,,,,IMDM + 20 % FBS + 1x ITS + P/S
+CHP134,CHP134,ACH-001338,Neuroblastoma,Male,1.0,,Sigma-Aldrich,Primary,,,https://www.dsmz.de/collection/catalogue/details/culture/ACC-653,RPMI 1640 + 2mM Glutamine + 10% Foetal Bovine Serum (FBS)
+CHP212,CHP212,ACH-000120,Neuroblastoma,Male,1.0,MYCN_amp,ATCC CRL-2273,Primary,,26 hours,https://www.atcc.org/products/crl-2273,EMEM/F12 (1:1) + 10% FBS
+CHP2121020,CHP212-1020,,Neuroblastoma,Male,1.0,MYCN_amp,Derivative of CHP-212,Primary,,,,"RPMI with 10% FBS, 1% Pen-strep, and 1 ug/ml puromycin."
+CHP212EV,CHP212-EV,,Neuroblastoma,Male,1.0,MYCN_amp,Derivative of CHP-212,Primary,,,,"RPMI with 10% FBS, 1% Pen-strep, and 1 ug/ml puromycin."
+COGAR397HNB,COGAR397hnb,,Atypical Teratoid Rhabdoid Tumor,,,,COG,Metastasis,PD,,https://www.cccells.org/tables/cellreq-tbl_braintumor.php,
+COGE352,COGE352,ACH-001038,Ewing's Sarcoma,Male,17.0,EWS_ERG,COG,Metastasis,PD-PM,,https://www.cccells.org/tables/cellreq-tbl_eft_ewings.php,IMDM + 20 % FBS + 1x ITS + P/S
+COGEP280,COGEP280,,"Ependymoma, anaplastic",Male,,,COG,,PD,,https://www.cccells.org/tables/cellreq-tbl_braintumor.php,IMDM + 20 % FBS + 1x ITS + P/S
+COGR466H,COGR466h,,"Rhabdomyosarcoma, embryonal",Male,,,COG,,PD-PM,,https://www.cccells.org/tables/cellreq-tbl_ped_sarcomas.php,IMDM + 20 % FBS + 1x ITS + P/S
+COGW408,COGW408,,Wilms' Tumor,,,,COG,,PD,,https://www.cccells.org/tables/cellreq-tbl_wilms.php,IMDM + 20 % FBS + 1x ITS + P/S
+D283,D283,ACH-000055,Medulloblastoma,Male,6.0,,ATCC HTB-185,Metastasis,,,https://www.atcc.org/products/htb-185,EMEM + 10% FBS
+D425,D425,ACH-001053,Medulloblastoma,Male,6.0,,Roussel Lab/St. Jude,Primary,,,,NeuroCult NS-A Basal Medium + Neurocult supplement + N-2 Supplement + B-27 Supplement + Glutamax + BSA solution + Heparin + Human rEGF + Human bFGF
+DAOY,DAOY,ACH-000211,Medulloblastoma,Male,4.0,non_MYC,ATCC HTB-186,Primary,,34 hours,https://www.atcc.org/products/htb-186,EMEM + 10% FBS
+G292,G292,ACH-000082,Osteosarcoma,Female,9.0,,ATCC CRL-1423,Primary,,35 hours,https://www.atcc.org/products/crl-1423,McCoy's 5A + 10% FBS
+G401,G401,ACH-000096,Malignant Rhabdoid Tumor,Male,0.25,,ATCC CRL-1441,Primary,,24 hours,https://www.atcc.org/products/crl-1441,McCoy's 5A + 10% FBS
+G402,G402,ACH-000375,Malignant Rhabdoid Tumor,Female,0.75,,ATCC CRL-1440,Primary,,24 hours,https://www.atcc.org/products/crl-1440,McCoy's 5A + 10% FBS
+HMC3,HMC3,,Normal (immortalized microglia),,0.0,,ATCC CRL-3304,,,,https://www.atcc.org/products/crl-3304,EMEM + 10% FBS
+IMR32,IMR32,ACH-000310,Neuroblastoma,Male,1.0,MYCN_amp,ATCC CCL-127,Metastasis,,38 hours (Improves after P3),https://www.atcc.org/products/ccl-127,EMEM + 10% FBS
+KNS42,KNS-42,ACH-000622,Glioma,Male,16.0,,HSRRB IFO50356,Primary,,,https://cellbank.nibiohn.go.jp/~cellbank/en/search_res_det.cgi?ID=1880,EMEM + 5% fetal bovine serum
+KPNYN,KP-N-YN,ACH-000227,Neuroblastoma,Male,2.0,MYCN_amp,HSRRB IFO50431,Metastasis,,72 hours (Improves after P3),https://cellbank.nibiohn.go.jp/~cellbank/en/search_res_det.cgi?ID=1919,RPMI 1640 + 10% FBS
+NB1,NB-1,ACH-000804,Neuroblastoma,Male,2.0,,HSRRB IFO50295,Metastasis,,24 hours,https://cellbank.nibiohn.go.jp/~cellbank/en/search_res_det.cgi?ID=1853,RPMI 1640 + 10% FBS
+ONS76,ONS-76,ACH-000776,Medulloblastoma,Female,2.0,non_MYC,HSRRB IFO50355,Primary,,24 hours,https://cellbank.nibiohn.go.jp/~cellbank/en/search_res_det.cgi?ID=1879,RPMI 1640 + 10% FBS
+PA1,PA1,ACH-001374,Mixed Germ Cell,Female,12.0,,ATCC CRL-1572,Metastasis,,24 hours,https://www.atcc.org/products/crl-1572,EMEM + 10% FBS
+PBT04FHTC,PBT04 FHTC,,High Grade Gliomas - MYCN,,,MYCN/ID2 amplified,Brain Tumor Resource Lab,,,36 to 48 hours,https://btrl.org,
+RD,RD,ACH-000169,Rhabdomyosarcoma,Female,7.0,,Koehler Lab/MIT,Primary,PD,,,DMEM + 10% FBS
+RH30,RH30,ACH-000833,Rhabdomyosarcoma,Male,17.0,,Koehler Lab/MIT,Metastasis,Dx,35 hours,https://www.cccells.org/PDF_Files/Rhabdomyosarcoma/Rh30%20Cell%20Line%20Data%20Sheet.pdf,DMEM + 10% FBS
+RH4,RH4,ACH-001765,"Rhabdomyosarcoma, alveolar",Female,7.0,,Koehler Lab/MIT,Metastasis,,,,DMEM + 10% FBS
+RH41,RH41,ACH-000100,"Rhabdomyosarcoma, alveolar",Female,7.0,PAX3_FOXO1,COG,Metastasis,PD,,https://www.cccells.org/PDF_Files/Rhabdomyosarcoma/Rh41%20Cell%20Line%20Data%20Sheet.pdf,IMDM + 20 % FBS + 1x ITS + P/S
+SHSY5Y,SHSY5Y,ACH-001188,Neuroblastoma,Female,4.0,,ATCC CRL-2266,Metastasis,,,https://www.atcc.org/products/crl-2266,EMEM/F12 (1:1) + 10% FBS
+SJGBM2,SJGBM2,,Glioblastoma Multiforme,Female,6.0,,COG,Primary,PD,,https://www.cccells.org/PDF_Files/Brain/SJ-GBM2.pdf,IMDM + 20 % FBS + 1x ITS + P/S
+SJSA1,SJSA-1,ACH-000748,Osteosarcoma,Male,19.0,,ATCC CRL-2098,Primary,,24 hours,https://www.atcc.org/products/crl-2098,RPMI 1640 + 10% FBS
+SKNAS,SK-N-AS,ACH-000260,Neuroblastoma,Female,6.0,MYCN_wt,ATCC CRL-2137,Metastasis,,,https://www.atcc.org/products/crl-2137,
+SKNMC,SK-N-MC,ACH-000039,Ewing's Sarcoma,Female,14.0,EWS_FLI,ATCC HTB-10,Metastasis,PD,24 hours,https://www.atcc.org/products/htb-10,EMEM + 10% FBS
+SKNAS1020,SKNAS-1020,,Neuroblastoma,Female,6.0,MYCN_wt,Derivative of SK-N-AS,Metastasis,,,,"RPMI with 10% FBS, 1% Pen-strep, and 1 ug/ml puromycin."
+SKNASEV,SKNAS-EV,,Neuroblastoma,Female,6.0,MYCN_wt,Derivative of SK-N-AS,Metastasis,,,,"RPMI with 10% FBS, 1% Pen-strep, and 1 ug/ml puromycin."
+SKNDZ,SKNDZ,ACH-000366,Neuroblastoma,Female,2.0,MYCN_amp,ATCC CRL-2149,Metastasis,,,https://www.atcc.org/products/crl-2149,DMEM + 10% FBS + 0.1 mM Non-Essential Amino Acids (NEAA)
+SAOS2,Saos-2,ACH-000410,Osteosarcoma,Female,11.0,,ATCC HTB-85,Primary,,48 hours,https://www.atcc.org/products/htb-85,McCoy's 5A + 10% FBS
+TC71,TC71,ACH-000424,Ewing's Sarcoma,Male,22.0,EWS_FLI,COG,Primary,PD,24 hours,https://www.cccells.org/PDF_Files/Ewings/TC-71.pdf,IMDM + 20 % FBS + 1x ITS + P/S
+U2OS,U2-OS,ACH-000364,Osteosarcoma,Female,15.0,,ATCC HTB-96,Primary,,24 hours,https://www.atcc.org/products/htb-96,McCoy's 5A + 10% FBS
+WI38,WI38,ACH-003284,Normal (embryonic lung fibroblast),Female,0.0,,ATCC CCL-75,,,,https://www.atcc.org/products/ccl-75,EMEM + 10% FBS
+WPMY1,WPMY1,,Normal (prostate stromal myofibroblast),Male,54.0,,ATCC CRL-2854,,,,https://www.atcc.org/products/crl-2854,DMEM + 5% FBS
+X0092,X0092,,Myoepithelial Carcinoma (MEC),,,,cureMEC (Cure MEC Line #1),,,,,"DMEM/F12 with 10% FBS, 1X L-Glutamine (2 mm), 1% Pen/Strep"
