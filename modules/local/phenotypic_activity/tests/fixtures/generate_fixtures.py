@@ -42,7 +42,8 @@ Writes these files to the directory containing this script:
 - profiles_treatments.parquet: one cell type (lineA) on two plates (P1, P2), for comparing
   treatments within a cell type (comparison column Metadata_treatment, reference DMSO).
   Each plate has 8 DMSO, 4 drugActive (called as active), and 4 drugInactive (not called as active) wells; P1 also
-  has one drugSingle well (one well in the group, so it is dropped).
+  has one drugSingle well (one well in the group, so it is dropped), and two wells with the
+  treatment effect whose treatment is '_NA_' (a blank platemap cell, so they are dropped).
   Cytoplasm_Intensity_MeanIntensity_Mito is 0 except for one missing value in a drugActive
   well, so that feature is dropped.
 - profiles_pooled_cell_types.parquet: two cell types on one plate (P1), for comparing treatments
@@ -146,6 +147,8 @@ def treatments_fixture() -> pl.DataFrame:
             ("P2", "lineA", "DMSO", 8, False),
             ("P2", "lineA", "drugActive", 4, True),
             ("P2", "lineA", "drugInactive", 4, False),
+            # as pycytominer annotate fills blank platemap cells; called as active if scored
+            ("P1", "lineA", "_NA_", 2, True),
         ]
     )
     # Blank out one value in the first drugActive well (as a null, as reference normalization

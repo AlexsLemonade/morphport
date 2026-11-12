@@ -7,7 +7,8 @@ Reads the reference-normalized profiles, keeps the metadata columns and the feat
 features_file, and then:
 
 1. Drops features with any NaN value, since copairs needs complete profiles.
-2. Drops non-reference wells with no comparison column value.
+2. Drops non-reference wells with no comparison column value: a null, or the '_NA_' that
+   pycytominer_annotate.py writes for a blank platemap cell.
 3. Drops a test condition's wells (e.g. a treatment's) in any cell type where it has fewer
    than min_wells wells. "Cell type" here stands for each combination of the match columns
    (see step 4). A well needs at least one other well of its test condition to be scored,
@@ -44,6 +45,8 @@ NON_REFERENCE = -1
 # A test condition needs at least two wells in a cell type: its wells' positives are each other
 MIN_SCORABLE_WELLS = 2
 NULL_METHODS = ("permutation", "copied")
+# The value pycytominer_annotate.py writes for a blank platemap cell
+MISSING_VALUE = "_NA_"
 
 
 def validate_params(
@@ -276,7 +279,7 @@ def main():
     summary["n_features_input"] = len(features)
     if not features or len(df) == 0:
         summary["features_dropped_nan"] = []
-        summary["test_condition_wells_dropped_too_few_wells"] = []
+        summary["n_wells_dropped"] = 0
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
@@ -316,7 +319,7 @@ def main():
     summary["features_dropped_nan"] = dropped_features
     summary["n_features_scored"] = len(kept_features)
     if not kept_features:
-        summary["test_condition_wells_dropped_too_few_wells"] = []
+        summary["n_wells_dropped"] = 0
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
@@ -336,30 +339,21 @@ def main():
     is_reference = is_reference.astype(bool)
 
     # ---- Drop wells that can't be scored -------------------------------------
-    # non-reference wells with no comparison column value can't be scored
-    no_test_condition = ~is_reference & df[comparison_column].isna()
-    summary["n_wells_dropped_no_test_condition"] = int(no_test_condition.sum())
+    # non-reference wells with no comparison column value (null or blank in the platemap) can't be scored
+    no_comparison_value = df[comparison_column].isna() | (
+        df[comparison_column].astype(str) == MISSING_VALUE
+    )
+    no_test_condition = ~is_reference & no_comparison_value
     # A test condition's wells are scored only against the other wells that share the match columns (e.g.,
     # the same cell type), so each such set of wells needs at least effective_min_wells wells.
     # Small sets are dropped, and a test condition whose sets are all small is dropped with them.
     condition_wells = df[~is_reference & ~no_test_condition]
-    in_small_set = pd.Series(False, index=df.index)
-    small_sets = []
-    for _key, set_df in condition_wells.groupby(
-        condition_set_by, dropna=False, sort=True
-    ):
-        if len(set_df) < effective_min_wells:
-            in_small_set[set_df.index] = True
-            # every well in the set shares the condition_set_by values, so read them from the first well
-            first_well = set_df.iloc[0]
-            small_set = {
-                col: (None if pd.isna(first_well[col]) else str(first_well[col]))
-                for col in condition_set_by
-            }
-            small_set["n_wells"] = len(set_df)
-            small_sets.append(small_set)
-    summary["test_condition_wells_dropped_too_few_wells"] = small_sets
+    set_sizes = condition_wells.groupby(condition_set_by, dropna=False)[
+        PLATE_COLUMN
+    ].transform("size")
+    in_small_set = (set_sizes < effective_min_wells).reindex(df.index, fill_value=False)
     keep_wells = ~no_test_condition & ~in_small_set
+    summary["n_wells_dropped"] = int((~keep_wells).sum())
     df = df[keep_wells].reset_index(drop=True)
     is_reference = is_reference[keep_wells].reset_index(drop=True)
     summary["n_wells_scored"] = int((~is_reference).sum())

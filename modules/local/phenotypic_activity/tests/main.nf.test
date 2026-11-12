@@ -13,7 +13,7 @@ nextflow_process {
     // a test condition with the treatment effect all rank ahead of its reference wells, and those of
     // one without it all rank behind them.
     // - profiles_treatments.parquet: one cell type on two plates, with drugActive, drugInactive, and
-    //   drugSingle (one well) wells, and one missing feature value
+    //   drugSingle (one well) wells, two '_NA_' (blank platemap cell) wells, and one missing feature value
     // - profiles_pooled_cell_types.parquet: two cell types with orthogonal baselines; drugA (lineA)
     //   is not called as active and drugB (lineB) is, each against its own cell type's DMSO wells; drugC
     //   (both cell types) is called as active; one drugB well in lineA has no other drugB well in its cell type
@@ -89,7 +89,7 @@ nextflow_process {
 
             def rows
             with(path(activityFile).parquet) {
-                // drugSingle (one well) is dropped, and the reference wells (DMSO) are not scored
+                // drugSingle (one well) and '_NA_' (no treatment) are dropped, and the reference wells (DMSO) are not scored
                 assert rowCount == 2
                 assert columnNames == activityColumns('Metadata_treatment')
                 assert schema == activitySchema('Metadata_treatment')
@@ -125,13 +125,12 @@ nextflow_process {
             assert summary.negative_match_columns == ['Metadata_cell_type']
             assert summary.negative_differ_columns == ['Metadata_treatment']
             assert summary.reference_normalization_method == 'mad_robustize'
-            assert summary.n_wells_input == 33
+            assert summary.n_wells_input == 35
             assert summary.n_features_input == 44
             assert summary.features_dropped_nan == ['Cytoplasm_Intensity_MeanIntensity_Mito']
             assert summary.n_features_scored == 43
-            assert summary.test_condition_wells_dropped_too_few_wells == [
-                [Metadata_treatment: 'drugSingle', Metadata_cell_type: 'lineA', n_wells: 1],
-            ]
+            // drugSingle's one well, and the two '_NA_' wells, which have no test condition
+            assert summary.n_wells_dropped == 3
             assert summary.n_wells_scored == 16
             assert summary.n_reference_wells == 16
             assert summary.n_test_conditions_scored == 2
@@ -177,9 +176,8 @@ nextflow_process {
             assert summary.positive_match_columns == ['Metadata_treatment', 'Metadata_cell_type']
             assert summary.negative_match_columns == ['Metadata_cell_type']
             assert summary.negative_differ_columns == ['Metadata_treatment']
-            assert summary.test_condition_wells_dropped_too_few_wells == [
-                [Metadata_treatment: 'drugB', Metadata_cell_type: 'lineA', n_wells: 1],
-            ]
+            // the one drugB well in lineA
+            assert summary.n_wells_dropped == 1
             assert summary.n_test_conditions_active == 2
         }
     }
@@ -239,11 +237,8 @@ nextflow_process {
             def summary = path(summaryFile).json
             assert summary.skipped == true
             assert summary.skip_reason == "no test condition has at least 9 wells with the same values of ['Metadata_treatment', 'Metadata_cell_type']"
-            assert summary.test_condition_wells_dropped_too_few_wells == [
-                [Metadata_treatment: 'drugActive', Metadata_cell_type: 'lineA', n_wells: 8],
-                [Metadata_treatment: 'drugInactive', Metadata_cell_type: 'lineA', n_wells: 8],
-                [Metadata_treatment: 'drugSingle', Metadata_cell_type: 'lineA', n_wells: 1],
-            ]
+            // every non-reference well: 8 drugActive, 8 drugInactive, 1 drugSingle, and 2 '_NA_'
+            assert summary.n_wells_dropped == 19
             assert summary.n_test_conditions_scored == 0
         }
     }

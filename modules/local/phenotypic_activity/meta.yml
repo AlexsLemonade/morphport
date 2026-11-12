@@ -70,7 +70,7 @@ input:
               cell type to be scored in that cell type.
               Wells are only compared within a cell type (more precisely, within one combination of the
               matched columns), so a treatment's wells in a cell type where it has too few are dropped
-              and listed in the summary, and a treatment with no wells left is not scored.
+              and counted in the summary, and a treatment with no wells left is not scored.
               Must be at least 1, and 1 is treated as 2, since a well needs at least one other well to match.
           e.g. [ distance:'cosine', null_method:'permutation', null_size:1000000,
                  fdr_threshold:0.05, seed:1674, min_wells:2 ]
