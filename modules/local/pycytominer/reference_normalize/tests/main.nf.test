@@ -125,20 +125,20 @@ nextflow_process {
             assert p1DrugA[1].Cytoplasm_Intensity_MeanIntensity_Mito != null
 
             def summary = path(process.out.summary[0]).json
-            assert summary.method == 'mad_robustize'
+            assert summary.reference_normalization_method == 'mad_robustize'
             assert summary.comparison_column == 'Metadata_treatment'
             assert summary.comparison_reference == [Metadata_treatment: ['DMSO']]
             // the grouping column (cell type) has one value in this group, so it adds no split
-            assert summary.normalize_by == ['Metadata_Plate', 'Metadata_cell_type']
+            assert summary.normalization_set_columns == ['Metadata_Plate', 'Metadata_cell_type']
             assert summary.normalization_sets == [
                 [Metadata_Plate: 'P1', Metadata_cell_type: 'lineA', n_wells: 12, n_reference_wells: 6],
                 [Metadata_Plate: 'P2', Metadata_cell_type: 'lineA', n_wells: 9, n_reference_wells: 3],
                 [Metadata_Plate: 'P3', Metadata_cell_type: 'lineA', n_wells: 4, n_reference_wells: 1],
             ]
             assert summary.n_wells_input == 25
-            assert summary.n_wells_dropped_no_reference == 4
+            assert summary.n_wells_dropped == 4
             assert summary.n_wells_output == 21
-            assert summary.n_reference_wells == 9
+            assert summary.n_reference_wells_used == 9
             assert summary.n_features_input == 4
             assert summary.features_dropped_zero_spread == ['Nuclei_AreaShape_Solidity']
             assert summary.n_features_output == 3
@@ -201,7 +201,7 @@ nextflow_process {
                 [Metadata_Plate: 'P1', Metadata_cell_type: 'lineA', n_wells: 12, n_reference_wells: 6],
                 [Metadata_Plate: 'P2', Metadata_cell_type: 'lineA', n_wells: 9, n_reference_wells: 3],
             ]
-            assert summary.n_wells_dropped_no_reference == 0
+            assert summary.n_wells_dropped == 0
             assert summary.skipped == false
         }
     }
@@ -263,12 +263,12 @@ nextflow_process {
             }
 
             def summary = path(process.out.summary[0]).json
-            assert summary.normalize_by == ['Metadata_Plate', 'Metadata_cell_type']
+            assert summary.normalization_set_columns == ['Metadata_Plate', 'Metadata_cell_type']
             assert summary.normalization_sets == [
                 [Metadata_Plate: 'P1', Metadata_cell_type: 'lineA', n_wells: 7, n_reference_wells: 4],
                 [Metadata_Plate: 'P1', Metadata_cell_type: 'lineB', n_wells: 7, n_reference_wells: 4],
             ]
-            assert summary.n_wells_dropped_no_reference == 0
+            assert summary.n_wells_dropped == 0
             assert summary.skipped == false
         }
     }
@@ -299,7 +299,7 @@ nextflow_process {
             }
 
             def summary = path(process.out.summary[0]).json
-            assert summary.normalize_by == ['Metadata_Plate', 'Metadata_cell_type']
+            assert summary.normalization_set_columns == ['Metadata_Plate', 'Metadata_cell_type']
             assert summary.normalization_sets == [
                 [Metadata_Plate: 'P1', Metadata_cell_type: 'lineA', n_wells: 7, n_reference_wells: 4],
                 [Metadata_Plate: 'P1', Metadata_cell_type: 'lineB', n_wells: 7, n_reference_wells: 4],
@@ -331,7 +331,7 @@ nextflow_process {
             def summary = path(process.out.summary[0]).json
             assert summary.skipped == true
             assert summary.skip_reason == 'no normalization set has at least 2 reference wells'
-            assert summary.n_wells_dropped_no_reference == 4
+            assert summary.n_wells_dropped == 4
             assert summary.n_features_output == 0
 
             def warnings = path(process.out.warnings[0][2]).readLines()
