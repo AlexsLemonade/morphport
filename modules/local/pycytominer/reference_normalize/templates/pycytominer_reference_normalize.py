@@ -13,7 +13,7 @@ the features listed in features_file, and then:
    columns that define the analysis group (grouping, subgroup, and comparison
    columns) that are not reference columns, so, e.g., each cell type is
    normalized to its own reference wells, whichever direction the comparison
-   goes. The columns that define the sets are normalize_by.
+   goes. The summary lists these columns as normalization_set_columns.
 3. Drops the wells of normalization sets with fewer than MIN_REFERENCE_WELLS
    reference wells (the spread of a single well is zero), and warns about sets
    with fewer than FEW_REFERENCE_WELLS.
@@ -169,6 +169,33 @@ def write_warnings(messages: list[str], skip_reason: str | None, group_tag: str)
             f.write(f"{message}\\n")
 
 
+def write_skipped(
+    metadata_df: pd.DataFrame,
+    profiles_path: str,
+    features_path: str,
+    summary: dict,
+    messages: list[str],
+    skip_reason: str,
+    group_tag: str,
+):
+    """
+    Write the outputs of a skipped group: a profiles parquet with no rows and only the columns of
+    metadata_df, an empty features file, the summary, and the warnings (including the skip reason).
+    None of the inputs are modified.
+    """
+    metadata_df.iloc[0:0].to_parquet(profiles_path, index=False)
+    with open(features_path, "w"):
+        pass
+    write_summary(
+        summary=summary,
+        n_wells_output=0,
+        n_features_output=0,
+        skip_reason=skip_reason,
+        group_tag=group_tag,
+    )
+    write_warnings(messages=messages, skip_reason=skip_reason, group_tag=group_tag)
+
+
 def main():
     # ---- Capture Nextflow variables ----------------------------------------
     parquet_dir = "input_parquet"
@@ -191,7 +218,7 @@ def main():
     # written up front so skipped groups report versions too
     write_versions(task_process)
 
-    normalize_by = normalization_columns(
+    normalization_set_columns = normalization_columns(
         grouping_column=meta["grouping_column"],
         subgroup_columns=list(meta["subgroup_values"].keys()),
         comparison_column=comparison_column,
@@ -205,11 +232,13 @@ def main():
         "grouping_column": meta["grouping_column"],
         "group": meta["group"],
         "subgroup_values": meta["subgroup_values"],
-        "method": normalize_method,
+        "reference_normalization_method": normalize_method,
         "comparison_column": comparison_column,
         "comparison_reference": comparison_reference,
-        "normalize_by": normalize_by,
+        "normalization_set_columns": normalization_set_columns,
         "min_reference_wells": MIN_REFERENCE_WELLS,
+        # filled in after the zero-spread check; stays empty if the group is skipped before it
+        "features_dropped_zero_spread": [],
         # plate normalization settings are in the per-plate metas, not the group meta;
         # they come from params, so normally each list has a single value
         "plate_normalization_method": distinct_values(
@@ -229,7 +258,7 @@ def main():
     missing = [
         col
         for col in dict.fromkeys(
-            [*normalize_by, comparison_column, *comparison_reference]
+            [*normalization_set_columns, comparison_column, *comparison_reference]
         )
         if col not in metadata_cols
     ]
@@ -260,13 +289,13 @@ def main():
     # ---- Normalization sets and their reference wells -----------------------
     normalization_sets = []
     keep_wells = pd.Series(False, index=df.index)
-    for _key, set_df in df.groupby(normalize_by, dropna=False, sort=True):
+    for _key, set_df in df.groupby(normalization_set_columns, dropna=False, sort=True):
         n_reference = int(set_df[REFERENCE_FLAG].sum())
-        # every well in the set shares the normalize_by values, so read them from the first well
+        # every well in the set shares the same set column values, so read them from the first well
         first_well = set_df.iloc[0]
         label = {
             col: (None if pd.isna(first_well[col]) else str(first_well[col]))
-            for col in normalize_by
+            for col in normalization_set_columns
         }
         normalization_sets.append(
             {**label, "n_wells": len(set_df), "n_reference_wells": n_reference}
@@ -283,27 +312,20 @@ def main():
                     f"{label}: only {n_reference} reference wells; normalization may be noisy."
                 )
     summary["normalization_sets"] = normalization_sets
-    summary["n_wells_dropped_no_reference"] = int((~keep_wells).sum())
+    summary["n_wells_dropped"] = int((~keep_wells).sum())
     df = df[keep_wells]
-    summary["n_reference_wells"] = int(df[REFERENCE_FLAG].sum())
+    summary["n_reference_wells_used"] = int(df[REFERENCE_FLAG].sum())
 
-    if summary["n_reference_wells"] == 0:
-        summary["features_dropped_zero_spread"] = []
-        # skipped: write a profiles parquet with no rows (metadata columns only) and an empty features file
-        skip_reason = (
-            f"no normalization set has at least {MIN_REFERENCE_WELLS} reference wells"
-        )
-        df.iloc[0:0][metadata_cols].to_parquet(profiles_path, index=False)
-        with open(features_path, "w"):
-            pass
-        write_summary(
+    if summary["n_reference_wells_used"] == 0:
+        write_skipped(
+            metadata_df=df[metadata_cols],
+            profiles_path=profiles_path,
+            features_path=features_path,
             summary=summary,
-            n_wells_output=0,
-            n_features_output=0,
-            skip_reason=skip_reason,
+            messages=messages,
+            skip_reason=f"no normalization set has at least {MIN_REFERENCE_WELLS} reference wells",
             group_tag=group_tag,
         )
-        write_warnings(messages=messages, skip_reason=skip_reason, group_tag=group_tag)
         return
 
     # ---- Drop features with zero reference spread ---------------------------
@@ -311,7 +333,9 @@ def main():
     # A feature is dropped if its reference spread is zero in any normalization set:
     # start with no features flagged, and flag those with zero spread in each set in turn.
     zero_spread = pd.Series(False, index=features)
-    for _key, set_reference_df in reference_df.groupby(normalize_by, dropna=False):
+    for _key, set_reference_df in reference_df.groupby(
+        normalization_set_columns, dropna=False
+    ):
         set_zero_spread = has_zero_spread(
             values=set_reference_df[features], method=normalize_method
         )
@@ -324,19 +348,15 @@ def main():
             f"dropped {len(dropped_features)} feature(s) with zero spread among the reference wells of a normalization set."
         )
     if not kept_features:
-        # skipped: write a profiles parquet with no rows (metadata columns only) and an empty features file
-        skip_reason = "no features have nonzero spread among the reference wells"
-        df.iloc[0:0][metadata_cols].to_parquet(profiles_path, index=False)
-        with open(features_path, "w"):
-            pass
-        write_summary(
+        write_skipped(
+            metadata_df=df[metadata_cols],
+            profiles_path=profiles_path,
+            features_path=features_path,
             summary=summary,
-            n_wells_output=0,
-            n_features_output=0,
-            skip_reason=skip_reason,
+            messages=messages,
+            skip_reason="no features have nonzero spread among the reference wells",
             group_tag=group_tag,
         )
-        write_warnings(messages=messages, skip_reason=skip_reason, group_tag=group_tag)
         return
 
     # ---- Normalize each set to its reference wells ---------------------------
@@ -349,7 +369,7 @@ def main():
             samples=f"{REFERENCE_FLAG} == True",
             method=normalize_method,
         )
-        for _key, set_df in df.groupby(normalize_by, dropna=False)
+        for _key, set_df in df.groupby(normalization_set_columns, dropna=False)
     ]
     # restore the input row order
     normalized_df = pd.concat(normalized_sets).sort_index()
