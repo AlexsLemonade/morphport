@@ -35,12 +35,12 @@ input:
         type: map
         description: |
           Group meta map from PYCYTOMINER_REFERENCE_NORMALIZE, with comparison_column and
-          comparison_reference set, e.g.,
+          reference_column, and reference_values set, e.g.,
           [ project:'cpg0016', aggregate_level:'well', grouping_name:'cell_type',
             grouping_column:'Metadata_cell_type', group:'lineA', subgroup_values:[:],
             group_id:'cell_type=lineA', group_tag:'well__cell_type__cell_type=lineA',
             plate_ids:['plate_001','plate_002'], comparison_column:'Metadata_treatment',
-            comparison_reference:[Metadata_treatment:['DMSO']],
+            reference_column:'Metadata_treatment', reference_values:['DMSO'],
             reference_normalized:true, reference_normalization_method:'mad_robustize' ]
     - profiles:
         type: file

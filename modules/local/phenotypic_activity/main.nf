@@ -23,8 +23,8 @@ process PHENOTYPIC_ACTIVITY {
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    assert meta.comparison_column && meta.comparison_reference
-        : "PHENOTYPIC_ACTIVITY: group ${meta.group_tag} has no comparison_column or comparison_reference"
+    assert meta.comparison_column && meta.reference_column && meta.reference_values
+        : "PHENOTYPIC_ACTIVITY: group ${meta.group_tag} has no comparison_column, reference_column, or reference_values"
     // Every option must be given; other keys are ignored
     def option_keys = ['distance', 'null_method', 'null_size', 'fdr_threshold', 'seed', 'min_wells']
     def missing_keys = option_keys - options.keySet()
