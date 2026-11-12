@@ -5,6 +5,33 @@ These files approximate what the Cell Painting Gallery (`cpg0041-pccma`) will ho
 
 The files here are built from copies of the upstream files in `source/`, which are not tracked by git; see `source/README.md` for the upstream files and the commits they come from.
 
+To rebuild the reference files, run the following commands from the repository root.
+The platemaps are built from `cell_lines.csv` and `repo1_compounds.csv`, so run the scripts in this order.
+The platemaps in `platemaps/` are not tracked by git, so build them locally before using them.
+
+```bash
+# download the upstream files to source/
+uv run assets/pccma/scripts/build_source.py
+# build the reference files from source/
+uv run assets/pccma/scripts/build_cell_lines.py
+uv run assets/pccma/scripts/build_compounds.py
+uv run assets/pccma/scripts/build_platemaps.py
+```
+
+The upstream repositories are public, so `build_source.py` needs no GitHub token.
+If you run into GitHub's rate limits, set the `GITHUB_TOKEN` or `GH_TOKEN` environment variable to a GitHub token, which the script sends with each request.
+For example, with the GitHub CLI:
+
+```bash
+GITHUB_TOKEN="$(gh auth token)" uv run assets/pccma/scripts/build_source.py
+```
+
+Or with a token stored in 1Password:
+
+```bash
+GITHUB_TOKEN="op://<vault>/<item>/<field>" op run -- uv run assets/pccma/scripts/build_source.py
+```
+
 ## License
 
 The upstream metadata come from [WayScience/pccma](https://github.com/WayScience/pccma) and [WayScience/pccma_repo1_screen_image_profiling](https://github.com/WayScience/pccma_repo1_screen_image_profiling).
