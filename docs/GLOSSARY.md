@@ -27,13 +27,21 @@ Either "sample sheet" or "samplesheet" is acceptable (the nf-core template uses 
 ### Experimental design
 
 **Cell type**:
-The cells grown in a well, as recorded in the platemap's `cell_type` column.
+The cells grown in a well, as recorded in a platemap column whose name varies by project (e.g., `cell_line` or `cell_type`).
 Currently each cell type is a single cell line, so the two are treated as equivalent.
-_Avoid_: cell line (prefer the platemap's term)
+_Avoid_: cell line (when referring to the platemap value)
+
+**Cell line**:
+A named, cultured line of cells (e.g., A673) and its descriptive attributes, such as cancer type, sex, and age at diagnosis.
+A platemap's cell type value refers to a cell line.
 
 **Treatment**:
-What was applied to a well, as recorded in the platemap's `treatment` column, including test compounds, DMSO, and no treatment at all.
+What was applied to a well, as recorded in a platemap column whose name varies by project (e.g., `treatment` or `broad_sample`), including test compounds, DMSO, and no treatment at all.
 _Avoid_: compound, drug, condition (when referring to the treatment value in general)
+
+**Compound library**:
+A collection of test compounds, with annotations such as mechanism of action and target, from which a screen draws its treatments (e.g., REPO1).
+A compound from the library becomes a treatment when it is applied to a well.
 
 **Control**:
 A treatment used as a baseline for comparison with other treatments, such as DMSO or no treatment.
