@@ -42,6 +42,9 @@ PLATE_COLUMN = "Metadata_Plate"
 # so reference wells are never positives of each other or of the test conditions' wells
 REFERENCE_INDEX = "Metadata__reference_index"
 NON_REFERENCE = -1
+# Temporary column: 1 for reference wells and 0 for other wells. Negatives must differ in it,
+# so every negative pair is one test condition well and one reference well
+REFERENCE_FLAG = "Metadata__is_reference"
 # A test condition needs at least two wells in a cell type: its wells' positives are each other
 MIN_SCORABLE_WELLS = 2
 NULL_METHODS = ("permutation", "copied")
@@ -169,8 +172,8 @@ def reference_wells_per_test_condition(
     first_is_reference = is_reference_array[first_well]
     second_is_reference = is_reference_array[second_well]
 
-    # Keep pairs of one test condition well and one reference well
-    # (two reference wells can also be a negative pair, e.g. when comparing cell types).
+    # Keep pairs of one test condition well and one reference well. Negatives are required to differ in
+    # reference status, so this keeps every pair; it guards the counts if that requirement changes.
     one_reference = first_is_reference != second_is_reference
     first_well = first_well[one_reference]
     second_well = second_well[one_reference]
@@ -233,12 +236,10 @@ def main():
     # (each reference well has its own reference index)
     pos_sameby = [*condition_set_by, REFERENCE_INDEX]
     # negatives: a test condition's wells paired with the reference wells that share the match columns.
-    # The reference index differs between a test condition well (-1) and a reference well (its own index),
-    # and is the same for two test condition wells, so only test condition-reference pairs (and reference-reference
-    # pairs, whose APs are not tested) are negatives. The copairs phenotypic activity recipe also requires the
-    # comparison column to differ, which only removes reference-reference pairs, so it is not needed here.
+    # Requiring the reference flag to differ leaves out pairs of two test condition wells and pairs of two
+    # reference wells (whose APs are not tested), whatever the reference and comparison columns are.
     neg_sameby = match_by
-    neg_diffby = [REFERENCE_INDEX]
+    neg_diffby = [REFERENCE_FLAG]
     # a test condition needs at least two wells in a cell type to have positive pairs, whatever min_wells is
     effective_min_wells = max(min_wells, MIN_SCORABLE_WELLS)
 
@@ -371,6 +372,7 @@ def main():
         reference_col=REFERENCE_INDEX,
         default_value=NON_REFERENCE,
     )
+    pair_meta[REFERENCE_FLAG] = is_reference.astype(int).to_numpy()
     ap_scores, pairs = average_precision(
         meta=pair_meta,
         feats=df[kept_features].to_numpy(),
