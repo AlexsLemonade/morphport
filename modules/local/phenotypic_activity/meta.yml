@@ -1,15 +1,15 @@
 name: phenotypic_activity
 description: |
-  Scores the phenotypic activity of each comparison value (e.g. each treatment) in an
+  Scores the phenotypic activity of each test condition (e.g. each treatment) in an
   analysis group with mean average precision (mAP) from copairs: whether its reference-normalized
-  per-well profiles are retrieved ahead of the comparison reference wells (e.g. a
-  treatment's wells ahead of the DMSO wells of the same cell type).
+  per-well profiles are more similar to each other than to the comparison reference wells
+  (e.g. a treatment's wells compared with the DMSO wells of the same cell type).
   Pairs are matched on the group-defining columns that are not reference columns
-  (e.g. cell type): a well's positives are the other wells of its comparison value, and
+  (e.g. cell type): a well's positives are the other wells of its test condition, and
   its negatives the reference wells, that share those values (e.g. the same cell type),
-  and a comparison value's mAP averages over all its wells. p-values come from a copairs
-  null distribution, with Benjamini-Hochberg correction across the comparison values in
-  the group; a comparison value is active when its corrected p-value is below the threshold.
+  and a test condition's mAP averages over all its wells. p-values come from a copairs
+  null distribution, with Benjamini-Hochberg correction across the test conditions in
+  the group; a test condition is called as active when its corrected p-value is below the threshold.
 keywords:
   - cell painting
   - phenotypic activity
@@ -24,7 +24,7 @@ tools:
       licence: ["BSD-3-Clause"]
       identifier: ""
   - pandas:
-      description: Data analysis library used for parquet IO and counts per comparison value.
+      description: Data analysis library used for parquet IO and counts per test condition.
       homepage: https://pandas.pydata.org
       documentation: https://pandas.pydata.org/docs
       licence: ["BSD-3-Clause"]
@@ -60,11 +60,11 @@ input:
         description: |
           Named scoring options. Every key is required; other keys are ignored.
             distance: Distance copairs uses to rank profiles (e.g. cosine, euclidean, correlation)
-            null_method: copairs null distribution of a comparison value's mAP: permutation (label permutation
+            null_method: copairs null distribution of a test condition's mAP: permutation (label permutation
               using the observed similarities) or copied (the copairs 0.5.x null)
             null_size: Number of draws from the null distribution (at least 1)
             fdr_threshold: Threshold (between 0 and 1) on the Benjamini-Hochberg corrected p-value
-              below which a comparison value is active
+              below which a test condition is called as active
             seed: Random seed for the null distribution (at least 0)
             min_wells: Minimum number of wells a comparison column value (e.g. a treatment) needs in a
               cell type to be scored in that cell type.
@@ -83,16 +83,16 @@ output:
       - "phenotypic_activity_*.parquet":
           type: file
           description: |
-            One row per scored comparison value, with the comparison column, n_wells, n_plates,
+            One row per scored test condition, with the comparison column, n_wells, n_plates,
             n_reference_wells (distinct reference wells used as its wells' negatives),
-            mean_average_precision, p_value, corrected_p_value, and active.
+            mean_average_precision, p_value, corrected_p_value, and active (whether it is called as active).
             Reference wells are not scored. Empty (zero rows, same columns) for skipped groups.
           pattern: "phenotypic_activity_*.parquet"
       - "phenotypic_activity_summary_*.json":
           type: file
           description: |
             Summary JSON with group identity, scoring parameters, copairs version, pairing
-            columns, dropped features and wells, normalization settings, comparison value counts, and
+            columns, dropped features and wells, normalization settings, test condition counts, and
             skip status (skipped and skip_reason).
           pattern: "phenotypic_activity_summary_*.json"
   - versions:

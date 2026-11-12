@@ -1,6 +1,6 @@
-// Scores the phenotypic activity of each comparison value in one analysis group: whether its
-// reference-normalized per-well profiles are retrieved ahead of the comparison reference wells,
-// measured as mean average precision (mAP) with copairs.
+// Scores the phenotypic activity of each test condition in one analysis group: whether its
+// reference-normalized per-well profiles are more similar to each other than to the comparison
+// reference wells, measured as mean average precision (mAP) with copairs.
 process PHENOTYPIC_ACTIVITY {
     tag "${meta.group_tag}"
     label 'process_low'

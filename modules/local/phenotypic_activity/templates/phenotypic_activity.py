@@ -1,40 +1,30 @@
 #!/usr/bin/env python3
 """
-Nextflow template script to score the phenotypic activity of each comparison value in one
+Nextflow template script to score the phenotypic activity of each test condition in one
 analysis group with mean average precision (mAP), using copairs.
-
-A comparison value is one value of the comparison column (e.g. one treatment, when comparing
-treatments within a cell type), together with the non-reference wells that share it. It is
-active when its wells are retrieved ahead of the comparison reference wells (e.g. DMSO wells)
-more often than expected by chance.
 
 Reads the reference-normalized profiles, keeps the metadata columns and the features listed in
 features_file, and then:
 
-1. Drops features with any NaN value (copairs needs complete profiles).
-2. Drops non-reference wells with no comparison column value, and the wells of a comparison
-   column value (e.g. a treatment) in any cell type (more precisely, any combination of the
-   match columns, below) where it has fewer than min_wells wells. min_wells must be at least
-   1, and 1 is treated as 2, since a well needs at least one other well to match. A treatment
-   with no wells left is not scored.
-3. Computes the average precision (AP) of every well with copairs. A well's pairs are matched
-   on the match columns: the columns that define the analysis group (grouping, subgroup, and
-   comparison columns) that are not reference columns. These are the same columns that split
-   the normalization sets in reference normalization, so, e.g., a well is compared only with
-   wells of its own cell type, whose reference wells it was normalized to.
-   - positives: the other wells of the same comparison value (not reference wells) that share
-     the match columns;
-   - negatives: the reference wells that share the match columns.
-   In a group that pools cell types and compares treatments, a treatment's wells in one cell
-   type are therefore neither positives nor negatives of its wells in another.
-4. Drops the reference wells' AP rows, and computes each comparison value's mAP and its
-   p-value against a null distribution (copairs mean_average_precision), with
-   Benjamini-Hochberg correction across the comparison values in the group.
-   A comparison value is active when its corrected p-value is below fdr_threshold.
+1. Drops features with any NaN value, since copairs needs complete profiles.
+2. Drops non-reference wells with no comparison column value.
+3. Drops a test condition's wells (e.g. a treatment's) in any cell type where it has fewer
+   than min_wells wells. "Cell type" here stands for each combination of the match columns
+   (see step 4). A well needs at least one other well of its test condition to be scored,
+   so a min_wells of 1 is treated as 2. A test condition with no wells left is not scored.
+4. Computes each well's average precision (AP) with copairs. A well's AP is 1 when the other
+   wells of its test condition (positives) are all more similar to it than any reference well
+   (negatives) is, and lower the more often a reference well is more similar than a positive.
+   Wells are compared only with wells that share their match column values (e.g. the same
+   cell type). The match columns are the columns that define the analysis group, minus the
+   reference columns.
+5. Computes each test condition (treatment)'s mAP (the mean of its wells' AP) and
+   a p-value from a copairs null distribution, plus a BH-corrected p-value for the group.
+   A test condition is called as active when its corrected p-value is below fdr_threshold.
 
-Writes one row per scored comparison value, with its counts, mAP, p-values, and the active
-flag, and a JSON summary. Groups with no profiles (skipped by reference normalization), no
-complete features, or no comparison value with enough wells are skipped: the table has no rows.
+Writes one row per scored test condition, with its counts, mAP, p-values, and the active
+call, and a JSON summary. Groups with no profiles (skipped by reference normalization), no
+complete features, or no test condition with enough wells are skipped: the table has no rows.
 """
 
 import json
@@ -47,10 +37,10 @@ from copairs.matching import assign_reference_index
 
 PLATE_COLUMN = "Metadata_Plate"
 # Temporary column: each reference well gets its own index, and other wells get -1,
-# so reference wells are never positives of each other or of the comparison values' wells
+# so reference wells are never positives of each other or of the test conditions' wells
 REFERENCE_INDEX = "Metadata__reference_index"
 NON_REFERENCE = -1
-# A comparison value needs at least two wells in a cell type: its wells' positives are each other
+# A test condition needs at least two wells in a cell type: its wells' positives are each other
 MIN_SCORABLE_WELLS = 2
 NULL_METHODS = ("permutation", "copied")
 
@@ -91,13 +81,11 @@ def match_columns(
     reference_columns: list[str],
 ) -> list[str]:
     """
-    Columns whose values a well and its positive and negative wells must share.
+    Columns whose values a well must share with its positive and negative wells.
 
-    These are the columns that define the analysis group (the grouping column, the subgroup columns,
-    and the comparison column) except the reference columns, matching the columns (other than plate)
-    that split the normalization sets in reference normalization. Reference columns are left out
-    because the reference wells differ from the comparison values' wells in them by definition.
-    Columns with a single value in the group add no constraint. Duplicates are listed once, in order.
+    These are the grouping, subgroup, and comparison columns, minus plate (wells are compared
+    across plates) and the reference columns (where reference wells differ from test condition
+    wells by definition). Each column is listed once, in order.
     """
     context_columns = [grouping_column, *subgroup_columns, comparison_column]
     return [
@@ -138,7 +126,7 @@ def write_summary(
     group_tag: str,
 ):
     """
-    Write phenotypic_activity_summary_{group_tag}.json: summary, plus the comparison value counts and skip status.
+    Write phenotypic_activity_summary_{group_tag}.json: summary, plus the test condition counts and skip status.
     summary is not modified.
     """
     output_summary = {
@@ -173,10 +161,10 @@ def reference_wells_per_comparison_value(
     neg_pairs, comparison_values: pd.Series, is_reference: pd.Series
 ) -> pd.Series:
     """
-    Number of distinct reference wells used as negatives by each comparison value's wells.
+    Number of distinct reference wells used as negatives by each test condition's wells.
 
     neg_pairs is copairs' (n, 2) array of negative pairs, indexing the rows of comparison_values and is_reference.
-    A pair is unordered, so each pair is read in both orientations, keeping those from a comparison value's
+    A pair is unordered, so each pair is read in both orientations, keeping those from a test condition's
     well to a reference well.
     """
     pairs = pd.DataFrame(neg_pairs, columns=["first", "second"])
@@ -224,13 +212,13 @@ def main():
         comparison_column=comparison_column,
         reference_columns=list(comparison_reference.keys()),
     )
-    # columns a comparison value's wells are split by before scoring: within a comparison value, only wells that share
+    # columns a test condition's wells are split by before scoring: within a test condition, only wells that share
     # these values are positives of each other (the comparison column, then the other match columns)
     value_set_by = list(dict.fromkeys([comparison_column, *match_by]))
-    # positives: wells of the same comparison value that share the match columns, excluding reference wells
+    # positives: wells of the same test condition that share the match columns, excluding reference wells
     # (each reference well has its own reference index)
     pos_sameby = [*value_set_by, REFERENCE_INDEX]
-    # negatives: a comparison value's wells paired with the reference wells that share the match columns.
+    # negatives: a test condition's wells paired with the reference wells that share the match columns.
     # When the comparison column is a reference column (e.g. treatments, reference DMSO), it is also
     # in neg_diffby, as in the copairs phenotypic activity recipe.
     neg_sameby = match_by
@@ -238,7 +226,7 @@ def main():
         neg_diffby = [comparison_column, REFERENCE_INDEX]
     else:
         neg_diffby = [REFERENCE_INDEX]
-    # a comparison value needs at least two wells in a cell type to have positive pairs, whatever min_wells is
+    # a test condition needs at least two wells in a cell type to have positive pairs, whatever min_wells is
     effective_min_wells = max(min_wells, MIN_SCORABLE_WELLS)
 
     summary = {
@@ -339,9 +327,9 @@ def main():
     # non-reference wells with no comparison column value can't be scored
     no_comparison_value = ~is_reference & df[comparison_column].isna()
     summary["n_wells_dropped_no_comparison_value"] = int(no_comparison_value.sum())
-    # A comparison value's wells are scored only against the other wells that share the match columns (e.g. its
+    # A test condition's wells are scored only against the other wells that share the match columns (e.g. its
     # wells in the same cell type), so each such set of wells needs at least effective_min_wells wells.
-    # Small sets are dropped, and a comparison value whose sets are all small is dropped with them.
+    # Small sets are dropped, and a test condition whose sets are all small is dropped with them.
     value_wells = df[~is_reference & ~no_comparison_value]
     in_small_set = pd.Series(False, index=df.index)
     small_sets = []
@@ -361,7 +349,7 @@ def main():
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
-            skip_reason=f"no comparison value has at least {effective_min_wells} wells with the same values of {value_set_by}",
+            skip_reason=f"no test condition has at least {effective_min_wells} wells with the same values of {value_set_by}",
             group_tag=group_tag,
         )
         return
@@ -393,7 +381,7 @@ def main():
     # the reference wells' APs are not tested
     ap_scores = ap_scores[ap_scores[REFERENCE_INDEX] == NON_REFERENCE]
 
-    # ---- mAP and significance of each comparison value -----------------------
+    # ---- mAP and significance of each test condition -----------------------
     map_scores = mean_average_precision(
         ap_scores,
         sameby=[comparison_column],
@@ -404,7 +392,7 @@ def main():
         null=null_method,
     )
 
-    # ---- Counts per comparison value, and the activity table -----------------
+    # ---- Counts per test condition, and the activity table -----------------
     value_wells = df[~is_reference]
     counts = value_wells.groupby(comparison_column).agg(
         n_wells=(PLATE_COLUMN, "size"), n_plates=(PLATE_COLUMN, "nunique")

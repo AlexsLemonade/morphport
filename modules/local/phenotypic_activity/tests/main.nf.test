@@ -9,16 +9,17 @@ nextflow_process {
 
     // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring).
     // They stand in for reference-normalized profiles, built from fixed directions with no random noise,
-    // so which comparison values are active does not depend on the null's seed: an active comparison
-    // value's wells all rank ahead of its reference wells, and an inactive one's all rank behind them.
+    // so which test conditions are called as active does not depend on the null's seed: the wells of
+    // a test condition with the treatment effect all rank ahead of its reference wells, and those of
+    // one without it all rank behind them.
     // - profiles_treatments.parquet: one cell type on two plates, with drugActive, drugInactive, and
     //   drugSingle (one well) wells, and one missing feature value
     // - profiles_pooled_cell_types.parquet: two cell types with orthogonal baselines; drugA (lineA)
-    //   is inactive and drugB (lineB) is active, each against its own cell type's DMSO wells; drugC
-    //   (both cell types) is active; one drugB well in lineA has no other drugB well in its cell type
-    // - profiles_cell_types.parquet: two cell types treated with drugA; lineA's drugA wells are active,
-    //   and lineB's are not
-    // Tests check which comparison values are active, never exact mAP or p-values.
+    //   is not called as active and drugB (lineB) is, each against its own cell type's DMSO wells; drugC
+    //   (both cell types) is called as active; one drugB well in lineA has no other drugB well in its cell type
+    // - profiles_cell_types.parquet: two cell types treated with drugA; lineA's drugA is called as active,
+    //   and lineB's is not
+    // Tests check which test conditions are called as active, never exact mAP or p-values.
 
     // Group metadata for comparing treatments within a cell type, as Groovy source text
     def treatmentMeta = """[
@@ -99,7 +100,7 @@ nextflow_process {
             // drugActive is shifted from the DMSO wells; drugInactive is not
             assert byValue.drugActive.active == true
             assert byValue.drugInactive.active == false
-            // active is set from the corrected p-value and the threshold
+            // the active call is set from the corrected p-value and the threshold
             byValue.values().each { row ->
                 assert row.active == (row.corrected_p_value < 0.05)
             }
@@ -157,7 +158,7 @@ nextflow_process {
             def rows = rowMaps(path(activityFile).parquet)
             def byValue = rows.collectEntries { row -> [row.Metadata_treatment, row] }
             assert byValue.keySet() == ['drugA', 'drugB', 'drugC'] as Set
-            // drugA (lineA) is like lineA's DMSO wells, but not lineB's: it is not active
+            // drugA (lineA) is like lineA's DMSO wells, but not lineB's: it is not called as active
             assert byValue.drugA.active == false
             // drugB (lineB) and drugC (both cell types) are shifted from their cell type's DMSO wells
             assert byValue.drugB.active == true
@@ -219,7 +220,7 @@ nextflow_process {
         }
     }
 
-    test("no comparison value with enough wells - skipped") {
+    test("no test condition with enough wells - skipped") {
 
         when {
             process {
@@ -237,7 +238,7 @@ nextflow_process {
             }
             def summary = path(summaryFile).json
             assert summary.skipped == true
-            assert summary.skip_reason == "no comparison value has at least 9 wells with the same values of ['Metadata_treatment', 'Metadata_cell_type']"
+            assert summary.skip_reason == "no test condition has at least 9 wells with the same values of ['Metadata_treatment', 'Metadata_cell_type']"
             assert summary.comparison_value_wells_dropped_too_few_wells == [
                 [Metadata_treatment: 'drugActive', Metadata_cell_type: 'lineA', n_wells: 8],
                 [Metadata_treatment: 'drugInactive', Metadata_cell_type: 'lineA', n_wells: 8],

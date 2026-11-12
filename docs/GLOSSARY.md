@@ -100,17 +100,17 @@ The string that names an analysis group and its output files, made from the aggr
 
 **Comparison column**:
 The platemap column whose values are compared within an analysis group (e.g., `treatment` to compare treatments within one cell type, or `cell_type` to compare cell types within one treatment).
-Per-well profiles that share a value are replicates of one comparison value.
+Per-well profiles that share a value are replicates of one test condition.
 It is set per grouping, and a grouping without one has no comparisons.
 _Avoid_: consensus column, replicate column (a platemap may have a replicate number column)
 
-**Comparison value**:
-One value of the comparison column in an analysis group (e.g., one treatment, or one cell type), together with the per-well profiles that share it, other than comparison reference wells.
-When the comparison column is a reference column (e.g., comparing treatments against DMSO), the reference value itself (DMSO) is not a comparison value.
-_Avoid_: compared item, item, condition
+**Test condition**:
+One value of the comparison column combined with the grouping and subgroup column values that identify an analysis group (e.g., treatment `drugA` in the group for cell type `lineA`, or cell type `lineA` in the group for treatment `drugA`).
+Comparison reference wells are never part of a test condition: when comparing treatments, DMSO is not a test condition, and when comparing cell types within `drugA`, the DMSO wells of `lineA` are not part of the `lineA` test condition.
+_Avoid_: comparison value, compared item, item, condition (on its own)
 
 **Comparison reference**:
-The wells that the comparison values of an analysis group are measured against, chosen by platemap column values (usually a control such as DMSO).
+The wells that the test conditions of an analysis group are measured against, chosen by platemap column values (usually a control such as DMSO).
 A grouping may name one only together with a comparison column.
 _Avoid_: consensus reference, baseline, negative control (when referring to the wells chosen for this purpose)
 
@@ -130,8 +130,8 @@ _Avoid_: signature, level 5 profile, treatment profile
 The pairwise similarity between the consensus profiles of one analysis group.
 
 **Phenotypic activity**:
-Whether the per-well profiles of one comparison value are more similar to each other than to the comparison reference wells, scored by mean average precision (mAP) within one analysis group.
-Profiles are compared only with others of the same cell type (more generally, the same values of the columns that define the analysis group other than the reference columns), and the score covers all of the comparison value's profiles.
-A comparison value is **active** when its mAP is significant after correcting for the number of comparison values tested in the group.
+Whether the per-well profiles of one test condition are more similar to each other than to the comparison reference wells, scored by mean average precision (mAP) within one analysis group.
+Profiles are compared only with others of the same cell type (more generally, the same values of the columns that define the analysis group other than the reference columns), and the score covers all of the test condition's profiles.
+A test condition is called as **active** when its mAP is significant after correcting for the number of test conditions in the group.
 It is defined only for groups with a comparison reference.
-_Avoid_: activity score, hit (when referring to an active comparison value)
+_Avoid_: activity score, hit (when referring to a test condition called as active)

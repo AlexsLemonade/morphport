@@ -10,13 +10,13 @@ Generate the small parquet fixtures for the phenotypic_activity module tests.
 
 The fixtures stand in for reference-normalized per-well profiles (the output of the
 pycytominer reference_normalize module). They have no random noise: profiles are built from
-fixed, orthogonal directions, so the rankings copairs computes, and so which comparison values are active,
-do not depend on any seed. This is unrealistic, but makes the tests deterministic.
+fixed, orthogonal directions, so the rankings copairs computes, and so which test conditions are called as
+active, do not depend on any seed. This is unrealistic, but makes the tests deterministic.
 
 Each profile is the sum of:
 
 - a cell type baseline: Cells_Baseline_A (lineA) or Cells_Baseline_B (lineB) set to BASELINE (4);
-- for treated wells of an active comparison value, a treatment effect: Cells_Shift set to SHIFT (4);
+- for treated wells of a test condition meant to be called as active, a treatment effect: Cells_Shift set to SHIFT (4);
 - a well-specific offset: a Nuclei_Unique_NN column of the well's own, so no two wells are
   identical. Reference (DMSO) wells get offsets 0.40, 0.42, 0.44, ... and treated wells get
   offsets 1.00, 1.02, 1.04, ..., numbered separately through each fixture. The offsets differ
@@ -27,11 +27,11 @@ Each profile is the sum of:
 With cosine similarity, this fixes the rankings. For a well with offset d, a reference well
 with offset r, and another treated well with offset e (r < d and r < e):
 
-- An inactive comparison value's wells (baseline plus offset) are more similar to each of their reference
+- The wells of a test condition without the treatment effect (baseline plus offset) are more similar to each of their reference
   wells (cosine 16 / sqrt((16 + d^2)(16 + r^2)), about 0.96) than to each other
   (16 / sqrt((16 + d^2)(16 + e^2)), about 0.94). Every positive ranks after every negative, so
   its mAP is as low as it can be and its p-value is 1, whatever the null draws.
-- An active comparison value's wells (baseline, shift, and offset) are more similar to each other (about
+- The wells of a test condition with the treatment effect (baseline, shift, and offset) are more similar to each other (about
   0.97) than to their reference wells (about 0.69). Every positive ranks first, so its
   mAP is 1 and its p-value is near the smallest possible (well below 0.05).
 - Wells of different cell types are orthogonal apart from their offsets (cosine 0), so the
@@ -41,22 +41,22 @@ Writes these files to the directory containing this script:
 
 - profiles_treatments.parquet: one cell type (lineA) on two plates (P1, P2), for comparing
   treatments within a cell type (comparison column Metadata_treatment, reference DMSO).
-  Each plate has 8 DMSO, 4 drugActive (active), and 4 drugInactive (not active) wells; P1 also
+  Each plate has 8 DMSO, 4 drugActive (called as active), and 4 drugInactive (not called as active) wells; P1 also
   has one drugSingle well (one well in the group, so it is dropped).
   Cytoplasm_Intensity_MeanIntensity_Mito is 0 except for one missing value in a drugActive
   well, so that feature is dropped.
 - profiles_pooled_cell_types.parquet: two cell types on one plate (P1), for comparing treatments
   within a group that pools both cell types (comparison column Metadata_treatment, reference DMSO).
-  lineA has 8 DMSO and 6 drugA (not active) wells; lineB has 8 DMSO and 6 drugB (active) wells.
+  lineA has 8 DMSO and 6 drugA (not called as active) wells; lineB has 8 DMSO and 6 drugB (called as active) wells.
   drugA's negatives should be lineA's 8 DMSO wells only, not all 16 DMSO wells.
-  drugC has 3 wells with the treatment effect in each cell type (active), so it is scored
+  drugC has 3 wells with the treatment effect in each cell type (called as active), so it is scored
   against both cell types' DMSO wells, its wells matched to others of their own cell type.
   lineA also has one drugB well, which has no other drugB wells in its cell type, so it is
   dropped while drugB's lineB wells are scored.
 - profiles_cell_types.parquet: two cell types on one plate (P1), for comparing cell types within
   a treatment (comparison column Metadata_cell_type, reference DMSO): each cell type has 8 DMSO
-  wells; lineA has 6 drugA wells with the treatment effect (active), and lineB has 6 drugA wells
-  without it (not active).
+  wells; lineA has 6 drugA wells with the treatment effect (called as active), and lineB has 6 drugA wells
+  without it (not called as active).
 - features.txt: the features (all features except Cells_AreaShape_Area, which tests that
   unlisted features are left out).
 
@@ -85,8 +85,8 @@ BASELINE = 4.0
 SHIFT = 4.0
 # Well-specific offsets: the first reference well's and the first treated well's, and the step
 # between consecutive wells. Reference wells' offsets stay below treated wells' (at most
-# 0.40 + 15 * 0.02 = 0.70 for the 16 reference wells of the largest fixture), so an inactive
-# comparison value's wells are closer to the reference wells than to each other.
+# 0.40 + 15 * 0.02 = 0.70 for the 16 reference wells of the largest fixture), so the wells of a
+# test condition without the treatment effect are closer to the reference wells than to each other.
 FIRST_REFERENCE_OFFSET = 0.40
 FIRST_TREATED_OFFSET = 1.00
 OFFSET_STEP = 0.02
