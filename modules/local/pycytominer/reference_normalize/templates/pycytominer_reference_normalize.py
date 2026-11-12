@@ -184,6 +184,9 @@ def main():
     features_path = f"reference_normalized_features_{group_tag}.txt"
     comparison_column = meta["comparison_column"]
     comparison_reference = meta["comparison_reference"]
+    # with no reference columns, every well would match as a reference well
+    if not comparison_reference:
+        raise ValueError(f"Group {group_tag} has an empty comparison_reference")
 
     # written up front so skipped groups report versions too
     write_versions(task_process)
