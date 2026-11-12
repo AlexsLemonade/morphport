@@ -18,14 +18,22 @@ Each file is written to the folder given for it in COPY_FILES or EXCEL_SHEETS, k
 each Excel sheet is written to <workbook stem>_<sheet name>.csv, with spaces in sheet names replaced by underscores.
 The script also writes source/README.md, which lists every file with a link to its upstream source.
 
+If the GITHUB_TOKEN or GH_TOKEN environment variable is set, its value is sent as a GitHub token with each request,
+which raises GitHub's rate limits; no token is needed for the public upstream repositories.
+
 Usage, from the repository root:
 
     uv run assets/pccma/scripts/build_source.py
+
+or, with a token stored in 1Password (replace the secret reference with the token's vault, item, and field):
+
+    GITHUB_TOKEN="op://<vault>/<item>/<field>" op run -- uv run assets/pccma/scripts/build_source.py
 """
 
 import argparse
 import io
 import json
+import os
 import shutil
 import urllib.request
 from fnmatch import fnmatch
@@ -44,6 +52,9 @@ UPSTREAM_REPOS = {
         "commit": "298c35e444ef419d7ffb7d4ef9a8b737d9f89da6",
     },
 }
+
+# Environment variables that may hold a GitHub token, in order of preference
+TOKEN_VARIABLES = ["GITHUB_TOKEN", "GH_TOKEN"]
 
 # Files to copy unchanged: (repository, path relative to the repository root, folder in source/);
 # the file name part of a path may be a pattern with wildcards, which match files in that one folder
@@ -77,17 +88,28 @@ EXCEL_SHEETS = [
 ]
 
 
-def download(url: str) -> bytes:
-    """Return the contents of a URL."""
-    with urllib.request.urlopen(url) as response:
+def github_token() -> str | None:
+    """Return the GitHub token from the first set variable in TOKEN_VARIABLES, or None if none is set."""
+    for variable in TOKEN_VARIABLES:
+        token = os.environ.get(variable, "")
+        if token:
+            return token
+    return None
+
+
+def download(url: str, token: str | None) -> bytes:
+    """Return the contents of a GitHub URL, sending the token if there is one."""
+    headers = {} if token is None else {"Authorization": f"Bearer {token}"}
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request) as response:
         return response.read()
 
 
-def list_repo_files(repo_key: str) -> list[str]:
+def list_repo_files(repo_key: str, token: str | None) -> list[str]:
     """Return the paths of all files in a repository at its pinned commit, from the GitHub API."""
     repo = UPSTREAM_REPOS[repo_key]
     tree_url = f"https://api.github.com/repos/{repo['github']}/git/trees/{repo['commit']}?recursive=1"
-    tree = json.loads(download(tree_url))
+    tree = json.loads(download(url=tree_url, token=token))
     if tree["truncated"]:
         raise SystemExit(f"The GitHub file list for {repo['github']} is incomplete")
     return [item["path"] for item in tree["tree"] if item["type"] == "blob"]
@@ -238,13 +260,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    repo_files = {repo_key: list_repo_files(repo_key) for repo_key in UPSTREAM_REPOS}
+    token = github_token()
+    repo_files = {
+        repo_key: list_repo_files(repo_key=repo_key, token=token)
+        for repo_key in UPSTREAM_REPOS
+    }
     plan = plan_file_copies(repo_files=repo_files) + plan_sheet_conversions()
     check_unique_destinations(plan=plan)
 
     # Download every file before clearing the output directory, so a failed download leaves it intact
     downloads = {
-        url: download(url) for url in sorted({entry["raw_url"] for entry in plan})
+        url: download(url=url, token=token)
+        for url in sorted({entry["raw_url"] for entry in plan})
     }
 
     # Start from an empty output directory, so files removed upstream do not linger
