@@ -232,7 +232,7 @@ nextflow_process {
                     assert Math.abs(popSd(values) - 1) < 1e-6
                 }
             }
-            assert path(process.out.summary[0]).json.method == 'standardize'
+            assert path(process.out.summary[0]).json.reference_normalization_method == 'standardize'
         }
     }
 

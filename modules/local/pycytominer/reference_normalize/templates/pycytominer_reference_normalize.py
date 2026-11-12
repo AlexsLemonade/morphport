@@ -96,7 +96,7 @@ def has_zero_spread(values: pd.DataFrame, method: str) -> pd.Series:
     return (spread == 0) | is_constant
 
 
-def normalization_columns(
+def get_normalization_set_columns(
     grouping_column: str | None,
     subgroup_columns: list[str],
     comparison_column: str,
@@ -218,7 +218,7 @@ def main():
     # written up front so skipped groups report versions too
     write_versions(task_process)
 
-    normalization_set_columns = normalization_columns(
+    normalization_set_columns = get_normalization_set_columns(
         grouping_column=meta["grouping_column"],
         subgroup_columns=list(meta["subgroup_values"].keys()),
         comparison_column=comparison_column,
