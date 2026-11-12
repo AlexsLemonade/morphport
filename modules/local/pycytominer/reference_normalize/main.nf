@@ -29,8 +29,8 @@ process PYCYTOMINER_REFERENCE_NORMALIZE {
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    assert meta_in.comparison_column && meta_in.comparison_reference
-        : "PYCYTOMINER_REFERENCE_NORMALIZE: group ${meta_in.group_tag} has no comparison_column or comparison_reference"
+    assert meta_in.comparison_column && meta_in.reference_column && meta_in.reference_values
+        : "PYCYTOMINER_REFERENCE_NORMALIZE: group ${meta_in.group_tag} has no comparison_column, reference_column, or reference_values"
     meta = meta_in + [reference_normalized: true, reference_normalization_method: normalize_method]
     meta_json = groovy.json.JsonOutput.toJson(meta_in)
     // per-plate metas carry each plate's normalization settings, which the group meta does not
@@ -38,8 +38,8 @@ process PYCYTOMINER_REFERENCE_NORMALIZE {
     template 'pycytominer_reference_normalize.py'
 
     stub:
-    assert meta_in.comparison_column && meta_in.comparison_reference
-        : "PYCYTOMINER_REFERENCE_NORMALIZE: group ${meta_in.group_tag} has no comparison_column or comparison_reference"
+    assert meta_in.comparison_column && meta_in.reference_column && meta_in.reference_values
+        : "PYCYTOMINER_REFERENCE_NORMALIZE: group ${meta_in.group_tag} has no comparison_column, reference_column, or reference_values"
     meta = meta_in + [reference_normalized: true, reference_normalization_method: normalize_method]
     """
     touch reference_normalized_${meta_in.group_tag}.parquet
