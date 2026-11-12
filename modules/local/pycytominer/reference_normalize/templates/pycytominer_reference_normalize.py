@@ -130,15 +130,6 @@ def distinct_values(plate_metas: list[dict], key: str) -> list:
     return list(dict.fromkeys(values))
 
 
-def set_label(normalize_by: list[str], key) -> dict:
-    """Map a normalization set's groupby key to a {column: value} dict."""
-    if not isinstance(key, tuple):
-        key = (key,)
-    return {
-        col: (None if pd.isna(val) else str(val)) for col, val in zip(normalize_by, key)
-    }
-
-
 def write_summary(
     summary: dict,
     n_wells_output: int,
@@ -266,9 +257,14 @@ def main():
     # ---- Normalization sets and their reference wells -----------------------
     normalization_sets = []
     keep_wells = pd.Series(False, index=df.index)
-    for key, set_df in df.groupby(normalize_by, dropna=False, sort=True):
+    for _key, set_df in df.groupby(normalize_by, dropna=False, sort=True):
         n_reference = int(set_df[REFERENCE_FLAG].sum())
-        label = set_label(normalize_by, key)
+        # every well in the set shares the normalize_by values, so read them from the first well
+        first_well = set_df.iloc[0]
+        label = {
+            col: (None if pd.isna(first_well[col]) else str(first_well[col]))
+            for col in normalize_by
+        }
         normalization_sets.append(
             {**label, "n_wells": len(set_df), "n_reference_wells": n_reference}
         )
