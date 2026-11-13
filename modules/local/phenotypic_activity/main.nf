@@ -20,6 +20,7 @@ process PHENOTYPIC_ACTIVITY {
 
     output:
     tuple val(meta), path("phenotypic_activity_${meta.group_tag}.parquet"), path("phenotypic_activity_summary_${meta.group_tag}.json"), emit: result
+    tuple val(task.process), val(meta.group_tag), path("phenotypic_activity_warnings_${meta.group_tag}.txt"), emit: warnings, optional: true, topic: warnings
     path "versions.yml", emit: versions, topic: versions
 
     script:

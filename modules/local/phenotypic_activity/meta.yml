@@ -95,6 +95,19 @@ output:
             columns, dropped features and wells, normalization settings, test condition counts, and
             skip status (skipped and skip_reason).
           pattern: "phenotypic_activity_summary_*.json"
+  - warnings:
+      - task.process:
+          type: string
+          description: The process name
+      - group_tag:
+          type: string
+          description: The group tag
+      - "phenotypic_activity_warnings_*.txt":
+          type: file
+          description: |
+            Optional file with one warning per line (a null_size too small for any test condition
+            to be called as active, skips)
+          pattern: "phenotypic_activity_warnings_*.txt"
   - versions:
       - versions.yml:
           type: file
