@@ -362,7 +362,7 @@ def main():
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
-            skip_reason=f"no reference wells matching {comparison_reference}",
+            skip_reason=f"no reference wells with values in {reference_values} for {reference_column}",
             group_tag=group_tag,
         )
         return

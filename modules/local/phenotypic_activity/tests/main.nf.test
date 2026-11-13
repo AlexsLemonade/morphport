@@ -264,7 +264,7 @@ nextflow_process {
             }
             def summary = path(summaryFile).json
             assert summary.skipped == true
-            assert summary.skip_reason == "no reference wells matching {'Metadata_treatment': ['vehicle']}"
+            assert summary.skip_reason == "no reference wells with values in ['vehicle'] for Metadata_treatment"
             assert summary.n_reference_wells == 0
             assert summary.n_test_conditions_scored == 0
         }
