@@ -26,7 +26,7 @@ process PHENOTYPIC_ACTIVITY {
     assert meta.comparison_column && meta.comparison_reference
         : "PHENOTYPIC_ACTIVITY: group ${meta.group_tag} has no comparison_column or comparison_reference"
     // Every option must be given; other keys are ignored
-    def option_keys = ['distance', 'null_method', 'null_size', 'fdr_threshold', 'seed', 'min_wells']
+    def option_keys = ['distance_metric', 'null_method', 'null_size', 'fdr_threshold', 'seed', 'min_wells']
     def missing_keys = option_keys - options.keySet()
     assert !missing_keys
         : "PHENOTYPIC_ACTIVITY: options is missing keys ${missing_keys}"
