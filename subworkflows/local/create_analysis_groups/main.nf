@@ -786,13 +786,14 @@ def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
             errors << "${label}: filter ${grouping.filter} matches no rows."
             return
         }
+        // missing columns are checked on every row that passes the filter, before rows with blank values are left out
+        errors.addAll(comparisonDataErrors(grouping, filter_matched, label))
         def filtered = groupingPlatePartitionKeys(grouping, plate_partition_keys)
         if (!filtered) {
             def where = grouping.filter ? " matching filter ${grouping.filter}" : ''
             errors << "${label}: every row${where} has a blank value in at least one of ${missingValueColumns(grouping)}."
             return
         }
-        errors.addAll(comparisonDataErrors(grouping, filtered, label))
         def observed = filtered.collect { plate_partition_key -> plate_partition_key[grouping.grouping_column] }.unique()
 
         // accounting rule for named groups
@@ -876,7 +877,8 @@ def comparisonDataErrors(grouping, filtered, label) {
 def missingGroupingColumns(parsed_groups, plate_partition_keys) {
     def groupings = (parsed_groups.cell + parsed_groups.well).unique()
     return groupings.findAll { grouping -> grouping.grouping_column }.collectMany { grouping ->
-        def filtered = groupingPlatePartitionKeys(grouping, plate_partition_keys)
+        // every row that passes the filter, including rows left out for blank values in other columns
+        def filtered = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
         ([grouping.grouping_column] + grouping.subgroup_columns).findResults { col ->
             def plates = filtered.findAll { plate_partition_key -> plate_partition_key[col] == '_Absent_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
             plates

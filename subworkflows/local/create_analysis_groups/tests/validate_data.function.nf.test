@@ -315,6 +315,45 @@ nextflow_function {
         }
     }
 
+    test("missingGroupingColumns: plates whose rows all have blank (_NA_) values are still reported") {
+
+        function "missingGroupingColumns"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'by_treatment',
+                            grouping_column: 'Metadata_treatment',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: ['Metadata_cell_type'],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', Metadata_cell_type: 'lineA', project: 'demo', plate_id: 'p1'],
+                    // missing grouping column, and every row has a blank subgroup value
+                    [Metadata_treatment: '_Absent_', Metadata_cell_type: '_NA_', project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'Metadata_treatment'")
+            assert function.result[0].contains('p2')
+            assert !function.result[0].contains('p1')
+        }
+    }
+
     test("missingValueWarnings: blank (_NA_) values are reported per grouping, column, and plate") {
 
         function "missingValueWarnings"
@@ -704,6 +743,57 @@ nextflow_function {
             assert errors.size() == 2
             assert errors.any { err -> err.contains("'missing_comparison'") && err.contains("comparison_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
             assert errors.any { err -> err.contains("'missing_reference'") && err.contains("reference_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
+        }
+    }
+
+    test("validateGroupingsAgainstData: comparison columns missing from plates whose rows all have blank (_NA_) values are errors") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def plate_partition_key = { plate, treatment, cell_type, dose ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, Metadata_dose: dose, project: 'demo', plate_id: plate]
+                }
+                def grouping = { name, extra ->
+                    [
+                        name: name,
+                        grouping_column: 'Metadata_cell_type',
+                        groups: 'one_per_value',
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                        comparison_column: 'Metadata_treatment',
+                        reference_column: null,
+                        reference_values: [],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [],
+                    well: [
+                        // p1 has rows left; p2's rows are all left out for blank grouping values
+                        grouping.call('some_rows_left', [:]),
+                        // the filter keeps only p2, so no rows are left
+                        grouping.call('no_rows_left', [filter: [Metadata_dose: ['2']]]),
+                    ],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', 'DMSO', 'lineA', '1'),
+                    plate_partition_key.call('p2', '_Absent_', '_NA_', '2'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result
+            assert errors.size() == 3
+            assert errors.any { err -> err.contains("'some_rows_left'") && err.contains("comparison_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
+            assert errors.any { err -> err.contains("'no_rows_left'") && err.contains("comparison_column 'Metadata_treatment'") && err.contains('p2') }
+            assert errors.any { err -> err.contains("'no_rows_left'") && err.contains('blank value') }
         }
     }
 
