@@ -259,6 +259,7 @@ A group or plate that happens to have no reference wells is not an error here; i
 Blank platemap cells (empty or only whitespace) are read as the value `_NA_`, and a cell that already contains `_NA_` is treated the same way.
 Wells with a blank value in any column a grouping uses (its `grouping_column`, `subgroup_columns`, `comparison_column`, or `reference_column`) are left out of that grouping, with a warning naming the column and plates.
 They do not form a `_NA_` group or subgroup, and they do not need to be accounted for in named `groups`.
+For a grouping under `default`, this applies to both copies: the `cell` copy does not run comparisons at this time, but wells with a blank `comparison_column` or `reference_column` value are left out of it too, so both copies have the same members.
 
 - **Listing a blank value is an error.** `groups`, `always_include`, `excluded`, and `reference_values` must not list `_NA_` or an empty string, since those wells are already left out.
 - **Filters may select blank values.** `filter` columns are not checked for blanks, so `filter: {dose: [_NA_]}` keeps only wells with a blank dose.
