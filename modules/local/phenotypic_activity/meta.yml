@@ -1,0 +1,119 @@
+name: phenotypic_activity
+description: |
+  Scores the phenotypic activity of each test condition (e.g. each treatment) in an
+  analysis group with mean average precision (mAP) from copairs: whether its reference-normalized
+  per-well profiles are more similar to each other than to the comparison reference wells
+  (e.g. a treatment's wells compared with the DMSO wells of the same cell type).
+  Pairs are matched on the group-defining columns that are not reference columns
+  (e.g. cell type): a well's positives are the other wells of its test condition, and
+  its negatives the reference wells, that share those values (e.g. the same cell type),
+  and a test condition's mAP averages over all its wells. p-values come from a copairs
+  null distribution, with Benjamini-Hochberg correction across the test conditions in
+  the group; a test condition is called as active when its corrected p-value is below the threshold.
+keywords:
+  - cell painting
+  - phenotypic activity
+  - mean average precision
+  - copairs
+
+tools:
+  - copairs:
+      description: Library for finding pairs of profiles and computing average precision and mean average precision.
+      homepage: https://github.com/cytomining/copairs
+      documentation: https://github.com/cytomining/copairs
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+  - pandas:
+      description: Data analysis library used for parquet IO and counts per test condition.
+      homepage: https://pandas.pydata.org
+      documentation: https://pandas.pydata.org/docs
+      licence: ["BSD-3-Clause"]
+      identifier: ""
+
+input:
+  - - meta:
+        type: map
+        description: |
+          Group meta map from PYCYTOMINER_REFERENCE_NORMALIZE, with comparison_column and
+          comparison_reference set, e.g.,
+          [ project:'cpg0016', aggregate_level:'well', grouping_name:'cell_type',
+            grouping_column:'Metadata_cell_type', group:'lineA', subgroup_values:[:],
+            group_id:'cell_type=lineA', group_tag:'well__cell_type__cell_type=lineA',
+            plate_ids:['plate_001','plate_002'], comparison_column:'Metadata_treatment',
+            comparison_reference:[Metadata_treatment:['DMSO']],
+            reference_normalized:true, reference_normalization_method:'mad_robustize' ]
+    - profiles:
+        type: file
+        description: |
+          Reference-normalized per-well profiles for this group, including the reference
+          wells. A parquet with no rows (a group skipped by reference normalization) gives
+          a skipped output.
+        pattern: "reference_normalized_*.parquet"
+    - features_file:
+        type: file
+        description: |
+          Feature list (one column name per line) from PYCYTOMINER_REFERENCE_NORMALIZE.
+          An empty file gives a skipped output.
+        pattern: "reference_normalized_features_*.txt"
+  - - options:
+        type: map
+        description: |
+          Named scoring options. Every key is required; other keys are ignored.
+            distance_metric: Distance metric copairs uses to rank profiles (e.g. cosine, euclidean, correlation)
+            null_method: copairs null distribution of a test condition's mAP: permutation (label permutation
+              using the observed similarities) or copied (the copairs 0.5.x null)
+            null_size: Number of draws from the null distribution (at least 1)
+            fdr_threshold: Threshold (between 0 and 1) on the Benjamini-Hochberg corrected p-value
+              below which a test condition is called as active
+            seed: Random seed for the null distribution (at least 0)
+            min_wells: Minimum number of wells a comparison column value (e.g. a treatment) needs in a
+              cell type to be scored in that cell type.
+              Wells are only compared within a cell type (more precisely, within one combination of the
+              matched columns), so a treatment's wells in a cell type where it has too few are dropped
+              and counted in the summary, and a treatment with no wells left is not scored.
+              Must be at least 1, and 1 is treated as 2, since a well needs at least one other well to match.
+          e.g. [ distance_metric:'cosine', null_method:'permutation', null_size:1000000,
+                 fdr_threshold:0.05, seed:1674, min_wells:2 ]
+
+output:
+  - result:
+      - meta:
+          type: map
+          description: Group meta map (unchanged from input).
+      - "phenotypic_activity_*.parquet":
+          type: file
+          description: |
+            One row per scored test condition, with the comparison column, n_wells, n_plates,
+            n_reference_wells (distinct reference wells used as its wells' negatives),
+            mean_average_precision, p_value, corrected_p_value, and active (whether it is called as active).
+            Reference wells are not scored. Empty (zero rows, same columns) for skipped groups.
+          pattern: "phenotypic_activity_*.parquet"
+      - "phenotypic_activity_summary_*.json":
+          type: file
+          description: |
+            Summary JSON with group identity, scoring parameters, copairs version, pairing
+            columns, dropped features and wells, normalization settings, test condition counts, and
+            skip status (skipped and skip_reason).
+          pattern: "phenotypic_activity_summary_*.json"
+  - warnings:
+      - task.process:
+          type: string
+          description: The process name
+      - group_tag:
+          type: string
+          description: The group tag
+      - "phenotypic_activity_warnings_*.txt":
+          type: file
+          description: |
+            Optional file with one warning per line (a null_size too small for any test condition
+            to be called as active, skips)
+          pattern: "phenotypic_activity_warnings_*.txt"
+  - versions:
+      - versions.yml:
+          type: file
+          description: YAML file containing versions of tools used in the module.
+
+authors:
+  - "@jashapiro"
+maintainers:
+  - "@jashapiro"
