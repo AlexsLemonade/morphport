@@ -246,6 +246,31 @@ nextflow_process {
         }
     }
 
+    test("no reference wells - skipped") {
+
+        // no well's treatment is 'vehicle', so there are no reference wells to score against
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", treatmentMeta.replace("['DMSO']", "['vehicle']"), 'profiles_treatments.parquet')
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, activityFile, summaryFile) = process.out.result[0]
+            with(path(activityFile).parquet) {
+                assert rowCount == 0
+                assert columnNames == activityColumns('Metadata_treatment')
+                assert schema == activitySchema('Metadata_treatment')
+            }
+            def summary = path(summaryFile).json
+            assert summary.skipped == true
+            assert summary.skip_reason == "no reference wells matching {'Metadata_treatment': ['vehicle']}"
+            assert summary.n_reference_wells == 0
+            assert summary.n_test_conditions_scored == 0
+        }
+    }
+
     test("missing option - fails") {
 
         // fdr_threshold is misspelled: the unknown key is ignored, and the missing one fails

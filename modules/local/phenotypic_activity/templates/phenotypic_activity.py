@@ -359,6 +359,16 @@ def main():
     is_reference = is_reference[keep_wells].reset_index(drop=True)
     summary["n_wells_scored"] = int((~is_reference).sum())
     summary["n_reference_wells"] = int(is_reference.sum())
+    # reference normalization skips groups without reference wells, so this only happens when the
+    # module runs on its own; without reference wells there are no negatives to score against
+    if summary["n_reference_wells"] == 0:
+        write_skipped(
+            summary=summary,
+            comparison_column=comparison_column,
+            skip_reason=f"no reference wells matching {comparison_reference}",
+            group_tag=group_tag,
+        )
+        return
     if summary["n_wells_scored"] == 0:
         write_skipped(
             summary=summary,
