@@ -45,7 +45,9 @@ Writes these files to the directory containing this script:
   has one drugSingle well (one well in the group, so it is dropped), and two wells with the
   treatment effect whose treatment is '_NA_' (a blank platemap cell, so they are dropped).
   Cytoplasm_Intensity_MeanIntensity_Mito is 0 except for one missing value in a drugActive
-  well, so that feature is dropped.
+  well, so that feature is dropped. Cells_Baseline_B (0 in every lineA well) has one missing
+  value in the drugSingle well, which is dropped before missing values are checked, so that
+  feature is kept.
 - profiles_pooled_cell_types.parquet: two cell types on one plate (P1), for comparing treatments
   within a group that pools both cell types (comparison column Metadata_treatment, reference DMSO).
   lineA has 8 DMSO and 6 drugA (not called as active) wells; lineB has 8 DMSO and 6 drugB (called as active) wells.
@@ -75,6 +77,8 @@ BASELINE_COLUMNS = {"lineA": "Cells_Baseline_A", "lineB": "Cells_Baseline_B"}
 SHIFT_COLUMN = "Cells_Shift"
 # The feature with a missing value in profiles_treatments.parquet
 NAN_FEATURE = "Cytoplasm_Intensity_MeanIntensity_Mito"
+# The feature with a missing value only in a well that is dropped before scoring, in profiles_treatments.parquet
+DROPPED_WELL_NAN_FEATURE = BASELINE_COLUMNS["lineB"]
 # Enough well-specific offset columns for the largest fixture (35 wells)
 N_OFFSET_COLUMNS = 40
 OFFSET_COLUMNS = [f"Nuclei_Unique_{i:02d}" for i in range(N_OFFSET_COLUMNS)]
@@ -156,11 +160,18 @@ def treatments_fixture() -> pl.DataFrame:
     is_first_active = (pl.col("Metadata_Plate") == "P1") & (
         pl.col("Metadata_Well") == "A09"
     )
+    # Blank out one value in the drugSingle well, which is dropped (too few wells) before missing
+    # values are checked, so that feature is kept
+    is_single = pl.col("Metadata_treatment") == "drugSingle"
     return profiles.with_columns(
         pl.when(is_first_active)
         .then(None)
         .otherwise(pl.col(NAN_FEATURE))
-        .alias(NAN_FEATURE)
+        .alias(NAN_FEATURE),
+        pl.when(is_single)
+        .then(None)
+        .otherwise(pl.col(DROPPED_WELL_NAN_FEATURE))
+        .alias(DROPPED_WELL_NAN_FEATURE),
     )
 
 
