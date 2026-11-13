@@ -29,6 +29,10 @@ Writes one row per scored test condition, with its counts, mAP, p-values, and th
 call, and a JSON summary. Groups with no profiles (skipped by reference normalization), no
 complete features, no reference wells, or no test condition with enough wells are skipped:
 the table has no rows.
+
+Writes warnings (one per line) to phenotypic_activity_warnings_{group_tag}.txt: a null_size
+too small for any test condition to be called as active, and the skip reason of a skipped
+group. The file is not written if there is nothing to warn about.
 """
 
 import json
@@ -140,11 +144,47 @@ def write_summary(
         json.dump(output_summary, f, indent=2)
 
 
+def null_size_warnings(null_size: int, fdr_threshold: float) -> list[str]:
+    """
+    A warning if no test condition can be called as active with this null_size, or no warnings.
+    copairs' p-values are (hits + 1) / (null_size + 1), so the smallest is 1 / (null_size + 1),
+    and BH correction never makes a p-value smaller. A test condition is called as active when
+    its corrected p-value is below fdr_threshold.
+    """
+    min_p_value = 1 / (null_size + 1)
+    if min_p_value < fdr_threshold:
+        return []
+    return [
+        f"null_size {null_size} gives a smallest possible p-value of {min_p_value:.3g},"
+        f" which is not below fdr_threshold {fdr_threshold}, so no test condition can be called as active"
+    ]
+
+
+def write_warnings(messages: list[str], skip_reason: str | None, group_tag: str):
+    """
+    Write phenotypic_activity_warnings_{group_tag}.txt: messages, plus the skip reason,
+    one per line, and print them to stderr. No file is written if there is nothing to warn about.
+    messages is not modified.
+    """
+    output_messages = list(messages)
+    if skip_reason is not None:
+        output_messages.append(f"skipped: {skip_reason}")
+    if not output_messages:
+        return
+    with open(f"phenotypic_activity_warnings_{group_tag}.txt", "w") as f:
+        for message in output_messages:
+            print(f"WARNING: {message}", file=sys.stderr)
+            f.write(f"{message}\\n")
+
+
 def write_skipped(
-    summary: dict, comparison_column: str, skip_reason: str, group_tag: str
+    summary: dict,
+    comparison_column: str,
+    skip_reason: str,
+    warnings: list[str],
+    group_tag: str,
 ):
-    """Write an activity table with no rows and the summary of a skipped group, and warn on stderr."""
-    print(f"WARNING: skipped: {skip_reason}", file=sys.stderr)
+    """Write an activity table with no rows, the summary, and the warnings of a skipped group."""
     empty_activity_table(comparison_column).to_parquet(
         f"phenotypic_activity_{group_tag}.parquet", index=False
     )
@@ -155,6 +195,7 @@ def write_skipped(
         skip_reason=skip_reason,
         group_tag=group_tag,
     )
+    write_warnings(messages=warnings, skip_reason=skip_reason, group_tag=group_tag)
 
 
 def reference_wells_per_test_condition(
@@ -217,6 +258,7 @@ def main():
     )
     # written up front so skipped groups report versions too
     write_versions(task_process)
+    warnings = null_size_warnings(null_size=null_size, fdr_threshold=fdr_threshold)
 
     group_tag = meta["group_tag"]
     activity_path = f"phenotypic_activity_{group_tag}.parquet"
@@ -287,6 +329,7 @@ def main():
             summary=summary,
             comparison_column=comparison_column,
             skip_reason="no reference-normalized profiles",
+            warnings=warnings,
             group_tag=group_tag,
         )
         return
@@ -361,6 +404,7 @@ def main():
             summary=summary,
             comparison_column=comparison_column,
             skip_reason=f"no reference wells matching {comparison_reference}",
+            warnings=warnings,
             group_tag=group_tag,
         )
         return
@@ -369,6 +413,7 @@ def main():
             summary=summary,
             comparison_column=comparison_column,
             skip_reason=f"no test condition has at least {effective_min_wells} wells with the same values of {condition_set_by}",
+            warnings=warnings,
             group_tag=group_tag,
         )
         return
@@ -377,6 +422,7 @@ def main():
             summary=summary,
             comparison_column=comparison_column,
             skip_reason="no features without missing values",
+            warnings=warnings,
             group_tag=group_tag,
         )
         return
@@ -453,6 +499,7 @@ def main():
         skip_reason=None,
         group_tag=group_tag,
     )
+    write_warnings(messages=warnings, skip_reason=None, group_tag=group_tag)
 
 
 if __name__ == "__main__":

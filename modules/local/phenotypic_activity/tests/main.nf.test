@@ -138,6 +138,8 @@ nextflow_process {
             assert summary.n_test_conditions_active == 1
             assert summary.skipped == false
             assert summary.skip_reason == null
+            // the default null_size is large enough, and the group is scored, so there are no warnings
+            assert process.out.warnings == []
 
             def versions = path(process.out.versions[0]).yaml
             assert versions['PHENOTYPIC_ACTIVITY'].keySet() == ['python', 'pandas', 'copairs'] as Set
@@ -244,6 +246,10 @@ nextflow_process {
             // every non-reference well: 8 drugActive, 8 drugInactive, 1 drugSingle, and 2 '_NA_'
             assert summary.n_wells_dropped == 19
             assert summary.n_test_conditions_scored == 0
+            def warnings = path(process.out.warnings[0][2]).readLines()
+            assert warnings == [
+                "skipped: no test condition has at least 9 wells with the same values of ['Metadata_treatment', 'Metadata_cell_type']"
+            ]
         }
     }
 
@@ -269,6 +275,35 @@ nextflow_process {
             assert summary.skip_reason == "no reference wells matching {'Metadata_treatment': ['vehicle']}"
             assert summary.n_reference_wells == 0
             assert summary.n_test_conditions_scored == 0
+            def warnings = path(process.out.warnings[0][2]).readLines()
+            assert warnings == ["skipped: no reference wells matching {'Metadata_treatment': ['vehicle']}"]
+        }
+    }
+
+    test("null size too small to call any test condition active - warning") {
+
+        // with 10 null draws, the smallest p-value is 1 / 11, which is above the 0.05 fdr_threshold
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", treatmentMeta, 'profiles_treatments.parquet', 'features.txt', defaultOptions + [null_size: 10])
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, activityFile, summaryFile) = process.out.result[0]
+            // the group is still scored, but even drugActive is not called as active
+            assert path(activityFile).parquet.rowCount == 2
+            def summary = path(summaryFile).json
+            assert summary.skipped == false
+            assert summary.n_test_conditions_scored == 2
+            assert summary.n_test_conditions_active == 0
+            def (processName, groupTag, warningsFile) = process.out.warnings[0]
+            assert processName == 'PHENOTYPIC_ACTIVITY'
+            assert groupTag == 'well__cell_type__cell_type=lineA'
+            assert path(warningsFile).readLines() == [
+                'null_size 10 gives a smallest possible p-value of 0.0909, which is not below fdr_threshold 0.05, so no test condition can be called as active'
+            ]
         }
     }
 
