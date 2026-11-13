@@ -36,7 +36,8 @@ Every grouping entry is an object:
   filter: { timepoint: [24h] } # optional; see "filter" below
   subgroup_columns: [cell_type] # optional; see "subgroup_columns" below
   comparison_column: treatment # optional, per-well only; see "comparison_column" below
-  comparison_reference: { treatment: [DMSO] } # optional; see "comparison_reference" below
+  reference_values: [DMSO] # optional; see "reference_values and reference_column" below
+  reference_column: treatment # optional; defaults to comparison_column
 ```
 
 Values are compared to the platemap as text, but YAML converts some unquoted values to other types first.
@@ -122,7 +123,7 @@ This is primarily designed to capture values that are excluded from groupings, s
 When `groups` is an explicit name → value-set mapping, every value observed in the data for that grouping column **must** appear in at least one of: a named group, `always_include`, or `excluded`.
 A value that appears in none of these is an **error**, not a warning — the pipeline should fail rather than silently produce an incomplete or surprising set of groups.
 Because it rests on observed values, this check cannot run until the platemaps have been read (see "How errors are raised").
-This is exactly what `excluded` is for: a deliberately-unmapped value (e.g. a rarely-used compound with no known MoA yet) is listed there to satisfy the accounting rule without being part of any group.
+This is exactly what `excluded` is for: a deliberately-unmapped value (e.g., a rarely-used compound with no known MoA yet) is listed there to satisfy the accounting rule without being part of any group.
 
 This rule does not apply to `groups: one_per_value` or `groups: all_values` — every observed value automatically forms or joins a group, so there is no "unaccounted for" case.
 `excluded` still works there, but purely as an opt-out (a value that shouldn't form or join a group), never as error-avoidance.
@@ -206,7 +207,7 @@ Comparisons use per-well profiles only:
 
 The column must vary within a group, or each group would have a single value to compare.
 It is therefore an **error** for `comparison_column` to be the `grouping_column` with `groups: one_per_value`, or to be one of the `subgroup_columns`.
-It may be the `grouping_column` with named groups or `groups: all_values`, e.g. to compare the treatments within each mechanism of action.
+It may be the `grouping_column` with named groups or `groups: all_values`, e.g., to compare the treatments within each mechanism of action.
 
 `comparison_column` must be present in every platemap the grouping uses (after `filter`); a missing column is an **error**, as for `filter`.
 
@@ -219,7 +220,7 @@ well:
     grouping_column: cell_type
     groups: one_per_value
     comparison_column: treatment
-    comparison_reference: { treatment: [DMSO] }
+    reference_values: [DMSO]
 
   # Cell types compared within each treatment
   # DMSO joins every treatment's group so that it can serve as the reference
@@ -228,22 +229,27 @@ well:
     groups: one_per_value
     always_include: [DMSO]
     comparison_column: cell_type
-    comparison_reference: { treatment: [DMSO] }
+    reference_column: treatment
+    reference_values: [DMSO]
 ```
 
 In the second example, the compared values are cell types, and each cell type's DMSO wells serve as its reference.
 
-### `comparison_reference` (optional)
+### `reference_values` and `reference_column` (optional)
 
 The wells that the compared values are measured against, usually a control such as DMSO.
-It has the same form as `filter`: a mapping of metadata columns to lists of values, where a well is a reference well if it matches one of the listed values for every column.
-For a screen without controls, a reference cell type also works, e.g. `comparison_reference: {cell_type: [U2-OS]}`.
+A well is a reference well if its value in `reference_column` is one of the `reference_values` (a list).
+`reference_column` defaults to the `comparison_column`, so if the reference is a value of the compared column (e.g., treatments against DMSO), only `reference_values` is needed.
+Set `reference_column` when the reference is in another column, e.g., to compare cell types against each cell type's own DMSO wells (`reference_column: treatment`).
+For a screen without controls, a reference cell type also works, e.g., `comparison_column: cell_type` with `reference_values: [U2-OS]`.
+
+The reference is a single column: there is currently no way to define it by more than one (e.g., DMSO wells at 0h).
+To compare within each value of another column, such as a timepoint, add that column to `subgroup_columns` (or use it as the `grouping_column`): each timepoint's wells are then compared with that timepoint's reference wells.
 
 Reference wells serve as the baseline for the comparisons and are not compared themselves.
-A reference is recommended for drug screens.
 
-`comparison_reference` is only valid together with `comparison_column`; on its own it is an **error**.
-Its columns are added to the partition columns, and each must be present in every platemap the grouping uses (after `filter`); a missing column is an **error**.
+`reference_values` is only valid if `comparison_column` is specified, and `reference_column` only together with `reference_values`; otherwise it is an **error**.
+The comparison column (and reference column, if different) is added to the partition columns, and must be present in every platemap the grouping uses (after `filter`); a missing column is an **error**.
 Each listed value must be found in the grouping's rows after `filter` and `excluded` are applied; a missing value is an **error**, since it is most likely a typo.
 A group or plate that happens to have no reference wells is not an error here; it is handled by the analyses that use the reference.
 
@@ -304,8 +310,7 @@ well:
     grouping_column: cell_type
     groups: one_per_value
     comparison_column: treatment
-    comparison_reference:
-      treatment: [DMSO]
+    reference_values: [DMSO]
 
   # Comparisons in the other direction: the cell types within each treatment
   # DMSO joins every treatment's group so each cell type can be measured against its own DMSO wells
@@ -314,8 +319,8 @@ well:
     groups: one_per_value
     always_include: [DMSO]
     comparison_column: cell_type
-    comparison_reference:
-      treatment: [DMSO]
+    reference_column: treatment
+    reference_values: [DMSO]
 ```
 
 ## What this format does not (yet) support

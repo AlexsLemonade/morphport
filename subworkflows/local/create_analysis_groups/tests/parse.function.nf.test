@@ -48,7 +48,8 @@ nextflow_function {
                 filter: [:],
                 subgroup_columns: [],
                 comparison_column: null,
-                comparison_reference: [:],
+                reference_column: null,
+                reference_values: [],
             ]
             assert function.result == [
                 cell: [
@@ -62,7 +63,8 @@ nextflow_function {
                         filter: [Metadata_timepoint: ['24h']],
                         subgroup_columns: ['Metadata_cell_type'],
                         comparison_column: null,
-                        comparison_reference: [:],
+                        reference_column: null,
+                        reference_values: [],
                     ],
                 ],
                 well: [treatment],
@@ -104,7 +106,7 @@ nextflow_function {
         }
     }
 
-    test("normalizeGroupings: comparison keys are prefixed and reference values are coerced to strings") {
+    test("normalizeGroupings: comparison keys are prefixed, reference_column defaults to comparison_column, and reference values are coerced to strings") {
 
         function "normalizeGroupings"
 
@@ -117,8 +119,22 @@ nextflow_function {
                             name: 'treatments_by_line',
                             grouping_column: 'cell_type',
                             groups: 'one_per_value',
+                            comparison_column: 'Metadata_dose',
+                            reference_values: [0],
+                        ],
+                        [
+                            name: 'lines_by_treatment',
+                            grouping_column: 'treatment',
+                            groups: 'one_per_value',
+                            comparison_column: 'cell_type',
+                            reference_column: 'treatment',
+                            reference_values: ['DMSO'],
+                        ],
+                        [
+                            name: 'no_reference',
+                            grouping_column: 'cell_type',
+                            groups: 'one_per_value',
                             comparison_column: 'treatment',
-                            comparison_reference: [treatment: ['DMSO'], Metadata_dose: [0]],
                         ],
                     ],
                 ]
@@ -128,9 +144,15 @@ nextflow_function {
 
         then {
             assert function.success
-            def grouping = function.result.well[0]
-            assert grouping.comparison_column == 'Metadata_treatment'
-            assert grouping.comparison_reference == [Metadata_treatment: ['DMSO'], Metadata_dose: ['0']]
+            def (defaulted, explicit, no_reference) = function.result.well
+            assert defaulted.comparison_column == 'Metadata_dose'
+            assert defaulted.reference_column == 'Metadata_dose'
+            assert defaulted.reference_values == ['0']
+            assert explicit.comparison_column == 'Metadata_cell_type'
+            assert explicit.reference_column == 'Metadata_treatment'
+            assert explicit.reference_values == ['DMSO']
+            assert no_reference.reference_column == null
+            assert no_reference.reference_values == []
         }
     }
 
@@ -561,13 +583,15 @@ nextflow_function {
                 input[0] = [
                     // comparison keys are allowed in default groupings; their per-cell groups just do not get them
                     'default': [
-                        [name: 'treatments_by_line', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', comparison_reference: [treatment: ['DMSO']]],
+                        [name: 'treatments_by_line', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', reference_values: ['DMSO']],
                     ],
                     well: [
                         // cell types compared within each treatment, with a reference cell type
-                        [name: 'lines_by_treatment', grouping_column: 'treatment', groups: 'one_per_value', comparison_column: 'cell_type', comparison_reference: [cell_type: ['U2-OS']]],
+                        [name: 'lines_by_treatment', grouping_column: 'treatment', groups: 'one_per_value', comparison_column: 'cell_type', reference_values: ['U2-OS']],
+                        // cell types compared within each treatment, each against its own DMSO wells
+                        [name: 'lines_vs_dmso', grouping_column: 'treatment', groups: 'one_per_value', always_include: ['DMSO'], comparison_column: 'cell_type', reference_column: 'treatment', reference_values: ['DMSO']],
                         // the comparison column may be the grouping column when groups have several values
-                        [name: 'moa', grouping_column: 'treatment', groups: [kinase_inhibitor: ['drugA', 'drugB']], always_include: ['DMSO'], comparison_column: 'treatment', comparison_reference: [treatment: ['DMSO']]],
+                        [name: 'moa', grouping_column: 'treatment', groups: [kinase_inhibitor: ['drugA', 'drugB']], always_include: ['DMSO'], comparison_column: 'treatment', reference_values: ['DMSO']],
                         [name: 'all_treatments', grouping_column: 'treatment', groups: 'all_values', comparison_column: 'Metadata_treatment'],
                     ],
                 ]
@@ -597,10 +621,13 @@ nextflow_function {
                         // prefix normalization applies before comparing
                         [name: 'same_as_grouping', grouping_column: 'treatment', groups: 'one_per_value', comparison_column: 'Metadata_treatment'],
                         [name: 'in_subgroups', grouping_column: 'treatment', groups: 'all_values', subgroup_columns: ['cell_type'], comparison_column: 'cell_type'],
-                        [name: 'reference_only', grouping_column: 'cell_type', groups: 'one_per_value', comparison_reference: [treatment: ['DMSO']]],
-                        [name: 'reference_list', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', comparison_reference: ['DMSO']],
-                        [name: 'reference_scalar', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', comparison_reference: [treatment: 'DMSO']],
-                        [name: 'reference_empty', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', comparison_reference: [treatment: []]],
+                        [name: 'reference_only', grouping_column: 'cell_type', groups: 'one_per_value', reference_values: ['DMSO']],
+                        [name: 'reference_scalar', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', reference_values: 'DMSO'],
+                        // the old mapping form
+                        [name: 'reference_map', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', reference_values: [treatment: ['DMSO']]],
+                        [name: 'reference_empty', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', reference_values: []],
+                        [name: 'column_without_values', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', reference_column: 'treatment'],
+                        [name: 'reference_two_columns', grouping_column: 'cell_type', groups: 'one_per_value', comparison_column: 'treatment', reference_column: ['treatment', 'timepoint'], reference_values: ['DMSO']],
                     ],
                 ]
                 """
@@ -610,15 +637,17 @@ nextflow_function {
         then {
             assert function.success
             def errors = function.result.errors
-            assert errors.size() == 8
+            assert errors.size() == 10
             assert errors.any { err -> err.contains("'per_cell'") && err.contains('per-well') }
             assert errors.any { err -> err.contains("'list_column'") && err.contains('single column') }
             assert errors.any { err -> err.contains("'same_as_grouping'") && err.contains('grouping_column') }
             assert errors.any { err -> err.contains("'in_subgroups'") && err.contains('subgroup_columns') }
             assert errors.any { err -> err.contains("'reference_only'") && err.contains('requires comparison_column') }
-            ['reference_list', 'reference_scalar', 'reference_empty'].each { name ->
-                assert errors.any { err -> err.contains("'${name}'") && err.contains('comparison_reference') }
+            ['reference_scalar', 'reference_map', 'reference_empty'].each { name ->
+                assert errors.any { err -> err.contains("'${name}'") && err.contains('reference_values must be a non-empty list') }
             }
+            assert errors.any { err -> err.contains("'column_without_values'") && err.contains('requires reference_values') }
+            assert errors.any { err -> err.contains("'reference_two_columns'") && err.contains('reference_column must be a single column') }
         }
     }
 
@@ -649,7 +678,8 @@ nextflow_function {
                 filter: [:],
                 subgroup_columns: [],
                 comparison_column: null,
-                comparison_reference: [:],
+                reference_column: null,
+                reference_values: [],
             ]
             assert function.result == [cell: [all_grouping], well: [all_grouping]]
         }
@@ -679,7 +709,12 @@ nextflow_function {
             assert function.result.well*.name == ['treatment', 'cell_type', 'cell_types_by_treatment']
             def cell_type = function.result.well.find { grouping -> grouping.name == 'cell_type' }
             assert cell_type.comparison_column == 'Metadata_treatment'
-            assert cell_type.comparison_reference == [Metadata_treatment: ['DMSO']]
+            assert cell_type.reference_column == 'Metadata_treatment'
+            assert cell_type.reference_values == ['DMSO']
+            def cell_types_by_treatment = function.result.well.find { grouping -> grouping.name == 'cell_types_by_treatment' }
+            assert cell_types_by_treatment.comparison_column == 'Metadata_cell_type'
+            assert cell_types_by_treatment.reference_column == 'Metadata_treatment'
+            assert cell_types_by_treatment.reference_values == ['DMSO']
             def moa = function.result.cell.find { grouping -> grouping.name == 'moa_grouping' }
             assert moa.groups == [
                 kinase_inhibitor: ['drugA', 'drugB', 'drugC'],
@@ -759,7 +794,7 @@ nextflow_function {
         }
     }
 
-    test("groupingPartitionColumns: includes comparison_column and comparison_reference columns") {
+    test("groupingPartitionColumns: includes comparison_column and reference_column") {
 
         function "groupingPartitionColumns"
 
@@ -775,7 +810,8 @@ nextflow_function {
                     filter: [:],
                     subgroup_columns: [],
                     comparison_column: 'Metadata_treatment',
-                    comparison_reference: [Metadata_treatment: ['DMSO'], Metadata_dose: ['0']],
+                    reference_column: 'Metadata_dose',
+                    reference_values: ['0'],
                 ]
                 input[0] = [cell: [grouping], well: [grouping]]
                 """

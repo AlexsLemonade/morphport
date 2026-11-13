@@ -53,8 +53,7 @@ well:
     grouping_column: cell_type
     groups: one_per_value
     comparison_column: treatment
-    comparison_reference:
-      treatment: [DMSO]
+    reference_values: [DMSO]
 
   # Comparisons in the other direction: the cell types within each treatment
   # DMSO joins every treatment's group so each cell type can be measured against its own DMSO wells
@@ -63,5 +62,5 @@ well:
     groups: one_per_value
     always_include: [DMSO]
     comparison_column: cell_type
-    comparison_reference:
-      treatment: [DMSO]
+    reference_column: treatment
+    reference_values: [DMSO]

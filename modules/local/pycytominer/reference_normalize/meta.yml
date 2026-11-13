@@ -25,8 +25,8 @@ input:
             grouping_column:'Metadata_cell_type', group:'lineA', subgroup_values:[:],
             group_id:'cell_type=lineA', group_tag:'well__cell_type__cell_type=lineA',
             comparison_column:'Metadata_treatment',
-            comparison_reference:[Metadata_treatment:['DMSO']] ]
-          comparison_column and comparison_reference are required.
+            reference_column:'Metadata_treatment', reference_values:['DMSO'] ]
+          comparison_column, reference_column, and reference_values are required.
     - plate_metas:
         type: list
         description: List of per-plate meta maps for the parquets in this group; their plate normalization settings are reported in the summary, and the list is passed through

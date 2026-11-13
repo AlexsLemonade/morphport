@@ -447,16 +447,17 @@ nextflow_function {
                         filter: [:],
                         subgroup_columns: [],
                         comparison_column: 'Metadata_treatment',
-                        comparison_reference: [:],
+                        reference_column: null,
+                        reference_values: [],
                     ] + extra
                 }
                 input[0] = [
                     cell: [],
                     well: [
                         grouping.call('no_reference', [:]),
-                        grouping.call('dmso_reference', [comparison_reference: [Metadata_treatment: ['DMSO']]]),
+                        grouping.call('dmso_reference', [reference_column: 'Metadata_treatment', reference_values: ['DMSO']]),
                         // reference values need only appear somewhere in the grouping, not on every plate
-                        grouping.call('line_reference', [grouping_column: 'Metadata_treatment', comparison_column: 'Metadata_cell_type', comparison_reference: [Metadata_cell_type: ['lineB']]]),
+                        grouping.call('line_reference', [grouping_column: 'Metadata_treatment', comparison_column: 'Metadata_cell_type', reference_column: 'Metadata_cell_type', reference_values: ['lineB']]),
                     ],
                 ]
                 input[1] = [
@@ -494,14 +495,15 @@ nextflow_function {
                         filter: [:],
                         subgroup_columns: [],
                         comparison_column: 'Metadata_treatment',
-                        comparison_reference: [:],
+                        reference_column: null,
+                        reference_values: [],
                     ] + extra
                 }
                 input[0] = [
                     cell: [],
                     well: [
                         grouping.call('missing_comparison', [:]),
-                        grouping.call('missing_reference', [comparison_column: 'Metadata_dose', comparison_reference: [Metadata_treatment: ['DMSO']]]),
+                        grouping.call('missing_reference', [comparison_column: 'Metadata_dose', reference_column: 'Metadata_treatment', reference_values: ['DMSO']]),
                     ],
                 ]
                 input[1] = [
@@ -518,11 +520,11 @@ nextflow_function {
             // a reference column missing from a platemap is not also reported as missing values
             assert errors.size() == 2
             assert errors.any { err -> err.contains("'missing_comparison'") && err.contains("comparison_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
-            assert errors.any { err -> err.contains("'missing_reference'") && err.contains("comparison_reference column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
+            assert errors.any { err -> err.contains("'missing_reference'") && err.contains("reference_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
         }
     }
 
-    test("validateGroupingsAgainstData: comparison_reference values not in the grouping's rows are errors") {
+    test("validateGroupingsAgainstData: reference_values not in the grouping's rows are errors") {
 
         function "validateGroupingsAgainstData"
 
@@ -542,17 +544,18 @@ nextflow_function {
                         filter: [:],
                         subgroup_columns: [],
                         comparison_column: 'Metadata_treatment',
-                        comparison_reference: [:],
+                        reference_column: null,
+                        reference_values: [],
                     ] + extra
                 }
                 input[0] = [
                     cell: [],
                     well: [
-                        grouping.call('typo', [comparison_reference: [Metadata_treatment: ['DMSO', 'DSMO']]]),
+                        grouping.call('typo', [reference_column: 'Metadata_treatment', reference_values: ['DMSO', 'DSMO']]),
                         // DMSO wells are dropped by the filter
-                        grouping.call('filtered_out', [grouping_column: 'Metadata_treatment', groups: 'all_values', filter: [Metadata_cell_type: ['lineB']], comparison_reference: [Metadata_treatment: ['DMSO']]]),
+                        grouping.call('filtered_out', [grouping_column: 'Metadata_treatment', groups: 'all_values', filter: [Metadata_cell_type: ['lineB']], reference_column: 'Metadata_treatment', reference_values: ['DMSO']]),
                         // DMSO wells are dropped by excluded
-                        grouping.call('excluded_reference', [grouping_column: 'Metadata_treatment', groups: 'all_values', excluded: ['DMSO'], comparison_reference: [Metadata_treatment: ['DMSO']]]),
+                        grouping.call('excluded_reference', [grouping_column: 'Metadata_treatment', groups: 'all_values', excluded: ['DMSO'], reference_column: 'Metadata_treatment', reference_values: ['DMSO']]),
                     ],
                 ]
                 input[1] = [

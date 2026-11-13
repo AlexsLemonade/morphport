@@ -27,7 +27,7 @@ nextflow_process {
         grouping_column: 'Metadata_cell_type', group: 'lineA', subgroup_values: [:],
         group_id: 'cell_type=lineA', group_tag: 'well__cell_type__cell_type=lineA',
         plate_ids: ['P1', 'P2'],
-        comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
+        comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
         reference_normalized: true, reference_normalization_method: 'mad_robustize',
     ]"""
 
@@ -37,7 +37,7 @@ nextflow_process {
         grouping_column: 'Metadata_cell_type', group: 'both_lines', subgroup_values: [:],
         group_id: 'cell_type=both_lines', group_tag: 'well__cell_type_sets__cell_type=both_lines',
         plate_ids: ['P1'],
-        comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
+        comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
         reference_normalized: true, reference_normalization_method: 'mad_robustize',
     ]"""
 
@@ -47,7 +47,7 @@ nextflow_process {
         grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
         group_id: 'treatment=drugA', group_tag: 'well__cell_types_by_treatment__treatment=drugA',
         plate_ids: ['P1'],
-        comparison_column: 'Metadata_cell_type', comparison_reference: [Metadata_treatment: ['DMSO']],
+        comparison_column: 'Metadata_cell_type', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
         reference_normalized: true, reference_normalization_method: 'mad_robustize',
     ]"""
 
@@ -113,7 +113,8 @@ nextflow_process {
 
             def summary = path(summaryFile).json
             assert summary.comparison_column == 'Metadata_treatment'
-            assert summary.comparison_reference == [Metadata_treatment: ['DMSO']]
+            assert summary.reference_column == 'Metadata_treatment'
+            assert summary.reference_values == ['DMSO']
             assert summary.ap_distance_metric == 'cosine'
             assert summary.map_null_method == 'permutation'
             assert summary.map_null_size == 10000
@@ -123,7 +124,6 @@ nextflow_process {
             assert summary.copairs_version == '0.6.0'
             assert summary.positive_match_columns == ['Metadata_treatment', 'Metadata_cell_type']
             assert summary.negative_match_columns == ['Metadata_cell_type']
-            assert summary.negative_differ_columns == ['Metadata_treatment']
             assert summary.reference_normalization_method == 'mad_robustize'
             assert summary.n_wells_input == 35
             assert summary.n_features_input == 44
@@ -178,7 +178,6 @@ nextflow_process {
             // positives and negatives are both matched on cell type
             assert summary.positive_match_columns == ['Metadata_treatment', 'Metadata_cell_type']
             assert summary.negative_match_columns == ['Metadata_cell_type']
-            assert summary.negative_differ_columns == ['Metadata_treatment']
             // the one drugB well in lineA
             assert summary.n_wells_dropped == 1
             assert summary.n_test_conditions_active == 2
@@ -215,10 +214,9 @@ nextflow_process {
             }
 
             def summary = path(summaryFile).json
-            // the comparison column is not a reference column, so it is matched rather than differed
+            // the comparison column is not a reference column, so it is matched
             assert summary.positive_match_columns == ['Metadata_cell_type']
             assert summary.negative_match_columns == ['Metadata_cell_type']
-            assert summary.negative_differ_columns == []
             // the min_wells actually used
             assert summary.min_wells_per_set == 2
         }
@@ -272,11 +270,11 @@ nextflow_process {
             }
             def summary = path(summaryFile).json
             assert summary.skipped == true
-            assert summary.skip_reason == "no reference wells matching {'Metadata_treatment': ['vehicle']}"
+            assert summary.skip_reason == "no reference wells with values in ['vehicle'] for Metadata_treatment"
             assert summary.n_reference_wells == 0
             assert summary.n_test_conditions_scored == 0
             def warnings = path(process.out.warnings[0][2]).readLines()
-            assert warnings == ["skipped: no reference wells matching {'Metadata_treatment': ['vehicle']}"]
+            assert warnings == ["skipped: no reference wells with values in ['vehicle'] for Metadata_treatment"]
         }
     }
 
@@ -319,6 +317,20 @@ nextflow_process {
         then {
             assert process.failed
             assert process.stdout.any { line -> line.contains("options is missing keys [fdr_threshold]") }
+        }
+    }
+
+    test("group without reference values - fails") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", treatmentMeta + " + [reference_values: null]", 'profiles_treatments.parquet')
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("has no comparison_column, reference_column, or reference_values") }
         }
     }
 

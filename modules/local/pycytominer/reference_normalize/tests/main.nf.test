@@ -20,7 +20,7 @@ nextflow_process {
         grouping_column: 'Metadata_cell_type', group: 'lineA', subgroup_values: [:],
         group_id: 'cell_type=lineA', group_tag: 'well__cell_type__cell_type=lineA',
         plate_ids: ['P1', 'P2', 'P3'],
-        comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
+        comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
     ]"""
 
     // Group metadata for comparing cell types within a treatment
@@ -29,7 +29,7 @@ nextflow_process {
         grouping_column: 'Metadata_treatment', group: 'drugA', subgroup_values: [:],
         group_id: 'treatment=drugA', group_tag: 'well__cell_types_by_treatment__treatment=drugA',
         plate_ids: ['P1'],
-        comparison_column: 'Metadata_cell_type', comparison_reference: [Metadata_treatment: ['DMSO']],
+        comparison_column: 'Metadata_cell_type', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
     ]"""
 
     // Group metadata for comparing treatments within a group that pools two cell types
@@ -39,7 +39,7 @@ nextflow_process {
         grouping_column: 'Metadata_cell_type', group: 'both_lines', subgroup_values: [:],
         group_id: 'cell_type=both_lines', group_tag: 'well__cell_type_sets__cell_type=both_lines',
         plate_ids: ['P1'],
-        comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']],
+        comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
     ]"""
 
     // Per-plate meta, as plate normalization leaves it (the group meta does not carry these keys)
@@ -127,7 +127,8 @@ nextflow_process {
             def summary = path(process.out.summary[0]).json
             assert summary.reference_normalization_method == 'mad_robustize'
             assert summary.comparison_column == 'Metadata_treatment'
-            assert summary.comparison_reference == [Metadata_treatment: ['DMSO']]
+            assert summary.reference_column == 'Metadata_treatment'
+            assert summary.reference_values == ['DMSO']
             // the grouping column (cell type) has one value in this group, so it adds no split
             assert summary.normalization_set_columns == ['Metadata_Plate', 'Metadata_cell_type']
             assert summary.normalization_sets == [
@@ -344,7 +345,7 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1'], treatmentMeta + " + [comparison_reference: [Metadata_dose: ['0']]]")}
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1'], treatmentMeta + " + [reference_column: 'Metadata_dose', reference_values: ['0']]")}
                 input[1] = 'mad_robustize'
                 """
             }
@@ -361,7 +362,7 @@ nextflow_process {
         when {
             process {
                 """
-                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1'], treatmentMeta + " + [comparison_reference: null]")}
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", ['P1'], treatmentMeta + " + [reference_values: null]")}
                 input[1] = 'mad_robustize'
                 """
             }
@@ -369,7 +370,7 @@ nextflow_process {
 
         then {
             assert process.failed
-            assert process.stdout.any { line -> line.contains("has no comparison_column or comparison_reference") }
+            assert process.stdout.any { line -> line.contains("has no comparison_column, reference_column, or reference_values") }
         }
     }
 

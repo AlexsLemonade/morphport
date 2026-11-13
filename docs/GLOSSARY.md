@@ -118,8 +118,8 @@ Comparison reference wells are never part of a test condition: when comparing tr
 _Avoid_: comparison value, compared item, item, condition (on its own)
 
 **Comparison reference**:
-The wells that the test conditions of an analysis group are measured against, chosen by platemap column values (usually a control such as DMSO).
-A grouping may name one only together with a comparison column.
+The wells that the test conditions of an analysis group are measured against, chosen by their values in a single platemap column (usually a control such as DMSO in the `treatment` column).
+A grouping sets it with `reference_values` (and `reference_column`, which defaults to the comparison column), and only together with a comparison column.
 _Avoid_: consensus reference, baseline, negative control (when referring to the wells chosen for this purpose)
 
 **Reference normalization**:

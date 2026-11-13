@@ -20,7 +20,7 @@ features_file, and then:
    (negatives) is, and lower the more often a reference well is more similar than a positive.
    Wells are compared only with wells that share their match column values (e.g. the same
    cell type). The match columns are the columns that define the analysis group, minus the
-   reference columns.
+   reference column.
 5. Computes each test condition's mAP (the mean of its wells' AP) and
    a p-value from a copairs null distribution, plus a BH-corrected p-value for the group.
    A test condition is called as active when its corrected p-value is below fdr_threshold.
@@ -49,6 +49,9 @@ PLATE_COLUMN = "Metadata_Plate"
 # so reference wells are never positives of each other or of the test conditions' wells
 REFERENCE_INDEX = "Metadata__reference_index"
 NON_REFERENCE = -1
+# Temporary column: 1 for reference wells and 0 for other wells. Negatives must differ in it,
+# so every negative pair is one test condition well and one reference well
+REFERENCE_FLAG = "Metadata__is_reference"
 # A test condition needs at least two wells in a cell type: its wells' positives are each other
 MIN_SCORABLE_WELLS = 2
 NULL_METHODS = ("permutation", "copied")
@@ -89,20 +92,20 @@ def get_match_columns(
     grouping_column: str | None,
     subgroup_columns: list[str],
     comparison_column: str,
-    reference_columns: list[str],
+    reference_column: str,
 ) -> list[str]:
     """
     Columns whose values a well must share with its positive and negative wells.
 
     These are the grouping, subgroup, and comparison columns, minus plate (wells are compared
-    across plates) and the reference columns (where reference wells differ from test condition
+    across plates) and the reference column (where reference wells differ from test condition
     wells by definition). Each column is listed once, in order.
     """
     context_columns = [grouping_column, *subgroup_columns, comparison_column]
     return [
         col
         for col in dict.fromkeys(context_columns)
-        if col is not None and col != PLATE_COLUMN and col not in reference_columns
+        if col is not None and col != PLATE_COLUMN and col != reference_column
     ]
 
 
@@ -213,8 +216,8 @@ def reference_wells_per_test_condition(
     first_is_reference = is_reference_array[first_well]
     second_is_reference = is_reference_array[second_well]
 
-    # Keep pairs of one test condition well and one reference well
-    # (two reference wells can also be a negative pair, e.g. when comparing cell types).
+    # Keep pairs of one test condition well and one reference well. Negatives are required to differ in
+    # reference status, so this keeps every pair; it guards the counts if that requirement changes.
     one_reference = first_is_reference != second_is_reference
     first_well = first_well[one_reference]
     second_well = second_well[one_reference]
@@ -263,12 +266,13 @@ def main():
     group_tag = meta["group_tag"]
     activity_path = f"phenotypic_activity_{group_tag}.parquet"
     comparison_column = meta["comparison_column"]
-    comparison_reference = meta["comparison_reference"]
+    reference_column = meta["reference_column"]
+    reference_values = meta["reference_values"]
     match_by = get_match_columns(
         grouping_column=meta["grouping_column"],
         subgroup_columns=list(meta["subgroup_values"].keys()),
         comparison_column=comparison_column,
-        reference_columns=list(comparison_reference.keys()),
+        reference_column=reference_column,
     )
     # columns a test condition's wells are split by before scoring: within a test condition, only wells that share
     # these values are positives of each other (the comparison column, then the other match columns)
@@ -277,13 +281,10 @@ def main():
     # (each reference well has its own reference index)
     pos_sameby = [*condition_set_by, REFERENCE_INDEX]
     # negatives: a test condition's wells paired with the reference wells that share the match columns.
-    # When the comparison column is a reference column (e.g. treatments, reference DMSO), it is also
-    # in neg_diffby, as in the copairs phenotypic activity recipe.
+    # Requiring the reference flag to differ leaves out pairs of two test condition wells and pairs of two
+    # reference wells (whose APs are not tested), whatever the reference and comparison columns are.
     neg_sameby = match_by
-    if comparison_column in comparison_reference:
-        neg_diffby = [comparison_column, REFERENCE_INDEX]
-    else:
-        neg_diffby = [REFERENCE_INDEX]
+    neg_diffby = [REFERENCE_FLAG]
     # a test condition needs at least two wells in a cell type to have positive pairs, whatever min_wells is
     effective_min_wells = max(min_wells, MIN_SCORABLE_WELLS)
 
@@ -295,7 +296,8 @@ def main():
         "group": meta["group"],
         "subgroup_values": meta["subgroup_values"],
         "comparison_column": comparison_column,
-        "comparison_reference": comparison_reference,
+        "reference_column": reference_column,
+        "reference_values": reference_values,
         "ap_distance_metric": distance,
         "map_null_method": null_method,
         "map_null_size": null_size,
@@ -305,9 +307,6 @@ def main():
         "copairs_version": version("copairs"),
         "positive_match_columns": condition_set_by,
         "negative_match_columns": neg_sameby,
-        "negative_differ_columns": [
-            col for col in neg_diffby if col != REFERENCE_INDEX
-        ],
         "reference_normalization_method": meta.get("reference_normalization_method"),
         "plate_normalization_method": meta.get("plate_normalization_method"),
         "plate_normalization_reference_profiles": meta.get(
@@ -342,7 +341,7 @@ def main():
                 comparison_column,
                 PLATE_COLUMN,
                 *match_by,
-                *comparison_reference,
+                reference_column,
             ]
         )
         if col not in metadata_cols
@@ -359,13 +358,11 @@ def main():
     df[features] = df[features].astype("float64")
 
     # ---- Identify reference wells -------------------------------------------
-    # A reference well matches one of the listed values in every comparison_reference column:
-    # start with every well, and keep only those that match each column in turn.
+    # A reference well's reference_column value is one of the reference_values.
     # Values are compared as text, as in reference normalization.
-    is_reference = pd.Series(True, index=df.index)
-    for col, values in comparison_reference.items():
-        matches_column = df[col].astype(str).isin([str(v) for v in values])
-        is_reference = is_reference & matches_column
+    is_reference = (
+        df[reference_column].astype(str).isin([str(v) for v in reference_values])
+    )
     is_reference = is_reference.astype(bool)
 
     # ---- Drop wells that can't be scored -------------------------------------
@@ -403,7 +400,7 @@ def main():
         write_skipped(
             summary=summary,
             comparison_column=comparison_column,
-            skip_reason=f"no reference wells matching {comparison_reference}",
+            skip_reason=f"no reference wells with values in {reference_values} for {reference_column}",
             warnings=warnings,
             group_tag=group_tag,
         )
@@ -435,6 +432,7 @@ def main():
         reference_col=REFERENCE_INDEX,
         default_value=NON_REFERENCE,
     )
+    pair_meta[REFERENCE_FLAG] = is_reference.astype(int).to_numpy()
     ap_scores, pairs = average_precision(
         meta=pair_meta,
         feats=df[kept_features].to_numpy(),

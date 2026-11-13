@@ -17,11 +17,10 @@
                     "P2"
                 ],
                 "comparison_column": "Metadata_treatment",
-                "comparison_reference": {
-                    "Metadata_treatment": [
-                        "DMSO"
-                    ]
-                },
+                "reference_column": "Metadata_treatment",
+                "reference_values": [
+                    "DMSO"
+                ],
                 "reference_normalized": true,
                 "reference_normalization_method": "mad_robustize"
             },

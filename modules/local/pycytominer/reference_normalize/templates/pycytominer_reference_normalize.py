@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
 Nextflow template script to normalize one analysis group's per-well profiles to
-its comparison reference wells (reference normalization), using pycytominer.
+its reference wells (reference normalization), using pycytominer.
 
 Reads the parquet files staged in input_parquet/, keeps the metadata columns and
 the features listed in features_file, and then:
 
-1. Identifies reference wells: wells whose value in every comparison_reference
-   column is one of that column's listed values (compared as text).
+1. Identifies reference wells: wells whose reference_column value is one of the
+   reference_values (compared as text).
 2. Splits the wells into normalization sets: the wells that are normalized
    together, to the reference wells among them. Each plate is split by the
    columns that define the analysis group (grouping, subgroup, and comparison
-   columns) that are not reference columns, so, e.g., each cell type is
+   columns) other than the reference column, so, e.g., each cell type is
    normalized to its own reference wells, whichever direction the comparison
    goes. The summary lists these columns as normalization_set_columns.
 3. Drops the wells of normalization sets with fewer than MIN_REFERENCE_WELLS
@@ -100,15 +100,15 @@ def get_normalization_set_columns(
     grouping_column: str | None,
     subgroup_columns: list[str],
     comparison_column: str,
-    reference_columns: list[str],
+    reference_column: str,
 ) -> list[str]:
     """
     Columns that define the normalization sets: the wells normalized together, to the reference wells among them.
 
     Each plate is split by every column that defines the analysis group (the grouping column, the subgroup
-    columns, and the comparison column) except the reference columns, so that each value of those columns
-    (e.g. each cell type) is normalized to its own reference wells. Reference columns are left out because
-    splitting on them would separate the reference wells from the wells they are the reference for.
+    columns, and the comparison column) except the reference column, so that each value of those columns
+    (e.g. each cell type) is normalized to its own reference wells. The reference column is left out because
+    splitting on it would separate the reference wells from the wells they are the reference for.
     Columns that have a single value in the group (e.g. the grouping column of a one_per_value group) add
     no split. Duplicates are listed once, in order.
     """
@@ -116,7 +116,7 @@ def get_normalization_set_columns(
     split_columns = [
         col
         for col in dict.fromkeys(context_columns)
-        if col is not None and col != PLATE_COLUMN and col not in reference_columns
+        if col is not None and col != PLATE_COLUMN and col != reference_column
     ]
     return [PLATE_COLUMN] + split_columns
 
@@ -210,10 +210,12 @@ def main():
     profiles_path = f"reference_normalized_{group_tag}.parquet"
     features_path = f"reference_normalized_features_{group_tag}.txt"
     comparison_column = meta["comparison_column"]
-    comparison_reference = meta["comparison_reference"]
-    # with no reference columns, every well would match as a reference well
-    if not comparison_reference:
-        raise ValueError(f"Group {group_tag} has an empty comparison_reference")
+    reference_column = meta["reference_column"]
+    reference_values = meta["reference_values"]
+    if not reference_column or not reference_values:
+        raise ValueError(
+            f"Group {group_tag} has no reference_column or reference_values"
+        )
 
     # written up front so skipped groups report versions too
     write_versions(task_process)
@@ -222,7 +224,7 @@ def main():
         grouping_column=meta["grouping_column"],
         subgroup_columns=list(meta["subgroup_values"].keys()),
         comparison_column=comparison_column,
-        reference_columns=list(comparison_reference.keys()),
+        reference_column=reference_column,
     )
 
     summary = {
@@ -234,7 +236,8 @@ def main():
         "subgroup_values": meta["subgroup_values"],
         "reference_normalization_method": normalize_method,
         "comparison_column": comparison_column,
-        "comparison_reference": comparison_reference,
+        "reference_column": reference_column,
+        "reference_values": reference_values,
         "normalization_set_columns": normalization_set_columns,
         "min_reference_wells": MIN_REFERENCE_WELLS,
         # filled in after the zero-spread check; stays empty if the group is skipped before it
@@ -258,7 +261,7 @@ def main():
     missing = [
         col
         for col in dict.fromkeys(
-            [*normalization_set_columns, comparison_column, *comparison_reference]
+            [*normalization_set_columns, comparison_column, reference_column]
         )
         if col not in metadata_cols
     ]
@@ -277,13 +280,11 @@ def main():
     summary["n_features_input"] = len(features)
 
     # ---- Identify reference wells -------------------------------------------
-    # A reference well matches one of the listed values in every comparison_reference column:
-    # start with every well, and keep only those that match each column in turn.
+    # A reference well's reference_column value is one of the reference_values.
     # Values are compared as text, as platemap values are read.
-    is_reference = pd.Series(True, index=df.index)
-    for col, values in comparison_reference.items():
-        matches_column = df[col].astype(str).isin([str(v) for v in values])
-        is_reference = is_reference & matches_column
+    is_reference = (
+        df[reference_column].astype(str).isin([str(v) for v in reference_values])
+    )
     df[REFERENCE_FLAG] = is_reference.astype(bool)
 
     # ---- Normalization sets and their reference wells -----------------------

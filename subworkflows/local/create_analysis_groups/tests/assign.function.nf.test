@@ -645,11 +645,12 @@ nextflow_function {
                         filter: [:],
                         subgroup_columns: [],
                         comparison_column: null,
-                        comparison_reference: [:],
+                        reference_column: null,
+                        reference_values: [],
                     ] + extra
                 }
                 // a default grouping is in both aggregate levels
-                def with_reference = grouping.call('with_reference', [comparison_column: 'Metadata_treatment', comparison_reference: [Metadata_treatment: ['DMSO']]])
+                def with_reference = grouping.call('with_reference', [comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO']])
                 input[0] = [
                     cell: [with_reference],
                     well: [
@@ -674,16 +675,21 @@ nextflow_function {
             def well_metas = metas.call('well').collectEntries { group_meta -> [(group_meta.grouping_name): group_meta] }
             assert well_metas.keySet() == ['with_reference', 'no_reference', 'no_comparison'] as Set
             assert well_metas.with_reference.comparison_column == 'Metadata_treatment'
-            assert well_metas.with_reference.comparison_reference == [Metadata_treatment: ['DMSO']]
+            assert well_metas.with_reference.reference_column == 'Metadata_treatment'
+            assert well_metas.with_reference.reference_values == ['DMSO']
             assert well_metas.no_reference.comparison_column == 'Metadata_treatment'
-            assert well_metas.no_reference.containsKey('comparison_reference')
-            assert well_metas.no_reference.comparison_reference == null
-            assert !well_metas.no_comparison.containsKey('comparison_column')
-            assert !well_metas.no_comparison.containsKey('comparison_reference')
+            ['reference_column', 'reference_values'].each { key ->
+                assert well_metas.no_reference.containsKey(key)
+                assert well_metas.no_reference[key] == null
+            }
+            ['comparison_column', 'reference_column', 'reference_values'].each { key ->
+                assert !well_metas.no_comparison.containsKey(key)
+            }
             def cell_metas = metas.call('cell')
             assert cell_metas.size() == 1
-            assert !cell_metas[0].containsKey('comparison_column')
-            assert !cell_metas[0].containsKey('comparison_reference')
+            ['comparison_column', 'reference_column', 'reference_values'].each { key ->
+                assert !cell_metas[0].containsKey(key)
+            }
             assert function.result.partition_columns == ['Metadata_cell_type', 'Metadata_treatment']
         }
     }
