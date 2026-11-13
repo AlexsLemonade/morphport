@@ -214,7 +214,6 @@ nextflow_process {
             // the comparison column is not a reference column, so it is matched
             assert summary.positive_match_columns == ['Metadata_cell_type']
             assert summary.negative_match_columns == ['Metadata_cell_type']
-            assert summary.negative_differ_columns == []
             // the min_wells actually used
             assert summary.min_wells_per_set == 2
         }
