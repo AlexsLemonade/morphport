@@ -52,7 +52,7 @@ nextflow_process {
     ]"""
 
     // Scoring options; uses a smaller null than the pipeline default, to keep the tests fast
-    def defaultOptions = [distance: 'cosine', null_method: 'permutation', null_size: 10000, fdr_threshold: 0.05, seed: 1674, min_wells: 2]
+    def defaultOptions = [distance_metric: 'cosine', null_method: 'permutation', null_size: 10000, fdr_threshold: 0.05, seed: 1674, min_wells: 2]
 
     // Process inputs, as Groovy source text; a closure because moduleDir is only defined inside a test.
     def processInputs = { fixtureDir, meta, profiles, features = 'features.txt', options = defaultOptions -> """
@@ -115,7 +115,7 @@ nextflow_process {
             assert summary.comparison_column == 'Metadata_treatment'
             assert summary.reference_column == 'Metadata_treatment'
             assert summary.reference_values == ['DMSO']
-            assert summary.ap_distance == 'cosine'
+            assert summary.ap_distance_metric == 'cosine'
             assert summary.map_null_method == 'permutation'
             assert summary.map_null_size == 10000
             assert summary.map_fdr_threshold == 0.05
@@ -185,7 +185,8 @@ nextflow_process {
 
         when {
             process {
-                processInputs("${moduleDir}/tests/fixtures", cellTypeMeta, 'profiles_cell_types.parquet')
+                // min_wells of 1 is treated as 2
+                processInputs("${moduleDir}/tests/fixtures", cellTypeMeta, 'profiles_cell_types.parquet', 'features.txt', defaultOptions + [min_wells: 1])
             }
         }
 
@@ -213,6 +214,9 @@ nextflow_process {
             // the comparison column is not a reference column, so it is matched
             assert summary.positive_match_columns == ['Metadata_cell_type']
             assert summary.negative_match_columns == ['Metadata_cell_type']
+            assert summary.negative_differ_columns == []
+            // the min_wells actually used
+            assert summary.min_wells_per_set == 2
         }
     }
 
@@ -237,6 +241,31 @@ nextflow_process {
             assert summary.skip_reason == "no test condition has at least 9 wells with the same values of ['Metadata_treatment', 'Metadata_cell_type']"
             // every non-reference well: 8 drugActive, 8 drugInactive, 1 drugSingle, and 2 '_NA_'
             assert summary.n_wells_dropped == 19
+            assert summary.n_test_conditions_scored == 0
+        }
+    }
+
+    test("no reference wells - skipped") {
+
+        // no well's treatment is 'vehicle', so there are no reference wells to score against
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", treatmentMeta.replace("['DMSO']", "['vehicle']"), 'profiles_treatments.parquet')
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, activityFile, summaryFile) = process.out.result[0]
+            with(path(activityFile).parquet) {
+                assert rowCount == 0
+                assert columnNames == activityColumns('Metadata_treatment')
+                assert schema == activitySchema('Metadata_treatment')
+            }
+            def summary = path(summaryFile).json
+            assert summary.skipped == true
+            assert summary.skip_reason == "no reference wells matching {'Metadata_treatment': ['vehicle']}"
+            assert summary.n_reference_wells == 0
             assert summary.n_test_conditions_scored == 0
         }
     }

@@ -25,7 +25,8 @@ features_file, and then:
 
 Writes one row per scored test condition, with its counts, mAP, p-values, and the active
 call, and a JSON summary. Groups with no profiles (skipped by reference normalization), no
-complete features, or no test condition with enough wells are skipped: the table has no rows.
+complete features, no reference wells, or no test condition with enough wells are skipped:
+the table has no rows.
 """
 
 import json
@@ -57,7 +58,7 @@ def validate_params(
 ):
     """
     Validate the scoring parameters before loading any data, so bad params fail fast with a clear message.
-    The distance is checked by copairs.
+    The distance metric is checked by copairs.
     """
     if null_method not in NULL_METHODS:
         raise ValueError(
@@ -200,7 +201,7 @@ def main():
     # raw string so JSON escapes in metadata values survive
     meta = json.loads(r"""${meta_json}""")
     options = json.loads(r"""${options_json}""")
-    distance = options["distance"]
+    distance = options["distance_metric"]
     null_method = options["null_method"]
     null_size = int(options["null_size"])
     fdr_threshold = float(options["fdr_threshold"])
@@ -253,12 +254,12 @@ def main():
         "comparison_column": comparison_column,
         "reference_column": reference_column,
         "reference_values": reference_values,
-        "ap_distance": distance,
+        "ap_distance_metric": distance,
         "map_null_method": null_method,
         "map_null_size": null_size,
         "map_fdr_threshold": fdr_threshold,
         "map_null_seed": seed,
-        "min_wells_per_set": min_wells,
+        "min_wells_per_set": effective_min_wells,
         "copairs_version": version("copairs"),
         "positive_match_columns": condition_set_by,
         "negative_match_columns": neg_sameby,
@@ -355,6 +356,16 @@ def main():
     is_reference = is_reference[keep_wells].reset_index(drop=True)
     summary["n_wells_scored"] = int((~is_reference).sum())
     summary["n_reference_wells"] = int(is_reference.sum())
+    # reference normalization skips groups without reference wells, so this only happens when the
+    # module runs on its own; without reference wells there are no negatives to score against
+    if summary["n_reference_wells"] == 0:
+        write_skipped(
+            summary=summary,
+            comparison_column=comparison_column,
+            skip_reason=f"no reference wells matching {comparison_reference}",
+            group_tag=group_tag,
+        )
+        return
     if summary["n_wells_scored"] == 0:
         write_skipped(
             summary=summary,
