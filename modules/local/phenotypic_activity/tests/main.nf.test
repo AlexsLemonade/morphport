@@ -127,6 +127,7 @@ nextflow_process {
             assert summary.reference_normalization_method == 'mad_robustize'
             assert summary.n_wells_input == 35
             assert summary.n_features_input == 44
+            // Cells_Baseline_B's one missing value is in the dropped drugSingle well, so it is kept
             assert summary.features_dropped_nan == ['Cytoplasm_Intensity_MeanIntensity_Mito']
             assert summary.n_features_scored == 43
             // drugSingle's one well, and the two '_NA_' wells, which have no test condition

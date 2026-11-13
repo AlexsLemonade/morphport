@@ -6,13 +6,15 @@ analysis group with mean average precision (mAP), using copairs.
 Reads the reference-normalized profiles, keeps the metadata columns and the features listed in
 features_file, and then:
 
-1. Drops features with any NaN value, since copairs needs complete profiles.
-2. Drops non-reference wells with no comparison column value: a null, or the '_NA_' that
+1. Drops non-reference wells with no comparison column value: a null, or the '_NA_' that
    pycytominer_annotate.py writes for a blank platemap cell.
-3. Drops a test condition's wells (e.g. a treatment's) in any cell type where it has fewer
+2. Drops a test condition's wells (e.g. a treatment's) in any cell type where it has fewer
    than min_wells wells. "Cell type" here stands for each combination of the match columns
    (see step 4). A well needs at least one other well of its test condition to be scored,
    so a min_wells of 1 is treated as 2. A test condition with no wells left is not scored.
+3. Drops features with any NaN value in the remaining wells, since copairs needs complete
+   profiles. Wells are dropped first so that a missing value in a dropped well does not
+   remove a feature.
 4. Computes each well's average precision (AP) with copairs. A well's AP is 1 when the other
    wells of its test condition (positives) are all more similar to it than any reference well
    (negatives) is, and lower the more often a reference well is more similar than a positive.
@@ -313,22 +315,6 @@ def main():
     df = df[metadata_cols + features].reset_index(drop=True)
     df[features] = df[features].astype("float64")
 
-    # ---- Drop features with any NaN -----------------------------------------
-    has_nan = df[features].isna().any()
-    dropped_features = [f for f in features if has_nan[f]]
-    kept_features = [f for f in features if not has_nan[f]]
-    summary["features_dropped_nan"] = dropped_features
-    summary["n_features_scored"] = len(kept_features)
-    if not kept_features:
-        summary["n_wells_dropped"] = 0
-        write_skipped(
-            summary=summary,
-            comparison_column=comparison_column,
-            skip_reason="no features without missing values",
-            group_tag=group_tag,
-        )
-        return
-
     # ---- Identify reference wells -------------------------------------------
     # A reference well matches one of the listed values in every comparison_reference column:
     # start with every well, and keep only those that match each column in turn.
@@ -359,6 +345,15 @@ def main():
     is_reference = is_reference[keep_wells].reset_index(drop=True)
     summary["n_wells_scored"] = int((~is_reference).sum())
     summary["n_reference_wells"] = int(is_reference.sum())
+
+    # ---- Drop features with any NaN -----------------------------------------
+    # checked after dropping wells, so a missing value in a dropped well does not remove a feature
+    has_nan = df[features].isna().any()
+    dropped_features = [f for f in features if has_nan[f]]
+    kept_features = [f for f in features if not has_nan[f]]
+    summary["features_dropped_nan"] = dropped_features
+    summary["n_features_scored"] = len(kept_features)
+
     # reference normalization skips groups without reference wells, so this only happens when the
     # module runs on its own; without reference wells there are no negatives to score against
     if summary["n_reference_wells"] == 0:
@@ -374,6 +369,14 @@ def main():
             summary=summary,
             comparison_column=comparison_column,
             skip_reason=f"no test condition has at least {effective_min_wells} wells with the same values of {condition_set_by}",
+            group_tag=group_tag,
+        )
+        return
+    if not kept_features:
+        write_skipped(
+            summary=summary,
+            comparison_column=comparison_column,
+            skip_reason="no features without missing values",
             group_tag=group_tag,
         )
         return
