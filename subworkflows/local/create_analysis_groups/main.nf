@@ -47,6 +47,7 @@ workflow CREATE_ANALYSIS_GROUPS {
             def plate_partition_keys = metas.collectMany { meta -> enumeratePlatePartitionKeys(meta, platemaps[meta.platemap_file.toString()].partition_values) }
             def analysis_groups = buildAnalysisGroups(parsed_groups, plate_partition_keys)
             missingGroupingColumns(parsed_groups, plate_partition_keys).each { warning -> log.warn("Analysis groups: ${warning}") }
+            missingValueWarnings(parsed_groups, plate_partition_keys).each { warning -> log.warn("Analysis groups: ${warning}") }
             def errors = validateGroupingsAgainstData(parsed_groups, plate_partition_keys) + validateGroupTags(analysis_groups)
             if (errors) {
                 error(
@@ -377,7 +378,31 @@ def validateGrouping(grouping, top_level_key, position) {
         warnings << "${label}: always_include has no effect with 'groups: all_values'."
     }
 
+    // rows with a blank ('_NA_') value in the columns a grouping uses are left out (see hasMissingValue),
+    // so listing a blank value would match nothing. Filters may still select blank values.
+    def listed_values = [:]
+    if (groups instanceof Map) {
+        groups.each { group_name, values -> listed_values["group '${group_name}'".toString()] = values }
+    }
+    listed_values['always_include'] = grouping.always_include
+    listed_values['excluded'] = grouping.excluded
+    listed_values['reference_values'] = grouping.reference_values
+    listed_values.each { key, values ->
+        if (isFlatList(values) && values.any { value -> isBlankValue(value) }) {
+            errors << ("${label}: ${key} lists a blank value ('_NA_' or '')." +
+                " Rows with blank values in the grouping, subgroup, comparison, and reference columns are left out automatically.")
+        }
+    }
+
     return [errors: errors, warnings: warnings]
+}
+
+//
+// Whether a value from the analysis groups file stands for a blank platemap cell: '_NA_' (how blank
+// cells are encoded) or an empty string.
+//
+def isBlankValue(value) {
+    return value != null && (value as String).trim() in ['_NA_', '']
 }
 
 //
@@ -587,7 +612,8 @@ def partitionKey(meta, partition_columns) {
 //
 // Assign plate partition keys to the grouping sets (groups) of a single normalized grouping. This is the single
 // definition of group membership (see docs/analysis_groups_format.md):
-//   1. keep only plate_partition_keys matching every `filter` column
+//   1. keep only plate_partition_keys matching every `filter` column, and drop those with a blank
+//      ('_NA_') value in any column the grouping uses (see hasMissingValue)
 //   2. drop plate_partition_keys whose grouping_column value is in `excluded`
 //   3. assign the rest to groups by value: the value itself (one_per_value), 'all_values',
 //      or every named group listing the value (named groups may overlap)
@@ -625,14 +651,14 @@ def assignGroupingSets(grouping, plate_partition_keys) {
 }
 
 //
-// Apply steps 1 and 2 of assignGroupingSets (filter, then drop excluded values) and split the
+// Apply steps 1 and 2 of assignGroupingSets (filter and drop blank values, then drop excluded values) and split the
 // remaining plate_partition_keys into [shared, core]: shared plate_partition_keys have an always_include value and join
 // every group; core plate_partition_keys define the groups. With all_values every plate_partition_key is core.
 //
 def splitGroupingPlatePartitionKeys(grouping, plate_partition_keys) {
     def always_included = grouping.groups == 'all_values' ? [] : grouping.always_include
-    return plate_partition_keys
-        .findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) && !(plate_partition_key[grouping.grouping_column] in grouping.excluded) }
+    return groupingPlatePartitionKeys(grouping, plate_partition_keys)
+        .findAll { plate_partition_key -> !(plate_partition_key[grouping.grouping_column] in grouping.excluded) }
         .split { plate_partition_key -> plate_partition_key[grouping.grouping_column] in always_included }
 }
 
@@ -642,6 +668,34 @@ def splitGroupingPlatePartitionKeys(grouping, plate_partition_keys) {
 //
 def matchesGroupingFilter(grouping, plate_partition_key) {
     return grouping.filter.every { col, values -> plate_partition_key[col] in values }
+}
+
+//
+// Columns whose blank values leave a row out of a grouping: the grouping column, subgroup columns,
+// comparison column, and reference column. Filter columns are not included, so a
+// filter can still select blank values on purpose.
+//
+def missingValueColumns(grouping) {
+    def columns = [grouping.grouping_column] + grouping.subgroup_columns + [grouping.comparison_column, grouping.reference_column]
+    return columns.findAll().unique()
+}
+
+//
+// Whether a plate_partition_key has a blank value ('_NA_', as enumeratePlatemapPartitionValues and
+// pycytominer_annotate.py encode a blank platemap cell) in any of a grouping's missingValueColumns.
+//
+def hasMissingValue(grouping, plate_partition_key) {
+    return missingValueColumns(grouping).any { col -> plate_partition_key[col] == '_NA_' }
+}
+
+//
+// The plate_partition_keys a grouping uses: those that pass its filter and have no blank values
+// in the columns it uses.
+//
+def groupingPlatePartitionKeys(grouping, plate_partition_keys) {
+    return plate_partition_keys.findAll { plate_partition_key ->
+        matchesGroupingFilter(grouping, plate_partition_key) && !hasMissingValue(grouping, plate_partition_key)
+    }
 }
 
 //
@@ -706,6 +760,7 @@ def validateGroupTags(analysis_groups) {
 // Returns a list of error messages:
 //   - a filter column missing from any plate's platemap
 //   - a filter that matches no rows
+//   - no rows left once rows with blank ('_NA_') values are left out (see hasMissingValue)
 //   - named groups that don't account for an observed (filtered) value
 //   - always_include values absent from the filtered rows
 //   - always_include values absent from any subgroup (within a project) that has other rows
@@ -726,12 +781,19 @@ def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
             }
         }
 
-        def filtered = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
-        if (grouping.filter && !filtered) {
+        def filter_matched = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
+        if (grouping.filter && !filter_matched) {
             errors << "${label}: filter ${grouping.filter} matches no rows."
             return
         }
-        errors.addAll(comparisonDataErrors(grouping, filtered, label))
+        // missing columns are checked on every row that passes the filter, before rows with blank values are left out
+        errors.addAll(comparisonDataErrors(grouping, filter_matched, label))
+        def filtered = groupingPlatePartitionKeys(grouping, plate_partition_keys)
+        if (!filtered) {
+            def where = grouping.filter ? " matching filter ${grouping.filter}" : ''
+            errors << "${label}: every row${where} has a blank value in at least one of ${missingValueColumns(grouping)}."
+            return
+        }
         def observed = filtered.collect { plate_partition_key -> plate_partition_key[grouping.grouping_column] }.unique()
 
         // accounting rule for named groups
@@ -815,11 +877,31 @@ def comparisonDataErrors(grouping, filtered, label) {
 def missingGroupingColumns(parsed_groups, plate_partition_keys) {
     def groupings = (parsed_groups.cell + parsed_groups.well).unique()
     return groupings.findAll { grouping -> grouping.grouping_column }.collectMany { grouping ->
+        // every row that passes the filter, including rows left out for blank values in other columns
         def filtered = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
         ([grouping.grouping_column] + grouping.subgroup_columns).findResults { col ->
             def plates = filtered.findAll { plate_partition_key -> plate_partition_key[col] == '_Absent_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
             plates
                 ? "Grouping '${grouping.name}': column '${col}' is missing from the platemap for plate(s) ${plates.join(', ')}.".toString()
+                : null
+        }
+    }
+}
+
+//
+// Find blank ('_NA_') values in the columns each grouping uses (see missingValueColumns), among the rows
+// that pass its filter. Those rows are left out of the grouping (see groupingPlatePartitionKeys).
+// Returns a list of warning messages, one per grouping and column; groupings shared by both
+// aggregate levels are checked once.
+//
+def missingValueWarnings(parsed_groups, plate_partition_keys) {
+    def groupings = (parsed_groups.cell + parsed_groups.well).unique()
+    return groupings.findAll { grouping -> grouping.grouping_column }.collectMany { grouping ->
+        def filter_matched = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
+        missingValueColumns(grouping).findResults { col ->
+            def plates = filter_matched.findAll { plate_partition_key -> plate_partition_key[col] == '_NA_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
+            plates
+                ? "Grouping '${grouping.name}': wells with a blank '${col}' on plate(s) ${plates.join(', ')} are left out.".toString()
                 : null
         }
     }

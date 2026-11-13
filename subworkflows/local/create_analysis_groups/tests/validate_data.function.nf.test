@@ -127,6 +127,45 @@ nextflow_function {
         }
     }
 
+    test("validateGroupingsAgainstData: blank (_NA_) values need not be accounted for by named groups") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def plate_partition_key = { plate, treatment ->
+                    [Metadata_treatment: treatment, project: 'demo', plate_id: plate]
+                }
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'moa',
+                            grouping_column: 'Metadata_treatment',
+                            groups: [kinase_inhibitor: ['drugA']],
+                            always_include: ['DMSO'],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', 'DMSO'),
+                    plate_partition_key.call('p1', 'drugA'),
+                    plate_partition_key.call('p1', '_NA_'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == []
+        }
+    }
+
     test("validateGroupingsAgainstData: a filter matching no rows is an error") {
 
         function "validateGroupingsAgainstData"
@@ -273,6 +312,189 @@ nextflow_function {
         then {
             assert function.success
             assert function.result == []
+        }
+    }
+
+    test("missingGroupingColumns: plates whose rows all have blank (_NA_) values are still reported") {
+
+        function "missingGroupingColumns"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'by_treatment',
+                            grouping_column: 'Metadata_treatment',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: ['Metadata_cell_type'],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'drugA', Metadata_cell_type: 'lineA', project: 'demo', plate_id: 'p1'],
+                    // missing grouping column, and every row has a blank subgroup value
+                    [Metadata_treatment: '_Absent_', Metadata_cell_type: '_NA_', project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'Metadata_treatment'")
+            assert function.result[0].contains('p2')
+            assert !function.result[0].contains('p1')
+        }
+    }
+
+    test("missingValueWarnings: blank (_NA_) values are reported per grouping, column, and plate") {
+
+        function "missingValueWarnings"
+
+        when {
+            function {
+                """
+                def plate_partition_key = { plate, timepoint, batch, cell_type, treatment ->
+                    [Metadata_timepoint: timepoint, Metadata_batch: batch, Metadata_cell_type: cell_type, Metadata_treatment: treatment, project: 'demo', plate_id: plate]
+                }
+                input[0] = [
+                    cell: [],
+                    well: [
+                        [
+                            name: 'lines_by_timepoint',
+                            grouping_column: 'Metadata_timepoint',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [:],
+                            subgroup_columns: ['Metadata_batch'],
+                            comparison_column: 'Metadata_cell_type',
+                            reference_column: 'Metadata_treatment',
+                            reference_values: ['DMSO'],
+                        ],
+                    ],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', '24h', 'b1', 'lineA', 'DMSO'),
+                    plate_partition_key.call('p1', '24h', 'b1', 'lineA', 'drugA'),
+                    plate_partition_key.call('p2', '_NA_', 'b1', 'lineA', 'drugA'),
+                    plate_partition_key.call('p3', '24h', '_NA_', 'lineA', 'drugA'),
+                    plate_partition_key.call('p4', '24h', 'b1', '_NA_', 'drugA'),
+                    plate_partition_key.call('p5', '24h', 'b1', 'lineA', '_NA_'),
+                    plate_partition_key.call('p6', '24h', 'b1', 'lineB', '_NA_'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            // one warning per column, in the order: grouping, subgroup, comparison, and reference columns
+            assert function.result == [
+                "Grouping 'lines_by_timepoint': wells with a blank 'Metadata_timepoint' on plate(s) p2 are left out.",
+                "Grouping 'lines_by_timepoint': wells with a blank 'Metadata_batch' on plate(s) p3 are left out.",
+                "Grouping 'lines_by_timepoint': wells with a blank 'Metadata_cell_type' on plate(s) p4 are left out.",
+                "Grouping 'lines_by_timepoint': wells with a blank 'Metadata_treatment' on plate(s) p5, p6 are left out.",
+            ]
+        }
+    }
+
+    test("missingValueWarnings: rows removed by the filter are not reported") {
+
+        function "missingValueWarnings"
+
+        when {
+            function {
+                """
+                input[0] = [
+                    cell: [
+                        [
+                            name: 'dmso_only',
+                            grouping_column: 'Metadata_cell_type',
+                            groups: 'one_per_value',
+                            always_include: [],
+                            excluded: [],
+                            filter: [Metadata_treatment: ['DMSO']],
+                            subgroup_columns: [],
+                        ],
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_cell_type: 'lineA', Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'p1'],
+                    // removed by the filter
+                    [Metadata_cell_type: '_NA_', Metadata_treatment: 'drugA', project: 'demo', plate_id: 'p2'],
+                    [Metadata_cell_type: '_NA_', Metadata_treatment: 'DMSO', project: 'demo', plate_id: 'p3'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result.size() == 1
+            assert function.result[0].contains("'Metadata_cell_type'")
+            assert function.result[0].contains('p3')
+            assert !function.result[0].contains('p2')
+        }
+    }
+
+    test("validateGroupingsAgainstData: a grouping whose rows all have blank (_NA_) values is an error") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def grouping = { name, extra ->
+                    [
+                        name: name,
+                        grouping_column: 'Metadata_treatment',
+                        groups: 'one_per_value',
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [
+                        // every row has a blank cell type
+                        grouping.call('all_blank', [subgroup_columns: ['Metadata_cell_type']]),
+                        // every DMSO row has a blank cell type
+                        grouping.call('filtered_blank', [grouping_column: 'Metadata_cell_type', filter: [Metadata_treatment: ['DMSO']]]),
+                        // the filter itself matches nothing
+                        grouping.call('filter_typo', [grouping_column: 'Metadata_cell_type', filter: [Metadata_treatment: ['DSMO']]]),
+                    ],
+                    well: [],
+                ]
+                input[1] = [
+                    [Metadata_treatment: 'DMSO', Metadata_cell_type: '_NA_', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'drugA', Metadata_cell_type: '_NA_', project: 'demo', plate_id: 'p1'],
+                    [Metadata_treatment: 'DMSO', Metadata_cell_type: '_NA_', project: 'demo', plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result
+            assert errors.size() == 3
+            assert errors.any { err ->
+                err.contains("'all_blank'") && err.contains('every row has a blank value') && err.contains('Metadata_cell_type')
+            }
+            assert errors.any { err ->
+                err.contains("'filtered_blank'") && err.contains('every row matching filter') && err.contains('has a blank value')
+            }
+            assert errors.any { err -> err.contains("'filter_typo'") && err.contains('matches no rows') }
         }
     }
 
@@ -521,6 +743,57 @@ nextflow_function {
             assert errors.size() == 2
             assert errors.any { err -> err.contains("'missing_comparison'") && err.contains("comparison_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
             assert errors.any { err -> err.contains("'missing_reference'") && err.contains("reference_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
+        }
+    }
+
+    test("validateGroupingsAgainstData: comparison columns missing from plates whose rows all have blank (_NA_) values are errors") {
+
+        function "validateGroupingsAgainstData"
+
+        when {
+            function {
+                """
+                def plate_partition_key = { plate, treatment, cell_type, dose ->
+                    [Metadata_treatment: treatment, Metadata_cell_type: cell_type, Metadata_dose: dose, project: 'demo', plate_id: plate]
+                }
+                def grouping = { name, extra ->
+                    [
+                        name: name,
+                        grouping_column: 'Metadata_cell_type',
+                        groups: 'one_per_value',
+                        always_include: [],
+                        excluded: [],
+                        filter: [:],
+                        subgroup_columns: [],
+                        comparison_column: 'Metadata_treatment',
+                        reference_column: null,
+                        reference_values: [],
+                    ] + extra
+                }
+                input[0] = [
+                    cell: [],
+                    well: [
+                        // p1 has rows left; p2's rows are all left out for blank grouping values
+                        grouping.call('some_rows_left', [:]),
+                        // the filter keeps only p2, so no rows are left
+                        grouping.call('no_rows_left', [filter: [Metadata_dose: ['2']]]),
+                    ],
+                ]
+                input[1] = [
+                    plate_partition_key.call('p1', 'DMSO', 'lineA', '1'),
+                    plate_partition_key.call('p2', '_Absent_', '_NA_', '2'),
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            def errors = function.result
+            assert errors.size() == 3
+            assert errors.any { err -> err.contains("'some_rows_left'") && err.contains("comparison_column 'Metadata_treatment'") && err.contains('p2') && !err.contains('p1') }
+            assert errors.any { err -> err.contains("'no_rows_left'") && err.contains("comparison_column 'Metadata_treatment'") && err.contains('p2') }
+            assert errors.any { err -> err.contains("'no_rows_left'") && err.contains('blank value') }
         }
     }
 
