@@ -137,7 +137,7 @@ Pycytominer `aggregate` summarizes the filtered single-cell profiles in each wel
 
 </details>
 
-Pycytominer `normalize` normalizes features within each plate, using the methods set by `--pycytominer_normalize_method_cell` and `--pycytominer_normalize_method_well` and the reference profiles set by `--pycytominer_normalize_reference_profiles`.
+Plate normalization (pycytominer `normalize`) normalizes features within each plate, using the methods set by `--pycytominer_plate_normalize_method_cell` and `--pycytominer_plate_normalize_method_well` and the reference profiles set by `--pycytominer_plate_normalize_reference_profiles`.
 If the normalization method for an aggregate level is `none`, normalization is skipped and no normalized files are written for that aggregate level.
 
 ### Plate partitioning

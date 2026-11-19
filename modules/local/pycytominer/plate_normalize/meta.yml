@@ -1,4 +1,4 @@
-name: pycytominer_normalize
+name: pycytominer_plate_normalize
 description: Normalize profile features using pycytominer.normalize
 keywords:
   - cell painting

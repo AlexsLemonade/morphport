@@ -11,7 +11,7 @@ include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
 include { PARTITION_PROFILES     } from '../modules/local/partition_profiles'
 include { PYCYTOMINER_ANNOTATE             } from '../modules/local/pycytominer/annotate'
 include { PYCYTOMINER_AGGREGATE            } from '../modules/local/pycytominer/aggregate'
-include { PYCYTOMINER_NORMALIZE            } from '../modules/local/pycytominer/normalize'
+include { PYCYTOMINER_PLATE_NORMALIZE      } from '../modules/local/pycytominer/plate_normalize'
 include { PYCYTOMINER_FEATURE_SELECT       } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS               } from '../modules/local/compute_embeddings'
 include { HIERARCHICAL_CLUSTERING_PROFILES } from '../modules/local/hierarchical_clustering_profiles'
@@ -110,8 +110,8 @@ workflow MORPHPORT {
         .map { meta, parquet ->
             // add the correct normalization method to the tuple based on the aggregate level
             def normalize_method = meta.aggregate_level == 'cell'
-                ? params.pycytominer_normalize_method_cell
-                : params.pycytominer_normalize_method_well
+                ? params.pycytominer_plate_normalize_method_cell
+                : params.pycytominer_plate_normalize_method_well
             [meta, parquet, normalize_method]
         }
         .branch { _meta, _parquet, normalize_method ->
@@ -120,14 +120,14 @@ workflow MORPHPORT {
             skip:      true
         }
 
-    PYCYTOMINER_NORMALIZE(
+    PYCYTOMINER_PLATE_NORMALIZE(
         ch_pre_normalize.normalize.map { meta, parquet, normalize_method ->
-            [meta, parquet, params.pycytominer_normalize_reference_profiles, normalize_method]
+            [meta, parquet, params.pycytominer_plate_normalize_reference_profiles, normalize_method]
         },
     )
 
     // combine back normalized and non-normalized files
-    ch_normalized = PYCYTOMINER_NORMALIZE.out.result.mix(
+    ch_normalized = PYCYTOMINER_PLATE_NORMALIZE.out.result.mix(
         ch_pre_normalize.skip.map { meta, parquet, _normalize_method -> [meta, parquet] }
     )
 
