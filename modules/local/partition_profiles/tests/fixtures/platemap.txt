@@ -1,6 +1,0 @@
-plate_map_name	well_position	cell_line	treatment
-platemap_P1	A01	lineA	DMSO
-platemap_P1	A02	lineA	DMSO
-platemap_P1	A03	lineA	drug A
-platemap_P1	B01	lineB	drug/B
-platemap_P1	B02	lineB	50%
