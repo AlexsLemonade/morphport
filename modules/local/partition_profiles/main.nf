@@ -1,5 +1,3 @@
-include { enumeratePlatemapPartitionValues } from '../../../subworkflows/local/create_analysis_groups'
-
 process PARTITION_PROFILES {
     tag "${meta.plate_id}"
     label 'process_low'
@@ -25,13 +23,12 @@ process PARTITION_PROFILES {
     template 'partition_profiles.py'
 
     stub:
-    // Emit one Hive directory per combination of partition values in the plate's platemap.
-    // The values come from enumeratePlatemapPartitionValues, which predicts each plate's partitions when the
-    // analysis groups are built, so stub partitions always match the analysis groups lookup.
+    // Emit one Hive directory per combination of partition values in the plate's platemap (see stubPartitionValues),
+    // so stub partitions match the analysis groups lookup.
     // Directory names are percent-encoded (as DuckDB writes them), which also keeps them safe in the shell;
     // the manifest records the exact values, and is written with a quoted heredoc so no value is shell-expanded.
     partition_cols = partition_columns as List
-    stub_partitions = enumeratePlatemapPartitionValues(meta.platemap_file, partition_cols)
+    stub_partitions = stubPartitionValues(meta.platemap_file, partition_cols)
         .collect { values ->
             def path_parts = values.collect { col, value -> "${percentEncode(col)}=${percentEncode(value)}" }
             [path: path_parts.join('/'), values: values]
@@ -60,6 +57,46 @@ process PARTITION_PROFILES {
         stub: x.y.z
     END_VERSIONS
     """
+}
+
+//
+// The unique combinations of partition column values in a platemap, for the stub: a list of maps of
+// partition column to value. The platemap is read as when the analysis groups are built (readPlatemap and
+// enumeratePlatemapPartitionValues in the create_analysis_groups subworkflow), so the stub's partitions match
+// the analysis groups lookup:
+// - fields are comma-separated in .csv files and tab-separated otherwise, with '"' for quoting
+// - column names and values are trimmed, and column names get the Metadata_ prefix if they lack it
+// - columns with blank names, and rows with only blank values, are left out
+// - blank values are '_NA_', and partition columns missing from the platemap are '_Absent_'
+// The platemap was already validated when the analysis groups were built, so it is not checked again here.
+//
+def stubPartitionValues(platemap_path, partition_cols) {
+    def platemap = file(platemap_path)
+    def sep = platemap.extension.toLowerCase() == 'csv' ? ',' : '\t'
+    def lines = platemap.splitCsv(sep: sep, quote: '"')
+
+    def columns = lines[0].collect { col ->
+        def name = col.trim()
+        if (!name) {
+            return ''
+        }
+        return name.startsWith('Metadata_') ? name : "Metadata_${name}".toString()
+    }
+    def named_idx = columns.indices.findAll { idx -> columns[idx] }
+
+    def rows = lines.drop(1)
+        // fields[idx] is null for missing trailing fields
+        .collect { fields -> named_idx.collectEntries { idx -> [(columns[idx]): fields[idx]?.trim() ?: ''] } }
+        .findAll { row -> row.values().any() }
+
+    return rows
+        .collect { row ->
+            partition_cols.collectEntries { col ->
+                def value = row.containsKey(col) ? (row[col] ?: '_NA_') : '_Absent_'
+                [(col): value]
+            }
+        }
+        .unique()
 }
 
 //
