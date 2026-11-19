@@ -1,0 +1,11 @@
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.13
+  - ca-certificates>=2026.10.23
+  - pandas>=2.3.3,<3
+  - pyarrow
+  - pip
+  - pip:
+      - copairs==0.6.0

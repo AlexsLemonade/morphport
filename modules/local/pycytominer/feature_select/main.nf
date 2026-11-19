@@ -24,15 +24,14 @@ process PYCYTOMINER_FEATURE_SELECT {
     path "versions.yml", emit: versions, topic: versions
 
     script:
-    // Every option must be given, and no others, so a misspelled key fails rather than being ignored
+    // Every option must be given; other keys are ignored
     def option_keys = [
         'operations', 'na_cutoff', 'corr_threshold', 'corr_method', 'freq_cut', 'unique_cut', 'min_rows_stats',
         'outlier_cutoff', 'noise_removal_perturb_groups', 'noise_removal_stdev_cutoff', 'per_channel_correlation',
     ]
     def missing_keys = option_keys - options.keySet()
-    def unknown_keys = options.keySet() - option_keys
-    assert !missing_keys && !unknown_keys
-        : "PYCYTOMINER_FEATURE_SELECT: options is missing keys ${missing_keys} or has unknown keys ${unknown_keys}"
+    assert !missing_keys
+        : "PYCYTOMINER_FEATURE_SELECT: options is missing keys ${missing_keys}"
     def allowed_ops = ['variance_threshold', 'correlation_threshold', 'drop_na_columns', 'blocklist', 'drop_outliers', 'noise_removal']
     def ops_list = options.operations.tokenize(',').collect { op -> op.trim() }
     assert ops_list.every { op -> op in allowed_ops }

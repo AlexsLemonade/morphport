@@ -47,6 +47,7 @@ workflow CREATE_ANALYSIS_GROUPS {
             def plate_partition_keys = metas.collectMany { meta -> enumeratePlatePartitionKeys(meta, platemaps[meta.platemap_file.toString()].partition_values) }
             def analysis_groups = buildAnalysisGroups(parsed_groups, plate_partition_keys)
             missingGroupingColumns(parsed_groups, plate_partition_keys).each { warning -> log.warn("Analysis groups: ${warning}") }
+            missingValueWarnings(parsed_groups, plate_partition_keys).each { warning -> log.warn("Analysis groups: ${warning}") }
             def errors = validateGroupingsAgainstData(parsed_groups, plate_partition_keys) + validateGroupTags(analysis_groups)
             if (errors) {
                 error(
@@ -235,7 +236,7 @@ def validateGrouping(grouping, top_level_key, position) {
     // check that all keys are known and the required keys are present
     def known_keys = [
         'name', 'grouping_column', 'groups', 'always_include', 'excluded', 'filter', 'subgroup_columns',
-        'comparison_column', 'comparison_reference',
+        'comparison_column', 'reference_column', 'reference_values',
     ]
     (grouping.keySet().collect { key -> key as String } - known_keys).each { key ->
         errors << "${label}: unknown key '${key}'."
@@ -309,19 +310,24 @@ def validateGrouping(grouping, top_level_key, position) {
             errors << "${label}: comparison_column is only supported for per-well profiles; move the grouping to 'well' or 'default'."
         }
     }
-    if (grouping.comparison_reference != null) {
+    // the reference wells are those whose reference_column value (by default, the comparison_column's) is one of
+    // the reference_values. A reference defined by more than one column (e.g. DMSO at 0h) is not supported:
+    // to compare within each timepoint, add the column to subgroup_columns instead.
+    if (grouping.reference_values != null) {
         if (grouping.comparison_column == null) {
-            errors << "${label}: comparison_reference requires comparison_column."
+            errors << "${label}: reference_values requires comparison_column."
         }
-        if (!(grouping.comparison_reference instanceof Map) || grouping.comparison_reference.isEmpty()) {
-            errors << "${label}: comparison_reference must be a mapping of column names to lists of values."
+        if (!isFlatList(grouping.reference_values) || grouping.reference_values.isEmpty()) {
+            errors << "${label}: reference_values must be a non-empty list of values, without nested lists or mappings."
         }
-        else {
-            grouping.comparison_reference.each { col, values ->
-                if (!isFlatList(values) || values.isEmpty()) {
-                    errors << "${label}: comparison_reference column '${col}' must be a non-empty list of values, without nested lists or mappings."
-                }
-            }
+    }
+    if (grouping.reference_column != null) {
+        if (grouping.reference_values == null) {
+            errors << "${label}: reference_column requires reference_values."
+        }
+        if (!(grouping.reference_column instanceof String) || (grouping.reference_column as String).contains(',')) {
+            errors << ("${label}: reference_column must be a single column name." +
+                " To compare within each value of another column (e.g. timepoint), add it to subgroup_columns.")
         }
     }
 
@@ -372,7 +378,31 @@ def validateGrouping(grouping, top_level_key, position) {
         warnings << "${label}: always_include has no effect with 'groups: all_values'."
     }
 
+    // rows with a blank ('_NA_') value in the columns a grouping uses are left out (see hasMissingValue),
+    // so listing a blank value would match nothing. Filters may still select blank values.
+    def listed_values = [:]
+    if (groups instanceof Map) {
+        groups.each { group_name, values -> listed_values["group '${group_name}'".toString()] = values }
+    }
+    listed_values['always_include'] = grouping.always_include
+    listed_values['excluded'] = grouping.excluded
+    listed_values['reference_values'] = grouping.reference_values
+    listed_values.each { key, values ->
+        if (isFlatList(values) && values.any { value -> isBlankValue(value) }) {
+            errors << ("${label}: ${key} lists a blank value ('_NA_' or '')." +
+                " Rows with blank values in the grouping, subgroup, comparison, and reference columns are left out automatically.")
+        }
+    }
+
     return [errors: errors, warnings: warnings]
+}
+
+//
+// Whether a value from the analysis groups file stands for a blank platemap cell: '_NA_' (how blank
+// cells are encoded) or an empty string.
+//
+def isBlankValue(value) {
+    return value != null && (value as String).trim() in ['_NA_', '']
 }
 
 //
@@ -386,8 +416,9 @@ def isFlatList(values) {
 // Normalize a structurally valid parsed analysis groups file into a map of
 // aggregate_level ('cell'/'well') → list of groupings. Each grouping has every key filled in:
 //   [name, grouping_column, groups, always_include, excluded, filter, subgroup_columns,
-//    comparison_column, comparison_reference]
-// comparison_column is null and comparison_reference is empty when not given.
+//    comparison_column, reference_column, reference_values]
+// comparison_column is null and reference_values is empty when not given. reference_column defaults
+// to the comparison_column when reference_values are given, and is null when they are not.
 // Column names get the Metadata_ prefix, and all values are coerced to strings to match
 // the values read from platemaps. 'default' groupings are placed first in each aggregate level.
 //
@@ -414,8 +445,21 @@ def normalizeGrouping(grouping) {
         filter: (grouping.filter ?: [:]).collectEntries { col, values -> [(addMetadataPrefix(col as String)): toStringList(values)] },
         subgroup_columns: (grouping.subgroup_columns ?: []).collect { col -> addMetadataPrefix(col as String) },
         comparison_column: grouping.comparison_column != null ? addMetadataPrefix(grouping.comparison_column as String) : null,
-        comparison_reference: (grouping.comparison_reference ?: [:]).collectEntries { col, values -> [(addMetadataPrefix(col as String)): toStringList(values)] },
+        reference_column: referenceColumn(grouping),
+        reference_values: toStringList(grouping.reference_values),
     ]
+}
+
+//
+// The column a grouping's reference_values are read from (with the Metadata_ prefix): reference_column if given,
+// otherwise the comparison_column. Null when there are no reference_values.
+//
+def referenceColumn(grouping) {
+    if (!grouping.reference_values) {
+        return null
+    }
+    def column = grouping.reference_column != null ? grouping.reference_column : grouping.comparison_column
+    return addMetadataPrefix(column as String)
 }
 
 //
@@ -443,7 +487,8 @@ def parseGroupings(groups_file) {
             filter: [:],
             subgroup_columns: [],
             comparison_column: null,
-            comparison_reference: [:],
+            reference_column: null,
+            reference_values: [],
         ]
         return [cell: [all_grouping], well: [all_grouping]]
     }
@@ -461,13 +506,13 @@ def parseGroupings(groups_file) {
 
 //
 // Columns PARTITION_PROFILES must split by: the union of every grouping's grouping_column,
-// subgroup_columns, filter, comparison_column, and comparison_reference columns across both aggregate levels.
+// subgroup_columns, filter, comparison_column, and reference_column across both aggregate levels.
 //
 def groupingPartitionColumns(parsed_groups) {
     def groupings = parsed_groups.cell + parsed_groups.well
     def columns = groupings.collectMany { grouping ->
         def grouping_columns = [grouping.grouping_column] + grouping.subgroup_columns + grouping.filter.keySet()
-        def comparison_columns = [grouping.comparison_column] + (grouping.comparison_reference ?: [:]).keySet()
+        def comparison_columns = [grouping.comparison_column, grouping.reference_column]
         grouping_columns + comparison_columns
     }
     return columns.findAll().unique() as List<String>
@@ -491,8 +536,8 @@ def groupingPartitionColumns(parsed_groups) {
 // group_meta identifies the group:
 //   [project, aggregate_level, grouping_name, grouping_column, group, subgroup_values, group_id, group_tag]
 // group_tag (see groupTag) names the group's output files.
-// Per-well groups of a grouping with a comparison_column also get comparison_column and
-// comparison_reference (null if not given). Per-cell groups never include these keys.
+// Per-well groups of a grouping with a comparison_column also get comparison_column, reference_column,
+// and reference_values (both null if no reference_values are given). Per-cell groups never include these keys.
 // Expected sizes count the plate partition keys in each group. They're used as the `size`
 // argument to groupKey(...) so groupTuple can emit each group eagerly rather than waiting for
 // the upstream channel to close.
@@ -541,7 +586,8 @@ def buildAnalysisGroups(parsed_groups, plate_partition_keys) {
                 if (aggregate_level == 'well' && grouping.comparison_column) {
                     group_meta = group_meta + [
                         comparison_column: grouping.comparison_column,
-                        comparison_reference: grouping.comparison_reference ?: null,
+                        reference_column: grouping.reference_column,
+                        reference_values: grouping.reference_values ?: null,
                     ]
                 }
                 def group_with_size = [group_meta, members.size()]
@@ -566,7 +612,8 @@ def partitionKey(meta, partition_columns) {
 //
 // Assign plate partition keys to the grouping sets (groups) of a single normalized grouping. This is the single
 // definition of group membership (see docs/analysis_groups_format.md):
-//   1. keep only plate_partition_keys matching every `filter` column
+//   1. keep only plate_partition_keys matching every `filter` column, and drop those with a blank
+//      ('_NA_') value in any column the grouping uses (see hasMissingValue)
 //   2. drop plate_partition_keys whose grouping_column value is in `excluded`
 //   3. assign the rest to groups by value: the value itself (one_per_value), 'all_values',
 //      or every named group listing the value (named groups may overlap)
@@ -604,14 +651,14 @@ def assignGroupingSets(grouping, plate_partition_keys) {
 }
 
 //
-// Apply steps 1 and 2 of assignGroupingSets (filter, then drop excluded values) and split the
+// Apply steps 1 and 2 of assignGroupingSets (filter and drop blank values, then drop excluded values) and split the
 // remaining plate_partition_keys into [shared, core]: shared plate_partition_keys have an always_include value and join
 // every group; core plate_partition_keys define the groups. With all_values every plate_partition_key is core.
 //
 def splitGroupingPlatePartitionKeys(grouping, plate_partition_keys) {
     def always_included = grouping.groups == 'all_values' ? [] : grouping.always_include
-    return plate_partition_keys
-        .findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) && !(plate_partition_key[grouping.grouping_column] in grouping.excluded) }
+    return groupingPlatePartitionKeys(grouping, plate_partition_keys)
+        .findAll { plate_partition_key -> !(plate_partition_key[grouping.grouping_column] in grouping.excluded) }
         .split { plate_partition_key -> plate_partition_key[grouping.grouping_column] in always_included }
 }
 
@@ -621,6 +668,34 @@ def splitGroupingPlatePartitionKeys(grouping, plate_partition_keys) {
 //
 def matchesGroupingFilter(grouping, plate_partition_key) {
     return grouping.filter.every { col, values -> plate_partition_key[col] in values }
+}
+
+//
+// Columns whose blank values leave a row out of a grouping: the grouping column, subgroup columns,
+// comparison column, and reference column. Filter columns are not included, so a
+// filter can still select blank values on purpose.
+//
+def missingValueColumns(grouping) {
+    def columns = [grouping.grouping_column] + grouping.subgroup_columns + [grouping.comparison_column, grouping.reference_column]
+    return columns.findAll().unique()
+}
+
+//
+// Whether a plate_partition_key has a blank value ('_NA_', as enumeratePlatemapPartitionValues and
+// pycytominer_annotate.py encode a blank platemap cell) in any of a grouping's missingValueColumns.
+//
+def hasMissingValue(grouping, plate_partition_key) {
+    return missingValueColumns(grouping).any { col -> plate_partition_key[col] == '_NA_' }
+}
+
+//
+// The plate_partition_keys a grouping uses: those that pass its filter and have no blank values
+// in the columns it uses.
+//
+def groupingPlatePartitionKeys(grouping, plate_partition_keys) {
+    return plate_partition_keys.findAll { plate_partition_key ->
+        matchesGroupingFilter(grouping, plate_partition_key) && !hasMissingValue(grouping, plate_partition_key)
+    }
 }
 
 //
@@ -685,10 +760,11 @@ def validateGroupTags(analysis_groups) {
 // Returns a list of error messages:
 //   - a filter column missing from any plate's platemap
 //   - a filter that matches no rows
+//   - no rows left once rows with blank ('_NA_') values are left out (see hasMissingValue)
 //   - named groups that don't account for an observed (filtered) value
 //   - always_include values absent from the filtered rows
 //   - always_include values absent from any subgroup (within a project) that has other rows
-//   - comparison_column or comparison_reference problems (see comparisonDataErrors)
+//   - comparison_column or reference problems (see comparisonDataErrors)
 // Groupings shared by both aggregate levels (default groupings) are checked once.
 //
 def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
@@ -705,12 +781,19 @@ def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
             }
         }
 
-        def filtered = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
-        if (grouping.filter && !filtered) {
+        def filter_matched = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
+        if (grouping.filter && !filter_matched) {
             errors << "${label}: filter ${grouping.filter} matches no rows."
             return
         }
-        errors.addAll(comparisonDataErrors(grouping, filtered, label))
+        // missing columns are checked on every row that passes the filter, before rows with blank values are left out
+        errors.addAll(comparisonDataErrors(grouping, filter_matched, label))
+        def filtered = groupingPlatePartitionKeys(grouping, plate_partition_keys)
+        if (!filtered) {
+            def where = grouping.filter ? " matching filter ${grouping.filter}" : ''
+            errors << "${label}: every row${where} has a blank value in at least one of ${missingValueColumns(grouping)}."
+            return
+        }
         def observed = filtered.collect { plate_partition_key -> plate_partition_key[grouping.grouping_column] }.unique()
 
         // accounting rule for named groups
@@ -751,8 +834,8 @@ def validateGroupingsAgainstData(parsed_groups, plate_partition_keys) {
 //
 // Check a grouping's comparison keys against its plate partition keys after filtering (`filtered`),
 // for validateGroupingsAgainstData. Returns a list of error messages:
-//   - a comparison_column or comparison_reference column missing from any of those plates' platemaps
-//   - comparison_reference values found in none of the grouping's rows (after filter and excluded)
+//   - a comparison_column or reference_column missing from any of those plates' platemaps
+//   - reference_values found in none of the grouping's rows (after filter and excluded)
 // Reference wells missing from a particular group or plate are not errors; the analyses that use them handle that.
 //
 def comparisonDataErrors(grouping, filtered, label) {
@@ -760,27 +843,26 @@ def comparisonDataErrors(grouping, filtered, label) {
         return []
     }
     def errors = []
-    def reference = grouping.comparison_reference ?: [:]
 
     // as for filter columns, these columns must be present in every platemap: a missing comparison_column would put
     // all of a plate's wells under a single '_Absent_' value, and a missing reference column would leave it without reference wells
     def absent_columns = []
-    ([grouping.comparison_column] + reference.keySet()).unique().each { col ->
+    [grouping.comparison_column, grouping.reference_column].findAll().unique().each { col ->
         def plates = filtered.findAll { plate_partition_key -> plate_partition_key[col] == '_Absent_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
         if (plates) {
-            def key = col == grouping.comparison_column ? 'comparison_column' : 'comparison_reference column'
+            def key = col == grouping.comparison_column ? 'comparison_column' : 'reference_column'
             errors << "${label}: ${key} '${col}' is missing from the platemap for plate(s) ${plates.join(', ')}."
             absent_columns << col
         }
     }
 
-    def (shared, core) = splitGroupingPlatePartitionKeys(grouping, filtered)
-    def kept = shared + core
-    reference.findAll { col, _values -> !(col in absent_columns) }.each { col, values ->
-        def observed = kept.collect { plate_partition_key -> plate_partition_key[col] } as Set
-        def missing = values.findAll { value -> !(value in observed) }
+    def reference_column = grouping.reference_column
+    if (reference_column && !(reference_column in absent_columns)) {
+        def (shared, core) = splitGroupingPlatePartitionKeys(grouping, filtered)
+        def observed = (shared + core).collect { plate_partition_key -> plate_partition_key[reference_column] } as Set
+        def missing = grouping.reference_values.findAll { value -> !(value in observed) }
         if (missing) {
-            errors << "${label}: comparison_reference values ${missing} were not found in '${col}' after applying filter and excluded."
+            errors << "${label}: reference_values ${missing} were not found in '${reference_column}' after applying filter and excluded."
         }
     }
     return errors
@@ -795,11 +877,31 @@ def comparisonDataErrors(grouping, filtered, label) {
 def missingGroupingColumns(parsed_groups, plate_partition_keys) {
     def groupings = (parsed_groups.cell + parsed_groups.well).unique()
     return groupings.findAll { grouping -> grouping.grouping_column }.collectMany { grouping ->
+        // every row that passes the filter, including rows left out for blank values in other columns
         def filtered = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
         ([grouping.grouping_column] + grouping.subgroup_columns).findResults { col ->
             def plates = filtered.findAll { plate_partition_key -> plate_partition_key[col] == '_Absent_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
             plates
                 ? "Grouping '${grouping.name}': column '${col}' is missing from the platemap for plate(s) ${plates.join(', ')}.".toString()
+                : null
+        }
+    }
+}
+
+//
+// Find blank ('_NA_') values in the columns each grouping uses (see missingValueColumns), among the rows
+// that pass its filter. Those rows are left out of the grouping (see groupingPlatePartitionKeys).
+// Returns a list of warning messages, one per grouping and column; groupings shared by both
+// aggregate levels are checked once.
+//
+def missingValueWarnings(parsed_groups, plate_partition_keys) {
+    def groupings = (parsed_groups.cell + parsed_groups.well).unique()
+    return groupings.findAll { grouping -> grouping.grouping_column }.collectMany { grouping ->
+        def filter_matched = plate_partition_keys.findAll { plate_partition_key -> matchesGroupingFilter(grouping, plate_partition_key) }
+        missingValueColumns(grouping).findResults { col ->
+            def plates = filter_matched.findAll { plate_partition_key -> plate_partition_key[col] == '_NA_' }.collect { plate_partition_key -> plate_partition_key.plate_id }.unique()
+            plates
+                ? "Grouping '${grouping.name}': wells with a blank '${col}' on plate(s) ${plates.join(', ')} are left out.".toString()
                 : null
         }
     }

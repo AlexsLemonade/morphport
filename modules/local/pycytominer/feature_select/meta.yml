@@ -35,7 +35,7 @@ input:
   - - options:
         type: map
         description: |
-          Named feature selection options. Every key is required, and unknown keys are an error.
+          Named feature selection options. Every key is required; other keys are ignored.
             operations: Comma-separated pycytominer feature_select operations
               (e.g. 'blocklist,drop_na_columns,variance_threshold,correlation_threshold')
             na_cutoff: Maximum NaN fraction per column before drop_na_columns removes it

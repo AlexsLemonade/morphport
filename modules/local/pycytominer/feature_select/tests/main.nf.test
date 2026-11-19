@@ -332,20 +332,21 @@ nextflow_process {
         }
     }
 
-    test("unknown option - fails") {
+    test("missing option - fails") {
 
+        // corr_method is misspelled: the unknown key is ignored, and the missing one fails
         when {
             process {
                 """
                 input[0] = ${bothPlates("${moduleDir}/tests/fixtures")}
-                input[1] = ${(defaultOptions + [corr_methd: 'spearman']).inspect()}
+                input[1] = ${(defaultOptions.findAll { key, _value -> key != 'corr_method' } + [corr_methd: 'spearman']).inspect()}
                 """
             }
         }
 
         then {
             assert process.failed
-            assert process.stdout.any { line -> line.contains("options is missing keys [] or has unknown keys [corr_methd]") }
+            assert process.stdout.any { line -> line.contains("options is missing keys [corr_method]") }
         }
     }
 

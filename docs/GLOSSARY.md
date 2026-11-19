@@ -108,20 +108,38 @@ The string that names an analysis group and its output files, made from the aggr
 
 **Comparison column**:
 The platemap column whose values are compared within an analysis group (e.g., `treatment` to compare treatments within one cell type, or `cell_type` to compare cell types within one treatment).
-Per-well profiles that share a value are replicates of one compared item.
+Per-well profiles that share a value are replicates of one test condition.
 It is set per grouping, and a grouping without one has no comparisons.
 _Avoid_: consensus column, replicate column (a platemap may have a replicate number column)
 
+**Test condition**:
+One value of the comparison column combined with the grouping and subgroup column values that identify an analysis group (e.g., treatment `drugA` in the group for cell type `lineA`, or cell type `lineA` in the group for treatment `drugA`).
+Comparison reference wells are never part of a test condition: when comparing treatments, DMSO is not a test condition, and when comparing cell types within `drugA`, the DMSO wells of `lineA` are not part of the `lineA` test condition.
+_Avoid_: comparison value, compared item, item, condition (on its own)
+
 **Comparison reference**:
-The wells that the compared items of an analysis group are measured against, chosen by platemap column values (usually a control such as DMSO).
-A grouping may name one only together with a comparison column.
+The wells that the test conditions of an analysis group are measured against, chosen by their values in a single platemap column (usually a control such as DMSO in the `treatment` column).
+A grouping sets it with `reference_values` (and `reference_column`, which defaults to the comparison column), and only together with a comparison column.
 _Avoid_: consensus reference, baseline, negative control (when referring to the wells chosen for this purpose)
+
+**Reference normalization**:
+Normalizing an analysis group's per-well profiles to its comparison reference wells, separately for each plate, so that each well describes a change from the reference on its own plate.
+Within each plate, each value of the columns that define the analysis group (other than the reference columns), such as each cell type, is normalized to its own reference wells.
+It is applied on top of plate normalization and only to groups with a comparison reference.
+_Avoid_: renormalization, DMSO normalization, centering (when referring to this step)
 
 **Consensus profile**:
 A single profile summarizing all the per-well profiles in an analysis group that share one value of the comparison column, pooled across every plate and batch in the group.
 Consensus profiles are built only from per-well profiles, never span projects, and never include reference wells.
-When the group has a comparison reference, each well is first expressed as its difference from the reference wells on its plate, so the consensus profile describes a change from the reference; without one, consensus profiles are built from the plate-normalized profiles as they are.
+When the group has a comparison reference, consensus profiles are built from reference-normalized profiles, so they describe a change from the reference; without one, they are built from the plate-normalized profiles as they are.
 _Avoid_: signature, level 5 profile, treatment profile
 
 **Consensus similarity**:
 The pairwise similarity between the consensus profiles of one analysis group.
+
+**Phenotypic activity**:
+Whether the per-well profiles of one test condition are more similar to each other than to the comparison reference wells, scored by mean average precision (mAP) within one analysis group.
+Profiles are compared only with others of the same cell type (more generally, the same values of the columns that define the analysis group other than the reference columns), and the score covers all of the test condition's profiles.
+A test condition is called as **active** when its mAP is significant after correcting for the number of test conditions in the group.
+It is defined only for groups with a comparison reference.
+_Avoid_: activity score, hit (when referring to a test condition called as active)
