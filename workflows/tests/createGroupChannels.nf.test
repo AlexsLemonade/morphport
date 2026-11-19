@@ -9,7 +9,8 @@ nextflow_workflow {
     test("createGroupChannels: routes partitions to their groups") {
 
         when {
-            // the input metas have no edge_wells_included key, so it is not added to group_meta
+            // the input metas have no edge_wells_included key, so it is not added to group_meta;
+            // their plate normalization settings are copied to group_meta
             workflow {
                 """
                 def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
@@ -17,9 +18,12 @@ nextflow_workflow {
                 def drugB = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
                     grouping_column: 'Metadata_treatment', group: 'drugB', subgroup_values: [:], group_id: 'treatment=drugB', group_tag: 'cell__by_treatment__treatment=drugB']
                 input[0] = Channel.of(
-                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA'], ['p1.parquet']],
-                    [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA'], ['p2.parquet']],
-                    [[plate_id: 'p3', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugB'], ['p3.parquet']],
+                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA',
+                        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'], ['p1.parquet']],
+                    [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugA',
+                        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'], ['p2.parquet']],
+                    [[plate_id: 'p3', project: 'demo', aggregate_level: 'cell', Metadata_treatment: 'drugB',
+                        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'], ['p3.parquet']],
                 )
                 input[1] = Channel.value([
                     partition_columns: ['Metadata_treatment'],
@@ -55,6 +59,8 @@ nextflow_workflow {
                         group_id: 'treatment=drugA',
                         group_tag: 'cell__by_treatment__treatment=drugA',
                         plate_ids: ['p1', 'p2'],
+                        plate_normalization_method: 'mad_robustize',
+                        plate_normalization_reference_profiles: 'all',
                     ],
                     ['p1', 'p2'],
                     ['p1.parquet', 'p2.parquet'],
@@ -70,6 +76,8 @@ nextflow_workflow {
                         group_id: 'treatment=drugB',
                         group_tag: 'cell__by_treatment__treatment=drugB',
                         plate_ids: ['p3'],
+                        plate_normalization_method: 'mad_robustize',
+                        plate_normalization_reference_profiles: 'all',
                     ],
                     ['p3'],
                     ['p3.parquet'],
