@@ -16,8 +16,12 @@ include { PYCYTOMINER_FEATURE_SELECT       } from '../modules/local/pycytominer/
 include { COMPUTE_EMBEDDINGS               } from '../modules/local/compute_embeddings'
 include { HIERARCHICAL_CLUSTERING_PROFILES } from '../modules/local/hierarchical_clustering_profiles'
 include { HIERARCHICAL_CLUSTERING_FEATURES } from '../modules/local/hierarchical_clustering_features'
+include { PYCYTOMINER_REFERENCE_NORMALIZE  } from '../modules/local/pycytominer/reference_normalize'
+include { PHENOTYPIC_ACTIVITY              } from '../modules/local/phenotypic_activity'
 include { CREATE_ANALYSIS_GROUPS           } from '../subworkflows/local/create_analysis_groups'
 include { partitionKey                     } from '../subworkflows/local/create_analysis_groups'
+include { hasReferencePartition            } from '../subworkflows/local/create_analysis_groups'
+include { plateNormalizationSettings       } from '../subworkflows/local/create_analysis_groups'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -213,6 +217,52 @@ workflow MORPHPORT {
         params.profile_max_nan_fraction,
     )
 
+    // Per-well groups with a comparison column and reference values are normalized to their reference wells
+    // (reference normalization) and scored for phenotypic activity.
+    // Groups in which no partition holds reference wells can't be reference normalized, so they are dropped here.
+    ch_reference_groups = ch_feature_selected.has_features
+        .filter { meta, _plate_metas, _parquets, _features ->
+            meta.aggregate_level == 'well' && meta.comparison_column && meta.reference_values
+        }
+        .branch { meta, plate_metas, _parquets, _features ->
+            has_reference: hasReferencePartition(meta, plate_metas)
+            no_reference: true
+        }
+
+    ch_reference_groups.no_reference.subscribe { meta, _plate_metas, _parquets, _features ->
+        log.warn "Skipping PYCYTOMINER_REFERENCE_NORMALIZE and PHENOTYPIC_ACTIVITY for group ${meta.group_tag}: no wells with a ${meta.reference_column} value in ${meta.reference_values}."
+    }
+
+    PYCYTOMINER_REFERENCE_NORMALIZE(
+        ch_reference_groups.has_reference,
+        params.pycytominer_reference_normalize_method,
+    )
+
+    // Reference normalization writes an empty features file for groups it skips
+    // (e.g. too few reference wells, or no features with nonzero reference spread)
+    ch_reference_normalized = PYCYTOMINER_REFERENCE_NORMALIZE.out.result
+        .branch { _meta, _plate_metas, _parquet, features ->
+            has_features: features.size() > 0
+            empty: true
+        }
+
+    ch_reference_normalized.empty.subscribe { meta, _plate_metas, _parquet, _features ->
+        log.warn "Skipping PHENOTYPIC_ACTIVITY for group ${meta.group_tag}: reference normalization skipped the group (see its reference normalization summary)."
+    }
+
+    PHENOTYPIC_ACTIVITY(
+        ch_reference_normalized.has_features
+            .map { meta, _plate_metas, parquet, features -> [meta, parquet, features] },
+        [
+            distance_metric: params.phenotypic_activity_distance_metric,
+            null_method: params.phenotypic_activity_null,
+            null_size: params.phenotypic_activity_null_size,
+            fdr_threshold: params.phenotypic_activity_fdr_threshold,
+            seed: params.random_seed,
+            min_wells: params.consensus_min_wells,
+        ],
+    )
+
     //
     // Log warnings sent to the 'warnings' topic by any process,
     // and save them to a single file in pipeline_info (only written if there are any warnings).
@@ -324,12 +374,14 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
                 [groupKey(key_data, expected_size), meta, parquets]
             }
         }
-    // do the grouping, flatten the parquet lists, and add plate_ids to the group meta so
-    // downstream consumers can read it without walking metas. Returns tuples of the form:
+    // do the grouping, flatten the parquet lists, and add plate_ids and the plate normalization settings
+    // (plate_normalization_method and plate_normalization_reference_profiles) to the group meta so
+    // downstream consumers can read them without walking metas. Returns tuples of the form:
     //   [group_meta, list_of_meta, list_of_parquet_files]
     return ch_grouping.groupTuple(by: 0, remainder: true)
         .map { group_key, metas, parquet_lists ->
             def group_meta = group_key + [plate_ids: metas.collect { it -> it.plate_id }]
+            group_meta = group_meta + plateNormalizationSettings(group_meta.group_tag, metas)
             [group_meta, metas, parquet_lists.flatten()]
         }
 }
