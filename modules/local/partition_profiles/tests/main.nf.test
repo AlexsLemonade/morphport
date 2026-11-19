@@ -20,6 +20,15 @@ nextflow_process {
         'Cells_AreaShape_Area', 'Nuclei_Intensity_MeanIntensity_DNA',
     ]
 
+    // Rows of parquet files as a sorted list of rows (each a list of values as text), for comparing the rows
+    // of different files as multisets: every row must match, with the same number of copies, in any order.
+    // Values are compared as text, which is exact for the doubles here (Double.toString round-trips).
+    def sortedRows = { parquets ->
+        parquets
+            .collectMany { parquet -> parquet.rows.collect { row -> row.collect { value -> value?.toString() } } }
+            .sort { a, b -> a.toString() <=> b.toString() }
+    }
+
     // Read each partition listed in the manifest: its values, and the column names and rows of its parquet files
     def readPartitions = { partition_dir, manifest_file ->
         new groovy.json.JsonSlurper().parse(new File(manifest_file.toString())).collect { partition ->
@@ -52,6 +61,7 @@ nextflow_process {
             def (meta, partition_dir, manifest) = process.out.partitions[0]
             def partitions = readPartitions(partition_dir, manifest)
             def summary = path(process.out.summary[0]).json
+            def input_rows = sortedRows([path("${moduleDir}/tests/fixtures/profiles.parquet").parquet])
             assertAll(
                 { assert meta == [plate_id: 'P1'] },
                 // one partition per combination of values, with exact (decoded) values in the manifest
@@ -82,10 +92,12 @@ nextflow_process {
                         }
                     }
                 } },
-                // every cell is in exactly one partition
+                // every cell is in exactly one partition, with the expected number of cells per partition
                 { assert partitions.collectEntries { partition ->
                     [(partition.values.Metadata_treatment): partition.parquets.sum { parquet -> parquet.rowCount }]
                 } == ['DMSO': 4, 'drug A': 3, 'drug/B': 2, '50%': 1] },
+                // together, the partitions hold exactly the input rows: no cell lost, duplicated, or altered
+                { assert sortedRows(partitions.collectMany { partition -> partition.parquets }) == input_rows },
                 // the summary records the partition columns and cell counts per value
                 { assert summary.plate_id == 'P1' },
                 { assert summary.partition_columns == ['Metadata_cell_line', 'Metadata_treatment'] },
@@ -115,6 +127,8 @@ nextflow_process {
             assert process.success
             def (_meta, partition_dir, manifest) = process.out.partitions[0]
             def partitions = readPartitions(partition_dir, manifest)
+            def input_rows = sortedRows([path("${moduleDir}/tests/fixtures/profiles.parquet").parquet])
+            def cell_line_idx = inputColumns.indexOf('Metadata_cell_line')
             assertAll(
                 { assert partitions.collect { partition -> partition.path } as Set == [
                     'Metadata_cell_line=lineA',
@@ -126,6 +140,12 @@ nextflow_process {
                 { partitions.each { partition ->
                     partition.parquets.each { parquet -> assert parquet.columnNames == inputColumns }
                 } },
+                // each partition holds exactly the input rows with its cell line
+                { partitions.each { partition ->
+                    def expected = input_rows.findAll { row -> row[cell_line_idx] == partition.values.Metadata_cell_line }
+                    assert sortedRows(partition.parquets) == expected : "rows of ${partition.path} differ from the input"
+                } },
+                { assert sortedRows(partitions.collectMany { partition -> partition.parquets }) == input_rows },
             )
         }
     }
