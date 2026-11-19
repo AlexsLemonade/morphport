@@ -24,7 +24,9 @@ Outputs are organized by project, then by aggregate level, then by the tool that
     └── well/
         ├── pycytominer/
         ├── embeddings/
-        └── hierarchical_clustering/
+        ├── hierarchical_clustering/
+        ├── reference_normalization/
+        └── phenotypic_activity/
 ```
 
 - `<project>` is the `project` value from the samplesheet.
@@ -62,6 +64,8 @@ The pipeline is built using [Nextflow](https://www.nextflow.io/) and processes d
 - [Feature selection](#feature-selection) - Select informative features for each analysis group
 - [Embeddings](#embeddings) - Compute PCA and UMAP embeddings for each analysis group
 - [Hierarchical clustering](#hierarchical-clustering) - Cluster the profiles and features within each analysis group
+- [Reference normalization](#reference-normalization) - Normalize per-well profiles to each group's reference wells
+- [Phenotypic activity](#phenotypic-activity) - Score whether each test condition differs from the reference wells
 - [Pipeline information](#pipeline-information) - Report metrics generated during the workflow execution
 
 ### CytoTable
@@ -142,7 +146,7 @@ If the normalization method for an aggregate level is `none`, normalization is s
 <summary>Output files</summary>
 
 - `<project>/<aggregate_level>/partition/`
-  - `<plate_id>/`: [Hive-style](https://duckdb.org/docs/stable/data/partitioning/hive_partitioning) partitioned parquet files for the plate, with one directory level per partition column (e.g. `Metadata_treatment=drugA/`).
+  - `<plate_id>/`: [Hive-style](https://duckdb.org/docs/stable/data/partitioning/hive_partitioning) partitioned parquet files for the plate, with one directory level per partition column (e.g., `Metadata_treatment=drugA/`).
     Values in directory names are percent-encoded.
   - `partitions_<plate_id>.json`: A list of the partition directories, each with its decoded column values.
   - `platemap_summary_<plate_id>.json`: The partition columns and the number of rows for each value of each column.
@@ -220,6 +224,64 @@ Feature clustering is run for all groups, including analysis groups of per-cell 
 
 For skipped groups, the parquet files are empty, and the summary has `skipped: true` and a `skip_reason`.
 
+### Reference normalization
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `<project>/well/reference_normalization/`
+  - `reference_normalized_features_<group_tag>.txt`: The features kept after reference normalization, one per line.
+  - `reference_normalization_summary_<group_tag>.json`: Reference normalization summary for the group, including the group definition, the reference normalization method, the comparison column and reference, the columns that define the normalization sets, the number of wells and reference wells in each normalization set, the wells and features dropped, the plate normalization settings, and whether the group was skipped.
+
+</details>
+
+Per-well analysis groups whose grouping sets a `comparison_column` and `reference_values` are normalized to their reference wells, using pycytominer `normalize` with the method set by `--pycytominer_reference_normalize_method` (default `mad_robustize`).
+This is applied to the plate-normalized profiles, keeping only the features selected for the group.
+Each plate is normalized separately, and within each plate, each combination of values of the grouping, subgroup, and comparison columns (other than the reference column) is a normalization set, normalized to its own reference wells.
+For example, when a group pools several cell types, each cell type is normalized to its own DMSO wells on each plate.
+After normalization, each well describes its change from the reference wells on its plate.
+
+- Groups with no reference wells are skipped before this step, with a warning in the run log.
+- Normalization sets with fewer than 2 reference wells are dropped, with a warning; a warning is also given for sets with fewer than 5 reference wells.
+- Features with no spread among the reference wells of any normalization set are dropped, since they cannot be scaled.
+- If no reference wells remain, the group is skipped: the summary has `skipped: true` and a `skip_reason`, and the group is not scored for phenotypic activity.
+
+The reference-normalized profiles are not published, as they are only used by the phenotypic activity step.
+
+### Phenotypic activity
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `<project>/well/phenotypic_activity/`
+  - `phenotypic_activity_<group_tag>.parquet`: One row per test condition scored, with columns:
+    - `Metadata_<comparison column>`: the test condition (e.g., the treatment).
+    - `n_wells`, `n_plates`: the number of wells scored for the test condition and the plates they are on.
+    - `n_reference_wells`: the number of reference wells its wells were compared with.
+    - `mean_average_precision`: the mean average precision (mAP).
+    - `p_value`, `corrected_p_value`: the p-value for the mAP, and the p-value corrected for the number of test conditions in the group (Benjamini-Hochberg).
+    - `active`: whether the test condition is called as active.
+  - `phenotypic_activity_summary_<group_tag>.json`: Phenotypic activity summary for the group, including the group definition, the comparison column and reference, the scoring parameters, the copairs version, the columns used to match pairs of wells, well and feature counts before and after filtering, the number of test conditions scored and called as active, the reference normalization, plate normalization, and edge well settings, and whether the group was skipped.
+
+</details>
+
+Phenotypic activity measures whether the wells of each test condition (e.g., a treatment) are more similar to each other than to the reference wells (e.g., DMSO), using mean average precision (mAP) from [copairs](https://github.com/cytomining/copairs), on the reference-normalized profiles.
+For each well of a test condition, the other wells of that test condition and the reference wells are ranked by similarity, using the distance metric set by `--phenotypic_activity_distance_metric` (default `cosine`).
+Average precision measures how highly the wells of the same test condition rank, and the mAP is the mean across the test condition's wells.
+Wells are only compared with wells of the same cell type (more generally, the same values of the grouping, subgroup, and comparison columns other than the reference column), as in reference normalization.
+
+Each mAP is tested against a null distribution of `--phenotypic_activity_null_size` draws (default 1,000,000), using the null method set by `--phenotypic_activity_null` (default `permutation`) and seeded with `--random_seed`.
+A test condition is called as active (`active` is `true`) when its corrected p-value is below `--phenotypic_activity_fdr_threshold` (default 0.05).
+Since the smallest possible p-value depends on the null size, a small null size can mean no test condition can be called as active; a warning is given when this happens.
+
+Activity is computed separately for each analysis group, with the group's selected features and with the correction applied across the group's test conditions.
+A treatment that appears in more than one group, such as a group of treatments within one cell type and a group of cell types within that treatment, can therefore get different results in each.
+For a single result per treatment and cell type, read activity from groups that compare treatments within one cell type.
+
+Before scoring, wells with a missing comparison column value are dropped, as are the wells of a test condition in any cell type where it has fewer than `--consensus_min_wells` wells (at least 2).
+Features with any missing values in the remaining wells are dropped.
+If no reference wells or test conditions remain, the group is skipped: the parquet file has no rows, and the summary has `skipped: true` and a `skip_reason`.
+
 ### Pipeline information
 
 <details markdown="1">
@@ -230,7 +292,7 @@ For skipped groups, the parquet files are empty, and the summary has `skipped: t
   - Reports generated by the pipeline: `pipeline_report.html`, `pipeline_report.txt` and `morphport_software_versions.yml`.
     The `pipeline_report*` files will only be present if the `--email` / `--email_on_fail` parameters are used when running the pipeline.
   - Parameters used by the pipeline run: `params_<timestamp>.json`.
-  - Warnings about the input data raised during the run (e.g. conflicting metadata columns found during platemap annotation): `morphport_warnings_<timestamp>.txt`.
+  - Warnings about the input data raised during the run (e.g., conflicting metadata columns found during platemap annotation): `morphport_warnings_<timestamp>.txt`.
     Each line gives the process, the plate, and the warning.
     The same warnings are printed in the run log.
     This file is only present if there were any warnings.

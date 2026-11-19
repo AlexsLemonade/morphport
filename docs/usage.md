@@ -7,6 +7,7 @@
 `AlexsLemonade/morphport` processes Cell Painting profiles for the Pediatric Cancer Cell Morphology Atlas (PCCMA) portal.
 Each plate's CellProfiler output is converted to parquet if needed, annotated with platemap metadata, quality filtered, aggregated, and normalized.
 Each plate's profiles are then split into partitions, one for each combination of values of the metadata columns used in the analysis groups file, and the partitions are combined into analysis groups for feature selection, embedding (PCA and UMAP), and hierarchical clustering.
+Per-well analysis groups that compare test conditions (such as treatments) with reference wells (such as DMSO) are also normalized to those reference wells and scored for phenotypic activity.
 
 We expect most input data to come from the [Cell Painting Gallery](https://github.com/broadinstitute/cellpainting-gallery) (CPG), a public AWS S3 bucket (`s3://cellpainting-gallery`) of Cell Painting datasets.
 The pipeline follows CPG directory conventions, so for CPG data the samplesheet often only needs to identify each plate, and the pipeline will find the input files itself.
@@ -94,6 +95,34 @@ If no analysis groups file is given, each aggregate level (`cell` and `well`) ge
 ```
 
 See the [analysis groups file format](analysis_groups_format.md) documentation for details, and [`assets/analysis_groups_example.yaml`](../assets/analysis_groups_example.yaml) for an example.
+
+### Reference normalization and phenotypic activity
+
+Per-well groups whose grouping sets a `comparison_column` and `reference_values` are normalized to their reference wells (reference normalization) and scored for phenotypic activity: whether the wells of each test condition are more similar to each other than to the reference wells, measured by mean average precision (mAP).
+See the [output documentation](output.md#reference-normalization) for how each step works and what it writes.
+
+These parameters control the two steps:
+
+- `--pycytominer_reference_normalize_method`: the reference normalization method (`mad_robustize`, `standardize`, or `robustize`; default `mad_robustize`).
+- `--phenotypic_activity_distance_metric`: the distance metric used to compare wells (default `cosine`).
+- `--phenotypic_activity_null`: the null distribution for each mAP p-value (`permutation`, the default, or `copied`, the null used by copairs before version 0.6).
+- `--phenotypic_activity_null_size`: the number of null draws for each mAP p-value (default 1,000,000).
+  Smaller values run faster but limit the smallest possible p-value, so no test condition may be called as active.
+- `--phenotypic_activity_fdr_threshold`: the corrected p-value below which a test condition is called as active (default 0.05).
+- `--consensus_min_wells`: the minimum number of wells a test condition needs in each cell type to be scored (default 2).
+- `--random_seed`: the seed for the null distribution.
+
+Keep the following in mind when designing groups and reading the results:
+
+- Activity is computed separately for each analysis group, with the group's own selected features, so a treatment in more than one group can get different results in each.
+  Groups that compare treatments within a single cell type are likely to be more reliable.
+- Feature selection runs on the plate-normalized profiles of all wells in the group, before reference normalization.
+- Replicate wells that share a well position on every plate, or that are all on one plate, can share position or plate effects that make them more similar to each other than to the reference wells, inflating apparent activity.
+- Edge well exclusion (`--edge_well_filter on`, the default) also removes reference wells on the edge of the plate.
+- Each plate's wells are normalized to the reference wells among them, separately for each value of the grouping, subgroup, and comparison columns other than the reference column.
+  A condition that varies within a plate and needs its own reference wells, such as seeding density, must be one of those columns.
+  Conditions that are the same across a plate, such as a time point, are already normalized separately.
+- A test condition's wells are scored together across plates, so to score each time point (or other plate-level condition) separately, make it the grouping column or a subgroup column.
 
 ## Running the pipeline
 
