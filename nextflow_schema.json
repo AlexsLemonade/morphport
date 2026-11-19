@@ -271,6 +271,44 @@
                 }
             }
         },
+        "phenotypic_activity": {
+            "title": "Phenotypic activity",
+            "type": "object",
+            "description": "Parameters controlling phenotypic activity scoring with mean average precision (mAP) from copairs, computed per analysis group for per-well groups with a comparison column and reference values, on their reference-normalized profiles.",
+            "properties": {
+                "phenotypic_activity_distance_metric": {
+                    "type": "string",
+                    "default": "cosine",
+                    "description": "Distance metric copairs uses to rank each well's pairs when computing average precision.",
+                    "enum": ["cosine", "abs_cosine", "correlation", "euclidean", "manhattan", "chebyshev"]
+                },
+                "phenotypic_activity_null": {
+                    "type": "string",
+                    "default": "permutation",
+                    "description": "Null distribution for each test condition's mAP p-value: 'permutation' (label permutation using the observed similarities, the copairs 0.6 default) or 'copied' (the copairs 0.5 null).",
+                    "enum": ["permutation", "copied"]
+                },
+                "phenotypic_activity_null_size": {
+                    "type": "integer",
+                    "default": 1000000,
+                    "minimum": 1,
+                    "description": "Number of null draws for each test condition's mAP p-value. Small values limit the smallest possible p-value, so no test condition may be called as active."
+                },
+                "phenotypic_activity_fdr_threshold": {
+                    "type": "number",
+                    "default": 0.05,
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "A test condition is called as active when its Benjamini-Hochberg corrected p-value (corrected across the test conditions in its analysis group) is below this threshold."
+                },
+                "consensus_min_wells": {
+                    "type": "integer",
+                    "default": 2,
+                    "minimum": 1,
+                    "description": "Minimum number of wells a test condition needs (within each cell type, for phenotypic activity) to be scored. A test condition's wells are compared with each other, so values below 2 are treated as 2 for phenotypic activity."
+                }
+            }
+        },
         "institutional_config_options": {
             "title": "Institutional config options",
             "type": "object",
@@ -414,6 +452,9 @@
         },
         {
             "$ref": "#/$defs/clustering"
+        },
+        {
+            "$ref": "#/$defs/phenotypic_activity"
         },
         {
             "$ref": "#/$defs/institutional_config_options"
