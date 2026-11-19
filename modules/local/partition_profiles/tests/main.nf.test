@@ -11,7 +11,9 @@ nextflow_process {
     // - profiles.parquet: 10 cells of plate P1 in 5 wells, with two cell lines and treatments
     //   'DMSO', 'drug A', 'drug/B', and '50%' (percent-encoded in partition directory names)
     // - profiles_empty.parquet: the same columns with no rows (every cell of the plate removed by coSMicQC)
-    // - platemap.txt: the platemap for the same wells, with simple treatment values, for the stub run
+    // - platemap.txt: the platemap for the same wells (tab-separated), for the stub run
+    // - platemap_edge_cases.csv: a comma-separated platemap with Metadata_-prefixed column names, a blank value,
+    //   and values with an apostrophe, '$', and '*', for the stub run
 
     def inputColumns = [
         'Metadata_Plate', 'Metadata_Well', 'Metadata_cell_line', 'Metadata_treatment',
@@ -177,13 +179,62 @@ nextflow_process {
             def (_meta, partition_dir, manifest) = process.out.partitions[0]
             def partitions = readPartitions(partition_dir, manifest)
             assertAll(
-                // one partition per combination of platemap values; a column missing from the platemap is '_Absent_'
+                // one partition per combination of platemap values, with the exact values in the manifest;
+                // a column missing from the platemap is '_Absent_'
                 { assert partitions.collect { partition -> partition.values } as Set == [
                     [Metadata_cell_line: 'lineA', Metadata_treatment: 'DMSO', Metadata_dose: '_Absent_'],
-                    [Metadata_cell_line: 'lineA', Metadata_treatment: 'drug', Metadata_dose: '_Absent_'],
-                    [Metadata_cell_line: 'lineB', Metadata_treatment: 'drug', Metadata_dose: '_Absent_'],
+                    [Metadata_cell_line: 'lineA', Metadata_treatment: 'drug A', Metadata_dose: '_Absent_'],
+                    [Metadata_cell_line: 'lineB', Metadata_treatment: 'drug/B', Metadata_dose: '_Absent_'],
+                    [Metadata_cell_line: 'lineB', Metadata_treatment: '50%', Metadata_dose: '_Absent_'],
                 ] as Set },
-                { partitions.each { partition -> assert partition.parquets.size() == 1 } },
+                // directory names are percent-encoded, as in a real run
+                { assert partitions.collect { partition -> partition.path } as Set == [
+                    'Metadata_cell_line=lineA/Metadata_treatment=DMSO/Metadata_dose=_Absent_',
+                    'Metadata_cell_line=lineA/Metadata_treatment=drug%20A/Metadata_dose=_Absent_',
+                    'Metadata_cell_line=lineB/Metadata_treatment=drug%2FB/Metadata_dose=_Absent_',
+                    'Metadata_cell_line=lineB/Metadata_treatment=50%25/Metadata_dose=_Absent_',
+                ] as Set },
+                { partitions.each { partition -> assert partition.parquets.size() == 1 : "${partition.path} should have one file" } },
+            )
+        }
+    }
+
+    test("stub - CSV platemap with prefixed column names, a blank value, and shell characters") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [plate_id: 'P1', platemap_file: file('${moduleDir}/tests/fixtures/platemap_edge_cases.csv')],
+                    file('${moduleDir}/tests/fixtures/profiles.parquet'),
+                    ['Metadata_cell_line', 'Metadata_treatment'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, partition_dir, manifest) = process.out.partitions[0]
+            def partitions = readPartitions(partition_dir, manifest)
+            assertAll(
+                // values are read as when the analysis groups are built: Metadata_-prefixed column names match
+                // the partition columns, and a blank value is '_NA_'; no value is changed or expanded by the shell
+                { assert partitions.collect { partition -> partition.values } as Set == [
+                    [Metadata_cell_line: 'lineA', Metadata_treatment: 'DMSO'],
+                    [Metadata_cell_line: 'lineA', Metadata_treatment: "Kim's drug"],
+                    [Metadata_cell_line: 'lineB', Metadata_treatment: '_NA_'],
+                    [Metadata_cell_line: 'line*C', Metadata_treatment: '$HOME'],
+                ] as Set },
+                { assert partitions.collect { partition -> partition.path } as Set == [
+                    'Metadata_cell_line=lineA/Metadata_treatment=DMSO',
+                    'Metadata_cell_line=lineA/Metadata_treatment=Kim%27s%20drug',
+                    'Metadata_cell_line=lineB/Metadata_treatment=_NA_',
+                    'Metadata_cell_line=line%2AC/Metadata_treatment=%24HOME',
+                ] as Set },
+                { partitions.each { partition -> assert partition.parquets.size() == 1 : "${partition.path} should have one file" } },
             )
         }
     }

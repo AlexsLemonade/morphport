@@ -1,3 +1,5 @@
+include { enumeratePlatemapPartitionValues } from '../../../subworkflows/local/create_analysis_groups'
+
 process PARTITION_PROFILES {
     tag "${meta.plate_id}"
     label 'process_low'
@@ -23,22 +25,29 @@ process PARTITION_PROFILES {
     template 'partition_profiles.py'
 
     stub:
-    // Emit one Hive directory per combination of partition values in the plate's (tab-separated) stub platemap,
-    // so stub partitions match the analysis groups; a column missing from the platemap gets '_Absent_'.
+    // Emit one Hive directory per combination of partition values in the plate's platemap.
+    // The values come from enumeratePlatemapPartitionValues, which predicts each plate's partitions when the
+    // analysis groups are built, so stub partitions always match the analysis groups lookup.
+    // Directory names are percent-encoded (as DuckDB writes them), which also keeps them safe in the shell;
+    // the manifest records the exact values, and is written with a quoted heredoc so no value is shell-expanded.
     partition_cols = partition_columns as List
-    stub_partitions = file(meta.platemap_file).splitCsv(header: true, sep: '\t')
-        .collect { row -> partition_cols.collectEntries { col -> [(col): row[col - 'Metadata_'] ?: '_Absent_'] } }
-        .unique()
-        .collect { values -> [path: values.collect { col, value -> "${col}=${value}" }.join('/'), values: values] }
+    stub_partitions = enumeratePlatemapPartitionValues(meta.platemap_file, partition_cols)
+        .collect { values ->
+            def path_parts = values.collect { col, value -> "${percentEncode(col)}=${percentEncode(value)}" }
+            [path: path_parts.join('/'), values: values]
+        }
     stub_dirs = stub_partitions.collect { partition -> "${meta.plate_id}/${partition.path}" }
     """
     for dir in ${stub_dirs.join(' ')}; do
-        mkdir -p \$dir
-        touch \$dir/${meta.plate_id}_0.parquet
+        mkdir -p "\$dir"
+        touch "\$dir/${meta.plate_id}_0.parquet"
     done
-    echo '${groovy.json.JsonOutput.toJson(stub_partitions)}' > partitions_${meta.plate_id}.json
 
-    cat <<-END_JSON > platemap_summary_${meta.plate_id}.json
+    cat <<-'END_MANIFEST' > partitions_${meta.plate_id}.json
+    ${groovy.json.JsonOutput.toJson(stub_partitions)}
+    END_MANIFEST
+
+    cat <<-'END_JSON' > platemap_summary_${meta.plate_id}.json
     {
         "plate_id": "${meta.plate_id}",
         "partition_columns": ${groovy.json.JsonOutput.toJson(partition_cols)},
@@ -51,4 +60,14 @@ process PARTITION_PROFILES {
         stub: x.y.z
     END_VERSIONS
     """
+}
+
+//
+// Percent-encode a value for a Hive partition directory name, as DuckDB does when partitioning.
+// Only letters, digits, '.', '-', and '_' are left as is, so the result is also safe in the shell.
+//
+def percentEncode(value) {
+    return java.net.URLEncoder.encode(value as String, 'UTF-8')
+        .replace('+', '%20')
+        .replace('*', '%2A')
 }

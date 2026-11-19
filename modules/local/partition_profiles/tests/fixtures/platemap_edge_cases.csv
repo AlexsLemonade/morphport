@@ -1,0 +1,5 @@
+Metadata_plate_map_name,Metadata_well_position,Metadata_cell_line,Metadata_treatment
+platemap_edge_cases,A01,lineA,DMSO
+platemap_edge_cases,A02,lineA,Kim's drug
+platemap_edge_cases,A03,lineB,
+platemap_edge_cases,A04,line*C,$HOME

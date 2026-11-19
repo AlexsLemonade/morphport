@@ -27,8 +27,19 @@ Writes these files to the directory containing this script:
 - profiles_empty.parquet: the same columns with no rows, as written when coSMicQC removes every cell of a plate.
 
 - platemap.txt: a tab-separated platemap for the same wells, for the stub run
-  (plate_map_name, well_position, cell_line, treatment), with simple treatment values (DMSO and drug)
-  since the stub does not percent-encode directory names.
+  (plate_map_name, well_position, cell_line, treatment), with the same values as the profiles.
+
+- platemap_edge_cases.csv: a comma-separated platemap for the stub run, with Metadata_-prefixed column names,
+  and values that must be read and written as the pipeline reads platemaps when building the analysis groups:
+
+  | Metadata_well_position | Metadata_cell_line | Metadata_treatment |
+  | ---------------------- | ------------------ | ------------------ |
+  | A01                    | lineA              | DMSO               |
+  | A02                    | lineA              | Kim's drug         |
+  | A03                    | lineB              | (blank: _NA_)      |
+  | A04                    | line*C             | $HOME              |
+
+  The apostrophe, '$', and '*' would break or be expanded by an unquoted shell command.
 
 Usage (from the repository root):
 
@@ -50,7 +61,13 @@ WELLS = [
     ("B02", "lineB", "50%", 1),
 ]
 
-STUB_TREATMENTS = {"DMSO": "DMSO", "drug A": "drug", "drug/B": "drug", "50%": "drug"}
+# well, cell line, treatment (None for a blank value) for platemap_edge_cases.csv
+EDGE_CASE_WELLS = [
+    ("A01", "lineA", "DMSO"),
+    ("A02", "lineA", "Kim's drug"),
+    ("A03", "lineB", None),
+    ("A04", "line*C", "$HOME"),
+]
 
 
 def main():
@@ -77,12 +94,32 @@ def main():
                 "plate_map_name": "platemap_P1",
                 "well_position": well,
                 "cell_line": cell_line,
-                "treatment": STUB_TREATMENTS[treatment],
+                "treatment": treatment,
             }
             for well, cell_line, treatment, _n_cells in WELLS
         ]
     )
     platemap.write_csv(FIXTURE_DIR / "platemap.txt", separator="\t")
+
+    edge_case_platemap = pl.DataFrame(
+        [
+            {
+                "Metadata_plate_map_name": "platemap_edge_cases",
+                "Metadata_well_position": well,
+                "Metadata_cell_line": cell_line,
+                "Metadata_treatment": treatment,
+            }
+            for well, cell_line, treatment in EDGE_CASE_WELLS
+        ],
+        schema={
+            "Metadata_plate_map_name": pl.String,
+            "Metadata_well_position": pl.String,
+            "Metadata_cell_line": pl.String,
+            "Metadata_treatment": pl.String,
+        },
+    )
+    # nulls are written as empty fields
+    edge_case_platemap.write_csv(FIXTURE_DIR / "platemap_edge_cases.csv")
 
 
 if __name__ == "__main__":
