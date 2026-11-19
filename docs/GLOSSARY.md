@@ -74,6 +74,10 @@ Whether profiles describe individual cells (`cell`) or whole wells (`well`); per
 "Per-cell", "per-well", and "well summary" are acceptable descriptions of the two levels.
 _Avoid_: aggregation level, level (on its own), data type
 
+**Plate normalization**:
+Normalizing each plate's profiles, separately for each aggregate level, to that plate's reference profiles (all of its profiles by default), so that features are on a comparable scale across plates.
+_Avoid_: normalization (on its own, when reference normalization could be meant)
+
 ### Partitions
 
 **Partition**:

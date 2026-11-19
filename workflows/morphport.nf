@@ -11,7 +11,7 @@ include { COSMICQC_FILTER        } from '../modules/local/cosmicqc'
 include { PARTITION_PROFILES     } from '../modules/local/partition_profiles'
 include { PYCYTOMINER_ANNOTATE             } from '../modules/local/pycytominer/annotate'
 include { PYCYTOMINER_AGGREGATE            } from '../modules/local/pycytominer/aggregate'
-include { PYCYTOMINER_NORMALIZE            } from '../modules/local/pycytominer/normalize'
+include { PYCYTOMINER_PLATE_NORMALIZE      } from '../modules/local/pycytominer/plate_normalize'
 include { PYCYTOMINER_FEATURE_SELECT       } from '../modules/local/pycytominer/feature_select'
 include { COMPUTE_EMBEDDINGS               } from '../modules/local/compute_embeddings'
 include { HIERARCHICAL_CLUSTERING_PROFILES } from '../modules/local/hierarchical_clustering_profiles'
@@ -66,21 +66,16 @@ workflow MORPHPORT {
     )
 
     // Add to metadata whether edge wells (those on the border of the plate) are included.
-    // meta.edge_wells_included is read by COSMICQC_FILTER to determine whether to drop edge wells.
-    // for the `both` case, we double everything up: one set with edge wells included (true)
-    // and one with them excluded (false)
-    ch_annotated = PYCYTOMINER_ANNOTATE.out.result
-    if (params.edge_well_filter == 'on') {
-        ch_pre_cosmicqc = ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: false], parquet] }
-    } else if (params.edge_well_filter == 'off') {
-        ch_pre_cosmicqc = ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: true], parquet] }
-    } else if (params.edge_well_filter == 'both') {
-        ch_pre_cosmicqc = ch_annotated
-            .map { meta, parquet -> [meta + [edge_wells_included: true], parquet] }
-            .mix(ch_annotated.map { meta, parquet -> [meta + [edge_wells_included: false], parquet] })
-    } else {
-        error "Invalid edge_well_filter value '${params.edge_well_filter}': expected 'off', 'on', or 'both'"
+    // meta.edge_wells_included is read by COSMICQC_FILTER to determine whether to drop edge wells,
+    // and is carried into the group meta so analysis summaries can report it.
+    // edge_well_filter is 'on' (remove edge wells) or 'off'; true and false (booleans or text) are the same as 'on' and 'off'.
+    def edge_well_filter = params.edge_well_filter as String
+    if (!(edge_well_filter in ['on', 'off', 'true', 'false'])) {
+        error "Invalid edge_well_filter value '${params.edge_well_filter}': expected 'on', 'off', true, or false"
     }
+    def edge_wells_included = edge_well_filter in ['off', 'false']
+    ch_pre_cosmicqc = PYCYTOMINER_ANNOTATE.out.result
+        .map { meta, parquet -> [meta + [edge_wells_included: edge_wells_included], parquet] }
 
     COSMICQC_FILTER(ch_pre_cosmicqc, file(params.cosmicqc_filter_file))
 
@@ -110,8 +105,8 @@ workflow MORPHPORT {
         .map { meta, parquet ->
             // add the correct normalization method to the tuple based on the aggregate level
             def normalize_method = meta.aggregate_level == 'cell'
-                ? params.pycytominer_normalize_method_cell
-                : params.pycytominer_normalize_method_well
+                ? params.pycytominer_plate_normalize_method_cell
+                : params.pycytominer_plate_normalize_method_well
             [meta, parquet, normalize_method]
         }
         .branch { _meta, _parquet, normalize_method ->
@@ -120,14 +115,14 @@ workflow MORPHPORT {
             skip:      true
         }
 
-    PYCYTOMINER_NORMALIZE(
+    PYCYTOMINER_PLATE_NORMALIZE(
         ch_pre_normalize.normalize.map { meta, parquet, normalize_method ->
-            [meta, parquet, params.pycytominer_normalize_reference_profiles, normalize_method]
+            [meta, parquet, params.pycytominer_plate_normalize_reference_profiles, normalize_method]
         },
     )
 
     // combine back normalized and non-normalized files
-    ch_normalized = PYCYTOMINER_NORMALIZE.out.result.mix(
+    ch_normalized = PYCYTOMINER_PLATE_NORMALIZE.out.result.mix(
         ch_pre_normalize.skip.map { meta, parquet, _normalize_method -> [meta, parquet] }
     )
 
@@ -321,10 +316,8 @@ def createGroupChannels(ch_partitioned, ch_analysis_groups) {
                 error("Internal error: no analysis groups lookup entry for ${aggregate_level} partition ${partition_key} (plate '${meta.plate_id}')")
             }
             aggregate_level_groups[partition_key].collect { group_meta, expected_size ->
-                // Keep edge-included/edge-excluded data (edge_well_filter='both') in separate groups,
-                // and carry the edge-well variant into the group meta for every edge_well_filter value,
-                // so group outputs are published in the edge_wells_[included|excluded] directories.
-                // Each variant gets every partition, so the expected size is the same for both.
+                // Carry whether edge wells are included into the group meta, so analysis summaries can report it.
+                // Every partition has the same value (it comes from params.edge_well_filter).
                 def key_data = meta.edge_wells_included != null
                     ? group_meta + [edge_wells_included: meta.edge_wells_included]
                     : group_meta

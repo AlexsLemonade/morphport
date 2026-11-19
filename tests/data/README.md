@@ -28,7 +28,7 @@ To change the test data, edit the samplesheet and platemaps, then rerun the scri
 
 ## Running the pipeline
 
-The `test` profile uses the minimal samplesheet and analysis groups file, with only edge wells excluded (`edge_well_filter = 'on'`), so that every analysis step runs on real data with as few tasks as possible.
+The `test` profile uses the minimal samplesheet and analysis groups file, so that every analysis step runs on real data with as few tasks as possible.
 The profiles are generated for all six plates, which include the two plates in the minimal samplesheet.
 From the repository root:
 

@@ -6,9 +6,9 @@ Only groups with a comparison reference are reference normalized; phenotypic act
 
 ## Considered options
 
-- **Global plate normalization to DMSO** (`--pycytominer_normalize_reference_profiles`): already possible, but it applies to every aggregate level and grouping, fails for projects without controls, and cannot match reference wells to each cell type when a plate holds several.
+- **Global plate normalization to DMSO** (`--pycytominer_plate_normalize_reference_profiles`): already possible, but it applies to every aggregate level and grouping, fails for projects without controls, and cannot match reference wells to each cell type when a plate holds several.
 - **Reference normalization inside the phenotypic activity module**, which would pass profiles through for groups without a reference: fewer tasks, but it couples normalization to one analysis and makes consensus similarity depend on activity for its input.
-- **Extending `PYCYTOMINER_NORMALIZE`**: it normalizes one plate file with one query; reference normalization needs a group's files from many plates, fits per plate (and comparison value), filters features and wells, writes a summary, and must not overwrite the plate normalization `meta` keys.
+- **Extending `PYCYTOMINER_PLATE_NORMALIZE`**: it normalizes one plate file with one query; reference normalization needs a group's files from many plates, fits per plate (and comparison value), filters features and wells, writes a summary, and must not overwrite the plate normalization `meta` keys.
 - **Center only** (the earlier consensus similarity spec): rejected to mirror the Way Lab's REPO1 processing, which normalizes each plate to its DMSO wells with `mad_robustize`.
 
 ## Consequences

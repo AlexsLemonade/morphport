@@ -1,4 +1,4 @@
-process PYCYTOMINER_NORMALIZE {
+process PYCYTOMINER_PLATE_NORMALIZE {
     tag "${meta.plate_id} (${meta.aggregate_level})"
     label 'process_low'
 
@@ -18,13 +18,13 @@ process PYCYTOMINER_NORMALIZE {
 
     script:
     assert normalize_method in ["mad_robustize", "standardize", "robustize", "spherize"]
-        : "PYCYTOMINER_NORMALIZE: normalize_method must be one of 'mad_robustize', 'standardize', 'robustize', or 'spherize', got '${normalize_method}'"
+        : "PYCYTOMINER_PLATE_NORMALIZE: normalize_method must be one of 'mad_robustize', 'standardize', 'robustize', or 'spherize', got '${normalize_method}'"
     meta = meta_in + [plate_normalized: true, plate_normalization_method: normalize_method, plate_normalization_reference_profiles: reference_profiles]
-    template 'pycytominer_normalize.py'
+    template 'pycytominer_plate_normalize.py'
 
     stub:
     assert normalize_method in ["mad_robustize", "standardize", "robustize", "spherize"]
-        : "PYCYTOMINER_NORMALIZE: normalize_method must be one of 'mad_robustize', 'standardize', 'robustize', or 'spherize', got '${normalize_method}'"
+        : "PYCYTOMINER_PLATE_NORMALIZE: normalize_method must be one of 'mad_robustize', 'standardize', 'robustize', or 'spherize', got '${normalize_method}'"
     meta = meta_in + [plate_normalized: true, plate_normalization_method: normalize_method, plate_normalization_reference_profiles: reference_profiles]
     """
     touch normalized_${meta.aggregate_level}_${meta.plate_id}.parquet
