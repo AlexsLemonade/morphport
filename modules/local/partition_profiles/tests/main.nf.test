@@ -1,0 +1,190 @@
+nextflow_process {
+
+    name "Test Process PARTITION_PROFILES"
+    script "../main.nf"
+    process "PARTITION_PROFILES"
+    tag "modules"
+    tag "modules_local"
+    tag "partition_profiles"
+
+    // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
+    // - profiles.parquet: 10 cells of plate P1 in 5 wells, with two cell lines and treatments
+    //   'DMSO', 'drug A', 'drug/B', and '50%' (percent-encoded in partition directory names)
+    // - profiles_empty.parquet: the same columns with no rows (every cell of the plate removed by coSMicQC)
+    // - platemap.txt: the platemap for the same wells, with simple treatment values, for the stub run
+
+    def inputColumns = [
+        'Metadata_Plate', 'Metadata_Well', 'Metadata_cell_line', 'Metadata_treatment',
+        'Cells_AreaShape_Area', 'Nuclei_Intensity_MeanIntensity_DNA',
+    ]
+
+    // Read each partition listed in the manifest: its values, and the column names and rows of its parquet files
+    def readPartitions = { partition_dir, manifest_file ->
+        new groovy.json.JsonSlurper().parse(new File(manifest_file.toString())).collect { partition ->
+            def files = new File(partition_dir.toString(), partition.path as String).listFiles()
+                .findAll { f -> f.name.endsWith('.parquet') }
+            [
+                path: partition.path,
+                values: partition.values,
+                parquets: files.collect { f -> path(f.toString()).parquet },
+            ]
+        }
+    }
+
+    test("two partition columns - partitions keep their columns and exact values") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [plate_id: 'P1'],
+                    file('${moduleDir}/tests/fixtures/profiles.parquet'),
+                    ['Metadata_cell_line', 'Metadata_treatment'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, partition_dir, manifest) = process.out.partitions[0]
+            def partitions = readPartitions(partition_dir, manifest)
+            def summary = path(process.out.summary[0]).json
+            assertAll(
+                { assert meta == [plate_id: 'P1'] },
+                // one partition per combination of values, with exact (decoded) values in the manifest
+                { assert partitions.collect { partition -> partition.values } as Set == [
+                    [Metadata_cell_line: 'lineA', Metadata_treatment: 'DMSO'],
+                    [Metadata_cell_line: 'lineA', Metadata_treatment: 'drug A'],
+                    [Metadata_cell_line: 'lineB', Metadata_treatment: 'drug/B'],
+                    [Metadata_cell_line: 'lineB', Metadata_treatment: '50%'],
+                ] as Set },
+                // directory names are percent-encoded
+                { assert partitions.collect { partition -> partition.path } as Set == [
+                    'Metadata_cell_line=lineA/Metadata_treatment=DMSO',
+                    'Metadata_cell_line=lineA/Metadata_treatment=drug%20A',
+                    'Metadata_cell_line=lineB/Metadata_treatment=drug%2FB',
+                    'Metadata_cell_line=lineB/Metadata_treatment=50%25',
+                ] as Set },
+                // each partition has parquet files that keep every input column, including the partition columns,
+                // with the partition's values in every row
+                { partitions.each { partition ->
+                    assert partition.parquets : "no parquet files in ${partition.path}"
+                    partition.parquets.each { parquet ->
+                        assert parquet.columnNames == inputColumns
+                        def cell_line_idx = inputColumns.indexOf('Metadata_cell_line')
+                        def treatment_idx = inputColumns.indexOf('Metadata_treatment')
+                        parquet.rows.each { row ->
+                            assert row[cell_line_idx] as String == partition.values.Metadata_cell_line
+                            assert row[treatment_idx] as String == partition.values.Metadata_treatment
+                        }
+                    }
+                } },
+                // every cell is in exactly one partition
+                { assert partitions.collectEntries { partition ->
+                    [(partition.values.Metadata_treatment): partition.parquets.sum { parquet -> parquet.rowCount }]
+                } == ['DMSO': 4, 'drug A': 3, 'drug/B': 2, '50%': 1] },
+                // the summary records the partition columns and cell counts per value
+                { assert summary.plate_id == 'P1' },
+                { assert summary.partition_columns == ['Metadata_cell_line', 'Metadata_treatment'] },
+                { assert summary.partitions == [
+                    Metadata_cell_line: [lineA: 7, lineB: 3],
+                    Metadata_treatment: ['DMSO': 4, 'drug A': 3, 'drug/B': 2, '50%': 1],
+                ] },
+            )
+        }
+    }
+
+    test("partition column without the Metadata_ prefix") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [plate_id: 'P1'],
+                    file('${moduleDir}/tests/fixtures/profiles.parquet'),
+                    ['cell_line'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, partition_dir, manifest) = process.out.partitions[0]
+            def partitions = readPartitions(partition_dir, manifest)
+            assertAll(
+                { assert partitions.collect { partition -> partition.path } as Set == [
+                    'Metadata_cell_line=lineA',
+                    'Metadata_cell_line=lineB',
+                ] as Set },
+                { assert partitions.collectEntries { partition ->
+                    [(partition.values.Metadata_cell_line): partition.parquets.sum { parquet -> parquet.rowCount }]
+                } == [lineA: 7, lineB: 3] },
+                { partitions.each { partition ->
+                    partition.parquets.each { parquet -> assert parquet.columnNames == inputColumns }
+                } },
+            )
+        }
+    }
+
+    test("plate with no cells - no partitions") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [plate_id: 'P1'],
+                    file('${moduleDir}/tests/fixtures/profiles_empty.parquet'),
+                    ['Metadata_cell_line', 'Metadata_treatment'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, partition_dir, manifest) = process.out.partitions[0]
+            def summary = path(process.out.summary[0]).json
+            assertAll(
+                // the plate directory is emitted, but holds no partitions
+                { assert new File(partition_dir.toString()).isDirectory() },
+                { assert readPartitions(partition_dir, manifest) == [] },
+                { assert summary.partition_columns == ['Metadata_cell_line', 'Metadata_treatment'] },
+                { assert summary.partitions == [Metadata_cell_line: [:], Metadata_treatment: [:]] },
+            )
+        }
+    }
+
+    test("stub - partitions from the platemap") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    [plate_id: 'P1', platemap_file: file('${moduleDir}/tests/fixtures/platemap.txt')],
+                    file('${moduleDir}/tests/fixtures/profiles.parquet'),
+                    ['Metadata_cell_line', 'Metadata_treatment', 'Metadata_dose'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, partition_dir, manifest) = process.out.partitions[0]
+            def partitions = readPartitions(partition_dir, manifest)
+            assertAll(
+                // one partition per combination of platemap values; a column missing from the platemap is '_Absent_'
+                { assert partitions.collect { partition -> partition.values } as Set == [
+                    [Metadata_cell_line: 'lineA', Metadata_treatment: 'DMSO', Metadata_dose: '_Absent_'],
+                    [Metadata_cell_line: 'lineA', Metadata_treatment: 'drug', Metadata_dose: '_Absent_'],
+                    [Metadata_cell_line: 'lineB', Metadata_treatment: 'drug', Metadata_dose: '_Absent_'],
+                ] as Set },
+                { partitions.each { partition -> assert partition.parquets.size() == 1 } },
+            )
+        }
+    }
+}
