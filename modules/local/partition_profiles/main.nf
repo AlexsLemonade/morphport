@@ -23,19 +23,20 @@ process PARTITION_PROFILES {
     template 'partition_profiles.py'
 
     stub:
-    // Emit a single Hive directory per plate using the _Absent_ sentinel for every column.
-    // This matches what enumeratePlatemapPartitionValues predicts for a column missing from the platemap,
-    // so the stub setup pairs with an analysis_groups file that references columns absent
-    // from the stub platemaps — no need to read the platemap here.
+    // Emit one Hive directory per combination of partition values in the plate's (tab-separated) stub platemap,
+    // so stub partitions match the analysis groups; a column missing from the platemap gets '_Absent_'.
     partition_cols = partition_columns as List
-    stub_path = partition_cols.collect { col -> "${col}=_Absent_" }.join('/')
-    stub_manifest = groovy.json.JsonOutput.toJson([
-        [path: stub_path, values: partition_cols.collectEntries { col -> [(col): '_Absent_'] }]
-    ])
+    stub_partitions = file(meta.platemap_file).splitCsv(header: true, sep: '\t')
+        .collect { row -> partition_cols.collectEntries { col -> [(col): row[col - 'Metadata_'] ?: '_Absent_'] } }
+        .unique()
+        .collect { values -> [path: values.collect { col, value -> "${col}=${value}" }.join('/'), values: values] }
+    stub_dirs = stub_partitions.collect { partition -> "${meta.plate_id}/${partition.path}" }
     """
-    mkdir -p "${meta.plate_id}/${stub_path}"
-    touch "${meta.plate_id}/${stub_path}/${meta.plate_id}_0.parquet"
-    echo '${stub_manifest}' > partitions_${meta.plate_id}.json
+    for dir in ${stub_dirs.join(' ')}; do
+        mkdir -p \$dir
+        touch \$dir/${meta.plate_id}_0.parquet
+    done
+    echo '${groovy.json.JsonOutput.toJson(stub_partitions)}' > partitions_${meta.plate_id}.json
 
     cat <<-END_JSON > platemap_summary_${meta.plate_id}.json
     {
