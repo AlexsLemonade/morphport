@@ -217,7 +217,8 @@ workflow MORPHPORT {
 
     // Per-well groups with a comparison column and reference values are normalized to their reference wells
     // (reference normalization) and scored for phenotypic activity.
-    // Groups in which no partition holds reference wells can't be reference normalized, so they are dropped here.
+    // Groups in which no partition holds reference wells can't be reference normalized,
+    // so they are dropped from further analysis along this path
     ch_reference_groups = ch_feature_selected.has_features
         .filter { meta, _plate_metas, _parquets, _features ->
             meta.aggregate_level == 'well' && meta.comparison_column && meta.reference_values
@@ -231,15 +232,15 @@ workflow MORPHPORT {
         log.warn "Skipping PYCYTOMINER_REFERENCE_NORMALIZE and PHENOTYPIC_ACTIVITY for group ${meta.group_tag}: no wells with a ${meta.reference_column} value in ${meta.reference_values}."
     }
 
-    // the per-plate metas are not used by reference normalization or later steps
     PYCYTOMINER_REFERENCE_NORMALIZE(
         ch_reference_groups.has_reference
+             // drop plate_metas
             .map { meta, _plate_metas, parquets, features -> [meta, parquets, features] },
         params.pycytominer_reference_normalize_method,
     )
 
     // Reference normalization writes an empty features file for groups it skips
-    // (e.g. too few reference wells, or no features with nonzero reference spread)
+    // (e.g., too few reference wells, or no features with nonzero reference spread)
     ch_reference_normalized = PYCYTOMINER_REFERENCE_NORMALIZE.out.result
         .branch { _meta, _parquet, features ->
             has_features: features.size() > 0
@@ -250,6 +251,7 @@ workflow MORPHPORT {
         log.warn "Skipping PHENOTYPIC_ACTIVITY for group ${meta.group_tag}: reference normalization skipped the group (see its reference normalization summary)."
     }
 
+    // Run phenotypic activity (mAP scores) on reference-normalized groups
     PHENOTYPIC_ACTIVITY(
         ch_reference_normalized.has_features,
         [
