@@ -220,11 +220,33 @@ We will compute similarity matrices for each cell line across compounds and for 
 These steps receive the same `(grouping_metadata, feature_list_file, [partition_files])` tuples as the visualization step, and likewise filter to selected features on read.
 Detail to come.
 
+### Reference normalization
+
+Per-well analysis groups with a comparison column and reference values (e.g. treatments compared with DMSO) are normalized to their reference wells, on top of plate normalization.
+Each plate is normalized separately, and within each plate each value of the columns that define the group (other than the reference column), such as each cell type, is normalized to its own reference wells.
+pycytominer's `normalize()` fits on the reference wells (`mad_robustize` by default) and applies the fit to every well, so each well describes a change from the reference on its own plate.
+Normalization sets with fewer than 2 reference wells, and features with no spread among the reference wells, are dropped first.
+See Decision-001 for why this is its own step.
+
+- **Input:**
+  - `(group_meta, [plate_metas], [partition_files], feature_list_file)` tuples from feature selection
+- **Output:**
+  - Tuples of the same shape, with one reference-normalized parquet file and the features kept, so later steps can read either
+  - A summary JSON per group
+
 ### Mean Average Precision (mAP) scoring
 
-Similarly, for a given list of compounds, we will create an mAP table by cell line.
-And for each list of cell lines we will create an mAP table by compound.
-Detail to come.
+Phenotypic activity is scored on the reference-normalized profiles of each group with copairs, following the copairs phenotypic activity example used by the Way Lab.
+For each test condition (e.g. a treatment within a cell type), average precision measures how highly each of its wells ranks the condition's other wells above the reference wells, and the mean across its wells (mAP) is tested against a null distribution.
+Positive and negative pairs are matched on the columns that define the group other than the reference column, so wells are only compared within one cell type.
+A test condition is called as active when its Benjamini-Hochberg corrected p-value is below a threshold (0.05 by default).
+Activity is computed per analysis group, so the same treatment can get different results in different groupings.
+
+- **Input:**
+  - `(group_meta, reference_normalized_file, feature_list_file)` tuples from reference normalization
+- **Output:**
+  - An mAP table per group, with one row per test condition
+  - A summary JSON per group
 
 ## Output layout _(not final)_
 
@@ -276,5 +298,6 @@ flowchart TD
     GRP --> FS["Feature selection"]
     FS --> VIZ["Create visualizations"]
     FS --> SIM["Consensus similarity matrices"]
-    FS --> MAP["mAP scoring"]
+    FS --> RN["Reference normalization"]
+    RN --> MAP["mAP scoring"]
 ```
