@@ -297,8 +297,8 @@
                 "phenotypic_activity_fdr_threshold": {
                     "type": "number",
                     "default": 0.05,
-                    "minimum": 0.0,
-                    "maximum": 1.0,
+                    "exclusiveMinimum": 0.0,
+                    "exclusiveMaximum": 1.0,
                     "description": "A test condition is called as active when its Benjamini-Hochberg corrected p-value (corrected across the test conditions in its analysis group) is below this threshold."
                 },
                 "consensus_min_wells": {
