@@ -13,5 +13,6 @@ The stub `PARTITION_PROFILES` step reads each plate's platemap, so the analysis 
 The analysis groups include the following conditions:
 
 - `stub_condition` and `stub_target`: grouping columns missing from both platemaps, so each plate gets the value `_Absent_`
-- `allele_vs_wt`: per-well groups with reference wells, which run reference normalization and phenotypic activity
-- `platemap_by_allele`: per-well groups where one group (`gene_allele=mut`) has no reference wells, so it skips reference normalization and phenotypic activity
+- `drug_vs_dmso`: per-well groups comparing drug with DMSO reference wells (on `platemap_001` only).
+  The `gene_allele=wt` group has DMSO wells, so it runs reference normalization and phenotypic activity;
+  the `gene_allele=mut` group has none, so it skips both steps.

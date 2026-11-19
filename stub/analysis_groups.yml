@@ -10,18 +10,13 @@ cell:
     grouping_column: stub_target
     groups: one_per_value
 well:
-  # Alleles compared with wild type within each platemap:
-  # every group has reference wells, so it is reference normalized and scored for phenotypic activity
-  - name: allele_vs_wt
-    grouping_column: plate_map_name
-    groups: one_per_value
-    comparison_column: gene_allele
-    reference_values: [wt]
-  # Platemaps compared within each allele, with wild-type reference wells:
-  # the 'mut' group has no reference wells, so it skips reference normalization and phenotypic activity
-  - name: platemap_by_allele
+  # Drug compared with DMSO within each allele, on platemap_001 (the only stub platemap with a treatment column):
+  # the 'wt' group has DMSO reference wells, so it is reference normalized and scored for phenotypic activity;
+  # the 'mut' group has none, so it skips both steps
+  - name: drug_vs_dmso
     grouping_column: gene_allele
     groups: one_per_value
-    comparison_column: plate_map_name
-    reference_column: gene_allele
-    reference_values: [wt]
+    filter:
+      plate_map_name: [platemap_001]
+    comparison_column: treatment
+    reference_values: [DMSO]
