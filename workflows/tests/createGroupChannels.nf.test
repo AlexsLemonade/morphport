@@ -9,8 +9,6 @@ nextflow_workflow {
     test("createGroupChannels: routes partitions to their groups") {
 
         when {
-            // the input metas have no edge_wells_included key, so it is not added to group_meta;
-            // their plate normalization settings are copied to group_meta
             workflow {
                 """
                 def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
