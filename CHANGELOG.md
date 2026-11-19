@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `HIERARCHICAL_CLUSTERING_FEATURES`: clusters the selected features within each analysis group, using all the feature-selected profiles in the group.
   Outputs are written to `hierarchical_clustering/` as `clustering_features_linkage_*.parquet`, `clustering_features_leaves_*.parquet`, and `clustering_features_summary_*.json`.
   The linkage method and distance metric are set with the new `--clustering_features_linkage_method` and `--clustering_features_distance_metric` parameters.
+- `PYCYTOMINER_REFERENCE_NORMALIZE`: normalizes the per-well profiles of analysis groups with a `comparison_column` and `reference_values` to their reference wells, separately for each plate.
+  Outputs are written to `reference_normalization/` as `reference_normalized_features_*.txt` and `reference_normalization_summary_*.json`.
+  The method is set with the new `--pycytominer_reference_normalize_method` parameter.
+- `PHENOTYPIC_ACTIVITY`: scores the phenotypic activity of each test condition in those groups with mean average precision (mAP) from copairs, on the reference-normalized profiles.
+  Outputs are written to `phenotypic_activity/` as `phenotypic_activity_*.parquet` and `phenotypic_activity_summary_*.json`.
+  Scoring is set with the new `--phenotypic_activity_distance_metric`, `--phenotypic_activity_null`, `--phenotypic_activity_null_size`, `--phenotypic_activity_fdr_threshold`, and `--consensus_min_wells` parameters.
 
 ### `Changed`
 
