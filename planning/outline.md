@@ -176,11 +176,11 @@ Well-summary groupings draw from the well-summary partition channel; per-cell gr
 - **Per-cell groupings:**
   - All conditions (compound + untreated) within a cell line
 
-Each grouping is then `combine()`d with `[true, false]` to produce two channel items, one with edge wells included and one without, before being passed to the feature selection and visualisation processes.
+Edge wells are either removed or kept for the whole run (`--edge_well_filter`); comparing the two is left to separate runs.
 
 This will let us pass all of the desired groupings to a uniform set of processes.
 
-The grouping metadata (including whether edge wells are included) will be consolidated into a single map that is passed alongside the partition files.
+The grouping metadata will be consolidated into a single map that is passed alongside the partition files.
 This way the visualization and similarity steps can operate based on the grouping metadata rather than needing to hardcode any grouping-specific logic.
 
 This will all happen within the workflow logic rather than as separate processes.
@@ -228,8 +228,8 @@ Detail to come.
 
 ## Output layout _(not final)_
 
-The output directory layout (described in `docs/output.md`) is not final, including the `edge_wells_[included|excluded]` directories within each tool directory.
-If it changes, the `-profile test` snapshot and the `createGroupChannels` edge-well tests will need updating.
+The output directory layout (described in `docs/output.md`) is not final.
+If it changes, the `-profile test` snapshot will need updating.
 
 ## OME-Arrow Data _(coming)_
 

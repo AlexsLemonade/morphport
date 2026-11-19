@@ -18,24 +18,20 @@ Outputs are organized by project, then by aggregate level, then by the tool that
     ├── cell/
     │   ├── cytotable/
     │   ├── pycytominer/
-    │   │   ├── <plate_id>_annotated.parquet    (optional)
-    │   │   └── edge_wells_[included|excluded]/
-    │   ├── cosmicqc/edge_wells_[included|excluded]/
-    │   ├── embeddings/edge_wells_[included|excluded]/
-    │   └── hierarchical_clustering/edge_wells_[included|excluded]/
+    │   ├── cosmicqc/
+    │   ├── embeddings/
+    │   └── hierarchical_clustering/
     └── well/
-        ├── pycytominer/edge_wells_[included|excluded]/
-        ├── embeddings/edge_wells_[included|excluded]/
-        └── hierarchical_clustering/edge_wells_[included|excluded]/
+        ├── pycytominer/
+        ├── embeddings/
+        └── hierarchical_clustering/
 ```
 
 - `<project>` is the `project` value from the samplesheet.
 - `cell/` contains single-cell profiles and results computed from them.
 - `well/` contains per-well profiles (aggregated from the per-cell profiles) and results computed from them.
-- Outputs from coSMicQC filtering onward are placed in an `edge_wells_included/` or `edge_wells_excluded/` directory within each tool directory, depending on whether the wells on the edge of the plate were removed.
-  With `--edge_well_filter off`, only `edge_wells_included/` is present; with `--edge_well_filter on`, only `edge_wells_excluded/` is present.
-  With `--edge_well_filter both` (the default), every step from coSMicQC filtering onward is run twice, and both directories are present.
-  Steps before coSMicQC filtering (CytoTable and platemap annotation) run once per plate, so their outputs are not placed in these directories.
+- Wells on the edge of the plate are removed before coSMicQC filtering unless `--edge_well_filter off` is set; the coSMicQC summary records which wells were removed.
+  To compare results with and without edge wells, run the pipeline twice with different output directories.
 
 ### File naming
 
@@ -99,7 +95,7 @@ These files are intermediate outputs and are only published with `--publish_opti
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/cell/cosmicqc/edge_wells_*/`
+- `<project>/cell/cosmicqc/`
   - `filtered_<plate_id>.parquet`: Annotated single-cell profiles with edge wells (if excluded) and outlier cells removed.
   - `cosmicqc_outliers_<plate_id>.csv.gz`: One row per outlier cell, with its metadata columns and a `cosmicqc_condition` column listing the filter condition(s) that flagged it, separated by `;`.
     The first column is the cell's row index in the annotated input.
@@ -118,7 +114,7 @@ When edge wells are excluded, wells on the border of the plate are removed first
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/well/pycytominer/edge_wells_*/`
+- `<project>/well/pycytominer/`
   - `well_<plate_id>.parquet`: Per-well profiles, one row per well.
 
 </details>
@@ -130,9 +126,9 @@ Pycytominer `aggregate` summarizes the filtered single-cell profiles in each wel
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/cell/pycytominer/edge_wells_*/`
+- `<project>/cell/pycytominer/`
   - `normalized_cell_<plate_id>.parquet`: Normalized single-cell profiles.
-- `<project>/well/pycytominer/edge_wells_*/`
+- `<project>/well/pycytominer/`
   - `normalized_well_<plate_id>.parquet`: Normalized per-well profiles.
 
 </details>
@@ -145,7 +141,7 @@ If the normalization method for an aggregate level is `none`, normalization is s
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/<aggregate_level>/partition/edge_wells_*/`
+- `<project>/<aggregate_level>/partition/`
   - `<plate_id>/`: [Hive-style](https://duckdb.org/docs/stable/data/partitioning/hive_partitioning) partitioned parquet files for the plate, with one directory level per partition column (e.g. `Metadata_treatment=drugA/`).
     Values in directory names are percent-encoded.
   - `partitions_<plate_id>.json`: A list of the partition directories, each with its decoded column values.
@@ -162,7 +158,7 @@ These files are intermediate outputs and are only published with `--publish_opti
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/<aggregate_level>/pycytominer/edge_wells_*/`
+- `<project>/<aggregate_level>/pycytominer/`
   - `features_<group_tag>.txt`: The selected feature names, one per line.
   - `feature_select_summary_<group_tag>.json`: Feature selection summary for the group, including the group definition, the operations requested and applied, the parameters used, the imaging channels detected from feature names, and the number of features before and after selection.
 
@@ -179,7 +175,7 @@ Groups with no selected features are skipped by later steps, with a warning in t
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/<aggregate_level>/embeddings/edge_wells_*/`
+- `<project>/<aggregate_level>/embeddings/`
   - `embeddings_<group_tag>.parquet`: One row per profile (cell or well) in the group, with all `Metadata_` columns, principal components (`PC1`, `PC2`, ...), and UMAP coordinates (`UMAP1`, `UMAP2`).
   - `embeddings_summary_<group_tag>.json`: Embedding summary for the group, including the group definition, the source plates, row counts before and after NaN handling, and the PCA (components used, explained variance ratios) and UMAP (neighbors, minimum distance, random seed) settings.
 
@@ -195,7 +191,7 @@ If fewer than `--embedding_min_rows` rows remain, the group is skipped: the parq
 <details markdown="1">
 <summary>Output files</summary>
 
-- `<project>/<aggregate_level>/hierarchical_clustering/edge_wells_*/`
+- `<project>/<aggregate_level>/hierarchical_clustering/`
   - `clustering_profiles_linkage_<group_tag>.parquet`: The [scipy linkage matrix](https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html), one row per merge, with columns `left`, `right`, `distance`, and `n_members`.
     Following scipy, leaves are numbered `0` to `n-1`, and the node created by row `i` is numbered `n + i`.
     The tree can be rebuilt with `scipy.cluster.hierarchy.to_tree()`.

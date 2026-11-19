@@ -84,11 +84,11 @@
                     "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json."
                 },
                 "edge_well_filter": {
-                    "type": "string",
-                    "default": "both",
-                    "description": "Whether to exclude wells on the border of the plate before coSMicQC filtering. Use 'off' to keep all wells, 'on' to drop edge wells, or 'both' to carry both edge-included and edge-excluded datasets through the rest of the pipeline.",
-                    "help_text": "This filter assumes that all wells in a plate are filled with media, and will exclude only the plate edges. If there are empty wells on the plate, this filtering may not be sufficient.\nResults from edge well filtering onward are published in an 'edge_wells_included' ('off') or 'edge_wells_excluded' ('on') subdirectory of each step's output directory. In 'both' mode, both subdirectories are created and downstream analysis groups are kept separate for each variant.",
-                    "enum": ["on", "off", "both"]
+                    "type": ["string", "boolean"],
+                    "default": "on",
+                    "description": "Whether to remove wells on the border of the plate before coSMicQC filtering: 'on' (or true) removes edge wells, and 'off' (or false) keeps all wells.",
+                    "enum": ["on", "off", true, false],
+                    "help_text": "This filter assumes that all wells in a plate are filled with media, and will exclude only the plate edges. If there are empty wells on the plate, this filtering may not be sufficient. To compare results with and without edge wells, run the pipeline twice with different output directories."
                 }
             }
         },

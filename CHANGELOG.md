@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Output file names are unchanged.
 - `--pycytominer_normalize_method_cell` and `--pycytominer_normalize_method_well` are renamed to `--pycytominer_plate_normalize_method_cell` and `--pycytominer_plate_normalize_method_well`.
 - `--pycytominer_normalize_samples` is renamed to `--pycytominer_plate_normalize_reference_profiles`.
+- `--edge_well_filter` no longer accepts `both`, and its default is now `on` (edge wells removed), so the pipeline runs once per plate; to compare results with and without edge wells, run the pipeline twice.
+  `true` and `false` are accepted as equivalents of `on` and `off`.
+  Outputs are no longer nested in `edge_wells_included/` and `edge_wells_excluded/` directories.
 
 ### `Fixed`
 

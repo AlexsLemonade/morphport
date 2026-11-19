@@ -9,10 +9,7 @@ nextflow_workflow {
     test("createGroupChannels: routes partitions to their groups") {
 
         when {
-            params {
-                // the input metas have no edge_wells_included key, so it is not added to group_meta
-                edge_well_filter = 'off'
-            }
+            // the input metas have no edge_wells_included key, so it is not added to group_meta
             workflow {
                 """
                 def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
@@ -84,9 +81,6 @@ nextflow_workflow {
     test("createGroupChannels: a partition in several groups is sent to each") {
 
         when {
-            params {
-                edge_well_filter = 'off'
-            }
             workflow {
                 """
                 def kinase = [project: 'demo', aggregate_level: 'cell', grouping_name: 'moa',
@@ -125,9 +119,6 @@ nextflow_workflow {
     test("createGroupChannels: always_include partitions join every group in their subgroup") {
 
         when {
-            params {
-                edge_well_filter = 'off'
-            }
             workflow {
                 """
                 def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
@@ -167,9 +158,6 @@ nextflow_workflow {
     test("createGroupChannels: a partition in no group emits nothing") {
 
         when {
-            params {
-                edge_well_filter = 'off'
-            }
             workflow {
                 """
                 def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',
@@ -199,50 +187,9 @@ nextflow_workflow {
         }
     }
 
-    test("createGroupChannels: edge_well_filter 'both' keeps edge variants in separate groups") {
+    test("createGroupChannels: carries edge_wells_included into the group meta") {
 
         when {
-            params {
-                edge_well_filter = 'both'
-            }
-            workflow {
-                """
-                def all_cells = [project: 'demo', aggregate_level: 'cell', grouping_name: 'all',
-                    grouping_column: null, group: 'all_values', subgroup_values: [:], group_id: 'all', group_tag: 'cell__all']
-                input[0] = Channel.of(
-                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', edge_wells_included: true], ['p1_edges.parquet']],
-                    [[plate_id: 'p1', project: 'demo', aggregate_level: 'cell', edge_wells_included: false], ['p1_no_edges.parquet']],
-                    [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', edge_wells_included: true], ['p2_edges.parquet']],
-                    [[plate_id: 'p2', project: 'demo', aggregate_level: 'cell', edge_wells_included: false], ['p2_no_edges.parquet']],
-                )
-                input[1] = Channel.value([
-                    partition_columns: [],
-                    cell: [
-                        [project: 'demo']: [[all_cells, 2]],
-                    ],
-                ])
-                """
-            }
-        }
-
-        then {
-            assert workflow.success
-            def stable = workflow.out.result
-                .collect { group_meta, _metas, parquets -> [group_meta.edge_wells_included, group_meta.group_id, parquets.sort()] }
-                .sort { result -> result[0].toString() }
-            assert stable == [
-                [false, 'all', ['p1_no_edges.parquet', 'p2_no_edges.parquet']],
-                [true, 'all', ['p1_edges.parquet', 'p2_edges.parquet']],
-            ]
-        }
-    }
-
-    test("createGroupChannels: edge_well_filter 'on' keeps the edge variant in the group meta") {
-
-        when {
-            params {
-                edge_well_filter = 'on'
-            }
             workflow {
                 """
                 def all_cells = [project: 'demo', aggregate_level: 'cell', grouping_name: 'all',
@@ -274,9 +221,6 @@ nextflow_workflow {
     test("createGroupChannels: a partition missing from the lookup is an error") {
 
         when {
-            params {
-                edge_well_filter = 'off'
-            }
             workflow {
                 """
                 def drugA = [project: 'demo', aggregate_level: 'cell', grouping_name: 'by_treatment',

@@ -46,8 +46,6 @@ nextflow_pipeline {
                 outdir = "$outputDir"
                 input = TestSamplesheet.withAbsolutePaths("$projectDir/stub/samplesheet.csv", "$projectDir", "$launchDir")
                 analysis_groups_file = "$projectDir/stub/analysis_groups.yml"
-                // the test profile only runs with edge wells excluded; run both edge-well variants here
-                edge_well_filter = 'both'
             }
         }
 
