@@ -28,7 +28,7 @@ flowchart TD
         ANNOTATE[PYCYTOMINER_ANNOTATE\nAdd platemap metadata]
         FILTER[COSMICQC_FILTER\nRemove low-quality cells]
         AGGREGATE[PYCYTOMINER_AGGREGATE\nPer-cell → per-well profiles]
-        NORMALIZE["PYCYTOMINER_NORMALIZE\nNormalize features\n(optional)"]
+        NORMALIZE["PYCYTOMINER_PLATE_NORMALIZE\nNormalize each plate\n(optional)"]
 
         CYTOTABLE --> ANNOTATE
         ANNOTATE --> FILTER
