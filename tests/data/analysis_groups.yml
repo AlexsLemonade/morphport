@@ -25,3 +25,10 @@ well:
   - name: time_point
     grouping_column: time_point
     groups: one_per_value
+  # Cell lines compared with the U2-OS anchor cell line (on every plate) at each time point,
+  # for reference normalization and phenotypic activity; the platemaps have no treatment contrast
+  - name: cell_lines_vs_u2os
+    grouping_column: time_point
+    groups: one_per_value
+    comparison_column: cell_line
+    reference_values: [U2-OS]
