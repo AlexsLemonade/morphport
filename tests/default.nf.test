@@ -29,8 +29,25 @@ nextflow_pipeline {
                 .collectEntries { summary -> [(summary.name): path(summary.toString()).json.skipped] }
             def activity_summaries = getAllFilesFromDir(params.outdir, include: ['**/phenotypic_activity_summary_*.json'])
                 .collectEntries { summary -> [(summary.name): path(summary.toString()).json.skipped] }
+            // The edge well filter (on by default) removes the 4 corner wells of each 384-well test plate,
+            // as reported in the coSMicQC summary, and none of their cells remain in the filtered profiles
+            def expected_edge_wells = ['A01', 'A24', 'P01', 'P24']
+            def plate_ids = ['plate_1', 'plate_2']
             assert workflow.success
             assertAll(
+                { plate_ids.each { plate_id ->
+                    def edge_filtering = path("$outputDir/test-project/cell/cosmicqc/cosmicqc_summary_${plate_id}.json").json.edge_filtering
+                    assert edge_filtering.edge_wells_included == false
+                    assert edge_filtering.plate_size == 384
+                    assert edge_filtering.edge_wells == expected_edge_wells
+                } },
+                { plate_ids.each { plate_id ->
+                    def filtered = path("$outputDir/test-project/cell/cosmicqc/filtered_${plate_id}.parquet").parquet
+                    def well_idx = filtered.columnNames.toList().indexOf('Metadata_Well')
+                    def wells = filtered.rows.collect { row -> row[well_idx] as String }.unique()
+                    assert wells.size() > 0
+                    assert wells.intersect(expected_edge_wells).isEmpty() : "edge wells remain in filtered_${plate_id}.parquet"
+                } },
                 // every group has enough data to be embedded and clustered, so none are skipped
                 { assert analysis_summaries.size() == 15 },
                 { analysis_summaries.each { summary -> assert !path(summary.toString()).json.skipped : "${summary.name} was skipped" } },
