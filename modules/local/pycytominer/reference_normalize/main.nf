@@ -5,6 +5,7 @@
 process PYCYTOMINER_REFERENCE_NORMALIZE {
     tag "${meta_in.group_tag}"
     label 'process_low'
+    label 'publish_skip_parquet'
 
     conda "${moduleDir}/environment.yml"
     container {
