@@ -63,9 +63,13 @@ def main():
 
     plate_db = duckdb.read_parquet(plate_parquet_file)
 
+    # keep the partition columns in the files as well as the directory names:
+    # downstream steps stage the files without their directories, and need these columns
+    # (e.g., the comparison and reference columns for reference normalization)
     plate_db.write_parquet(
         plate_id,
         partition_by=partition_cols,
+        write_partition_columns=True,
         filename_pattern=plate_id + "_{i}",
     )
 
