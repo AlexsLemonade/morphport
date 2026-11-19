@@ -179,7 +179,7 @@ workflow MORPHPORT {
         }
 
     ch_feature_selected.empty.subscribe { meta, _plate_metas, _parquets, _features ->
-        log.warn "Skipping COMPUTE_EMBEDDINGS and HIERARCHICAL_CLUSTERING_FEATURES for group ${meta.group_tag}: no features selected upstream."
+        log.warn "Skipping analysis steps for group ${meta.group_tag}: no features selected upstream."
     }
 
     COMPUTE_EMBEDDINGS(

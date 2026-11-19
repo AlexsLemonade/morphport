@@ -5,7 +5,7 @@ nextflow_function {
     tag "workflows"
     tag "workflows_morphport"
 
-    test("hasReferencePartition: a group with a reference partition on one plate passes") {
+    test("hasReferencePartition: a group with a reference partition on one plate returns true") {
 
         function "hasReferencePartition"
 
@@ -33,7 +33,7 @@ nextflow_function {
         }
     }
 
-    test("hasReferencePartition: a group with no reference partition is dropped") {
+    test("hasReferencePartition: a group with no reference partition returns false") {
 
         function "hasReferencePartition"
 

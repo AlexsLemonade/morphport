@@ -244,7 +244,7 @@ After normalization, each well describes its change from the reference wells on 
 - Groups with no reference wells are skipped before this step, with a warning in the run log.
 - Normalization sets with fewer than 2 reference wells are dropped, with a warning; a warning is also given for sets with fewer than 5 reference wells.
 - Features with no spread among the reference wells of any normalization set are dropped, since they cannot be scaled.
-- If no reference wells remain, the group is skipped: the summary has `skipped: true` and a `skip_reason`, and the group is not scored for phenotypic activity.
+- If no reference wells or no features remain, the group is skipped: the summary has `skipped: true` and a `skip_reason`, and the group is not scored for phenotypic activity.
 
 The reference-normalized profiles are not published, as they are only used by the phenotypic activity step.
 
