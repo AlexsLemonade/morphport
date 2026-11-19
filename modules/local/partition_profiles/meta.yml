@@ -58,8 +58,8 @@ output:
       - "platemap_summary_*.json":
           type: file
           description: |
-            JSON file recording the platemap file used, partition columns, per-partition
-            row counts and file paths, and the count of wells with no platemap entry.
+            JSON file recording the plate ID, the partition columns, and the number of
+            rows (cells) with each value of each partition column.
           pattern: "platemap_summary_*.json"
   - versions:
       - versions.yml:
