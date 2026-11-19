@@ -25,11 +25,13 @@ input:
             grouping_column:'Metadata_cell_type', group:'lineA', subgroup_values:[:],
             group_id:'cell_type=lineA', group_tag:'well__cell_type__cell_type=lineA',
             comparison_column:'Metadata_treatment',
-            reference_column:'Metadata_treatment', reference_values:['DMSO'] ]
+            reference_column:'Metadata_treatment', reference_values:['DMSO'],
+            plate_normalization_method:'mad_robustize', plate_normalization_reference_profiles:'all' ]
           comparison_column, reference_column, and reference_values are required.
+          The plate normalization keys are reported in the summary (null if absent, when plate normalization was skipped).
     - plate_metas:
         type: list
-        description: List of per-plate meta maps for the parquets in this group; their plate normalization settings are reported in the summary, and the list is passed through
+        description: List of per-plate meta maps for the parquets in this group, passed through unchanged
     - parquets:
         type: list
         description: One or more per-well parquet files for the analysis group; staged into input_parquet/ and read concatenated
@@ -63,7 +65,7 @@ output:
   - summary:
       - "reference_normalization_summary_*.json":
           type: file
-          description: JSON summary with grouping info, method, normalization sets (the wells normalized together) and their reference well counts, dropped wells and features, and skip status
+          description: JSON summary with grouping info, reference and plate normalization methods, normalization sets (the wells normalized together) and their reference well counts, dropped wells and features, and skip status
           pattern: "reference_normalization_summary_*.json"
   - warnings:
       - task.process:

@@ -121,15 +121,6 @@ def get_normalization_set_columns(
     return [PLATE_COLUMN] + split_columns
 
 
-def distinct_values(plate_metas: list[dict], key: str) -> list:
-    """
-    Distinct values of key across the per-plate metas, in order of first appearance.
-    A plate meta without the key (e.g. a plate whose normalization was skipped) contributes None.
-    """
-    values = [plate_meta.get(key) for plate_meta in plate_metas]
-    return list(dict.fromkeys(values))
-
-
 def write_summary(
     summary: dict,
     n_wells_output: int,
@@ -202,7 +193,6 @@ def main():
     features_file = "${features_file}"
     # raw string so JSON escapes in metadata values survive
     meta = json.loads(r"""${meta_json}""")
-    plate_metas = json.loads(r"""${plate_metas_json}""")
     normalize_method = "${normalize_method}"
     task_process = "${task.process}"
 
@@ -242,13 +232,10 @@ def main():
         "min_reference_wells": MIN_REFERENCE_WELLS,
         # filled in after the zero-spread check; stays empty if the group is skipped before it
         "features_dropped_zero_spread": [],
-        # plate normalization settings are in the per-plate metas, not the group meta;
-        # they come from params, so normally each list has a single value
-        "plate_normalization_method": distinct_values(
-            plate_metas=plate_metas, key="plate_normalization_method"
-        ),
-        "plate_normalization_reference_profiles": distinct_values(
-            plate_metas=plate_metas, key="plate_normalization_reference_profiles"
+        # null when plate normalization was skipped (method 'none')
+        "plate_normalization_method": meta.get("plate_normalization_method"),
+        "plate_normalization_reference_profiles": meta.get(
+            "plate_normalization_reference_profiles"
         ),
     }
     messages = []

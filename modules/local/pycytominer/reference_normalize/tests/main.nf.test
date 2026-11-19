@@ -21,6 +21,7 @@ nextflow_process {
         group_id: 'cell_type=lineA', group_tag: 'well__cell_type__cell_type=lineA',
         plate_ids: ['P1', 'P2', 'P3'],
         comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
     // Group metadata for comparing cell types within a treatment
@@ -30,6 +31,7 @@ nextflow_process {
         group_id: 'treatment=drugA', group_tag: 'well__cell_types_by_treatment__treatment=drugA',
         plate_ids: ['P1'],
         comparison_column: 'Metadata_cell_type', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
     // Group metadata for comparing treatments within a group that pools two cell types
@@ -40,9 +42,10 @@ nextflow_process {
         group_id: 'cell_type=both_lines', group_tag: 'well__cell_type_sets__cell_type=both_lines',
         plate_ids: ['P1'],
         comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
-    // Per-plate meta, as plate normalization leaves it (the group meta does not carry these keys)
+    // Per-plate meta, as plate normalization leaves it (createGroupChannels copies the settings to the group meta)
     def plateMeta = { plate -> [plate_id: plate, plate_normalized: true, plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'] }
 
     // Input tuples, as Groovy source text; closures because moduleDir is only defined inside a test.
@@ -143,9 +146,9 @@ nextflow_process {
             assert summary.n_features_input == 4
             assert summary.features_dropped_zero_spread == ['Nuclei_AreaShape_Solidity']
             assert summary.n_features_output == 3
-            // read from the per-plate metas
-            assert summary.plate_normalization_method == ['mad_robustize']
-            assert summary.plate_normalization_reference_profiles == ['all']
+            // read from the group meta
+            assert summary.plate_normalization_method == 'mad_robustize'
+            assert summary.plate_normalization_reference_profiles == 'all'
             assert summary.skipped == false
 
             // warnings: few reference wells on P2, too few on P3, and the dropped feature
