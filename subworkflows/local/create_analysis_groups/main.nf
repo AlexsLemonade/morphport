@@ -610,6 +610,37 @@ def partitionKey(meta, partition_columns) {
 }
 
 //
+// Whether any partition of an analysis group holds reference wells: true when any partition meta's value in the
+// group's reference_column is one of its reference_values. Values are compared as text, as in the reference
+// normalization and phenotypic activity modules. The reference column is always a partition column, and wells
+// with a blank ('_NA_') reference value are already left out of the group, so no data needs to be read.
+//
+def hasReferencePartition(group_meta, partition_metas) {
+    def reference_values = group_meta.reference_values.collect { value -> value as String }
+    return partition_metas.any { partition_meta ->
+        (partition_meta[group_meta.reference_column] as String) in reference_values
+    }
+}
+
+//
+// The plate normalization settings of an analysis group, read from its partition metas:
+//   [plate_normalization_method: ..., plate_normalization_reference_profiles: ...]
+// Every plate in a group shares one aggregate level, so the settings come from the same params and must agree;
+// values that differ are a pipeline bug. Values are null when plate normalization was skipped (method 'none'),
+// since those partition metas lack the keys.
+//
+def plateNormalizationSettings(group_tag, partition_metas) {
+    def keys = ['plate_normalization_method', 'plate_normalization_reference_profiles']
+    return keys.collectEntries { key ->
+        def values = partition_metas.collect { partition_meta -> partition_meta[key] }.unique()
+        if (values.size() > 1) {
+            error("Internal error: partitions of group '${group_tag}' have different ${key} values: ${values}")
+        }
+        [(key): values ? values[0] : null]
+    }
+}
+
+//
 // Assign plate partition keys to the grouping sets (groups) of a single normalized grouping. This is the single
 // definition of group membership (see docs/analysis_groups_format.md):
 //   1. keep only plate_partition_keys matching every `filter` column, and drop those with a blank
