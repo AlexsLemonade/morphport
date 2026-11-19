@@ -229,15 +229,15 @@ Normalization sets with fewer than 2 reference wells, and features with no sprea
 See Decision-001 for why this is its own step.
 
 - **Input:**
-  - `(group_meta, [plate_metas], [partition_files], feature_list_file)` tuples from feature selection
+  - `(group_meta, [partition_files], feature_list_file)` tuples from feature selection
 - **Output:**
-  - Tuples of the same shape, with one reference-normalized parquet file and the features kept, so later steps can read either
+  - `(group_meta, reference_normalized_file, feature_list_file)` tuples, with the features kept after normalization
   - A summary JSON per group
 
 ### Mean Average Precision (mAP) scoring
 
 Phenotypic activity is scored on the reference-normalized profiles of each group with copairs, following the copairs phenotypic activity example used by the Way Lab.
-For each test condition (e.g. a treatment within a cell type), average precision measures how highly each of its wells ranks the condition's other wells above the reference wells, and the mean across its wells (mAP) is tested against a null distribution.
+For each test condition (e.g. a treatment within a cell type), average precision measures how highly each of its wells ranks the test condition's other wells above the reference wells, and the mean across its wells (mAP) is tested against a null distribution.
 Positive and negative pairs are matched on the columns that define the group other than the reference column, so wells are only compared within one cell type.
 A test condition is called as active when its Benjamini-Hochberg corrected p-value is below a threshold (0.05 by default).
 Activity is computed per analysis group, so the same treatment can get different results in different groupings.

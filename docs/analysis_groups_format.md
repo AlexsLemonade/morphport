@@ -248,12 +248,11 @@ To compare within each value of another column, such as a timepoint, add that co
 
 Reference wells serve as the baseline for the comparisons and are not compared themselves.
 Groups with `reference_values` are normalized to their reference wells (reference normalization) and scored for phenotypic activity; see the [output documentation](output.md#reference-normalization).
-Each plate is normalized separately for each value of the grouping, subgroup, and comparison columns other than the reference column, so each cell type is normalized to its own reference wells in either direction of comparison.
 
 `reference_values` is only valid if `comparison_column` is specified, and `reference_column` only together with `reference_values`; otherwise it is an **error**.
 The comparison column (and reference column, if different) is added to the partition columns, and must be present in every platemap the grouping uses (after `filter`); a missing column is an **error**.
 Each listed value must be found in the grouping's rows after `filter` and `excluded` are applied; a missing value is an **error**, since it is most likely a typo.
-A group or plate that happens to have no reference wells is not an error here: a group with none is skipped by reference normalization and phenotypic activity, with a warning, and wells on a plate with fewer than 2 reference wells (for their cell type) are left out of them.
+A group or plate that happens to have no reference wells is not an error here; it is handled by the analyses that use the reference.
 
 ### Blank values
 

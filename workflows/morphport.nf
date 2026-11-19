@@ -233,26 +233,27 @@ workflow MORPHPORT {
         log.warn "Skipping PYCYTOMINER_REFERENCE_NORMALIZE and PHENOTYPIC_ACTIVITY for group ${meta.group_tag}: no wells with a ${meta.reference_column} value in ${meta.reference_values}."
     }
 
+    // the per-plate metas are not used by reference normalization or later steps
     PYCYTOMINER_REFERENCE_NORMALIZE(
-        ch_reference_groups.has_reference,
+        ch_reference_groups.has_reference
+            .map { meta, _plate_metas, parquets, features -> [meta, parquets, features] },
         params.pycytominer_reference_normalize_method,
     )
 
     // Reference normalization writes an empty features file for groups it skips
     // (e.g. too few reference wells, or no features with nonzero reference spread)
     ch_reference_normalized = PYCYTOMINER_REFERENCE_NORMALIZE.out.result
-        .branch { _meta, _plate_metas, _parquet, features ->
+        .branch { _meta, _parquet, features ->
             has_features: features.size() > 0
             empty: true
         }
 
-    ch_reference_normalized.empty.subscribe { meta, _plate_metas, _parquet, _features ->
+    ch_reference_normalized.empty.subscribe { meta, _parquet, _features ->
         log.warn "Skipping PHENOTYPIC_ACTIVITY for group ${meta.group_tag}: reference normalization skipped the group (see its reference normalization summary)."
     }
 
     PHENOTYPIC_ACTIVITY(
-        ch_reference_normalized.has_features
-            .map { meta, _plate_metas, parquet, features -> [meta, parquet, features] },
+        ch_reference_normalized.has_features,
         [
             distance_metric: params.phenotypic_activity_distance_metric,
             null_method: params.phenotypic_activity_null,

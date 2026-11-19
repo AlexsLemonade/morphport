@@ -1,7 +1,7 @@
 // Normalizes the per-well profiles of one analysis group to the group's comparison reference wells
 // (reference normalization), separately for each plate, using pycytominer.normalize.
-// Takes and emits the same tuple shape as PYCYTOMINER_FEATURE_SELECT, so downstream modules can
-// read either feature-selected or reference-normalized profiles.
+// Takes the feature selection output without its per-plate metas, and emits the group meta,
+// one reference-normalized parquet, and the features kept.
 process PYCYTOMINER_REFERENCE_NORMALIZE {
     tag "${meta_in.group_tag}"
     label 'process_low'
@@ -15,12 +15,11 @@ process PYCYTOMINER_REFERENCE_NORMALIZE {
     }
 
     input:
-    tuple val(meta_in), val(plate_metas), path(parquets, stageAs: 'input_parquet/input*.parquet'), path(features_file)
+    tuple val(meta_in), path(parquets, stageAs: 'input_parquet/input*.parquet'), path(features_file)
     val(normalize_method)
 
     output:
     tuple val(meta),
-        val(plate_metas),
         path("reference_normalized_${meta_in.group_tag}.parquet"),
         path("reference_normalized_features_${meta_in.group_tag}.txt"),
         emit: result

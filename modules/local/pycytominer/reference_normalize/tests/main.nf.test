@@ -45,13 +45,9 @@ nextflow_process {
         plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
-    // Per-plate meta, as plate normalization leaves it (createGroupChannels copies the settings to the group meta)
-    def plateMeta = { plate -> [plate_id: plate, plate_normalized: true, plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'] }
-
     // Input tuples, as Groovy source text; closures because moduleDir is only defined inside a test.
     def plateInput = { fixtureDir, plates, meta = treatmentMeta -> """[
         ${meta},
-        ${plates.collect { plate -> plateMeta(plate) }.inspect()},
         ${plates.collect { plate -> "file('${fixtureDir}/profiles_${plate}.parquet')" }},
         file('${fixtureDir}/features.txt'),
     ]""" }
@@ -92,11 +88,9 @@ nextflow_process {
 
         then {
             assert process.success
-            def (meta, plateMetas, profiles, features) = process.out.result[0]
+            def (meta, profiles, features) = process.out.result[0]
             assert meta.reference_normalized == true
             assert meta.reference_normalization_method == 'mad_robustize'
-            // the per-plate metas are passed through unchanged
-            assert plateMetas == ['P1', 'P2', 'P3'].collect { plate -> plateMeta(plate) }
 
             // Nuclei_AreaShape_Solidity has zero DMSO spread on P2
             assert path(features).readLines() == keptFeatures
@@ -179,7 +173,7 @@ nextflow_process {
 
         then {
             assert process.success
-            def (_meta, _plateMetas, profiles, features) = process.out.result[0]
+            def (_meta, profiles, features) = process.out.result[0]
             assert path(features).readLines() == keptFeatures
 
             def rows
@@ -223,7 +217,7 @@ nextflow_process {
 
         then {
             assert process.success
-            def (meta, _plateMetas, profiles, features) = process.out.result[0]
+            def (meta, profiles, features) = process.out.result[0]
             assert meta.reference_normalization_method == 'standardize'
             assert path(features).readLines() == keptFeatures
             def rows = rowMaps(path(profiles).parquet)
@@ -253,7 +247,7 @@ nextflow_process {
 
         then {
             assert process.success
-            def (_meta, _plateMetas, profiles, features) = process.out.result[0]
+            def (_meta, profiles, features) = process.out.result[0]
             // no feature has zero DMSO spread on this plate
             assert path(features).readLines() == allFeatures
             def rows = rowMaps(path(profiles).parquet)
@@ -290,7 +284,7 @@ nextflow_process {
 
         then {
             assert process.success
-            def (_meta, _plateMetas, profiles, features) = process.out.result[0]
+            def (_meta, profiles, features) = process.out.result[0]
             def rows = rowMaps(path(profiles).parquet)
             assert rows.size() == 14
             // the grouping column (cell type) splits the plate, so lineB (offset by +100) is normalized
@@ -324,7 +318,7 @@ nextflow_process {
 
         then {
             assert process.success
-            def (meta, _plateMetas, profiles, features) = process.out.result[0]
+            def (meta, profiles, features) = process.out.result[0]
             assert meta.reference_normalized == true
             with(path(profiles).parquet) {
                 assert rowCount == 0
@@ -392,9 +386,9 @@ nextflow_process {
 
         then {
             assert process.success
-            def (meta, plateMetas, profiles, features) = process.out.result[0]
+            def (meta, profiles, features) = process.out.result[0]
             assert new File(profiles).name == 'reference_normalized_well__cell_type__cell_type=lineA.parquet'
-            assert snapshot(meta, plateMetas, features, process.out.summary, process.out.versions).match()
+            assert snapshot(meta, features, process.out.summary, process.out.versions).match()
         }
     }
 }
