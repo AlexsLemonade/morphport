@@ -30,6 +30,7 @@ Platemaps for P1, with the same layout in two formats:
   It also lists well A05, which has no cells, so it adds no rows.
 - platemap_P1.txt: tab-delimited, with the well column Well (the same name as in the profiles),
   and a plate_map_name column first, as in Cell Painting Gallery platemaps
+- platemap_P1_prefixed.txt: tab-delimited, with the well column header already prefixed (Metadata_Well)
 
 Plate P2, for resolving duplicated metadata columns, with 1 cell in each of wells A01 to A04:
 
@@ -155,12 +156,22 @@ PLATEMAP_P1_CSV = (
     "A05,lineB,drugA,1,extra\n"
 )
 
+# Tab-delimited platemaps leave out empty trailing fields, rather than ending lines with a tab,
+# so the pre-commit trailing-whitespace hook does not change them.
 PLATEMAP_P1_TXT = (
     "plate_map_name\tWell\tcell_line\ttreatment\tdose\tnote\n"
-    "layout_1\tA01\tlineA\tDMSO\t010\t\n"
+    "layout_1\tA01\tlineA\tDMSO\t010\n"
     "layout_1\tA02\tlineA\tdrugA\t1\tNA\n"
-    "layout_1\tA03\tlineB\tDMSO\t010\t\n"
+    "layout_1\tA03\tlineB\tDMSO\t010\n"
     "layout_1\tA04\tlineB\tdrugA\t1\tnull\n"
+)
+
+PLATEMAP_P1_PREFIXED_TXT = (
+    "Metadata_Well\tcell_line\ttreatment\tdose\tnote\n"
+    "A01\tlineA\tDMSO\t010\n"
+    "A02\tlineA\tdrugA\t1\tNA\n"
+    "A03\tlineB\tDMSO\t010\n"
+    "A04\tlineB\tdrugA\t1\tnull\n"
 )
 
 PLATEMAP_P2_CSV = (
@@ -187,6 +198,9 @@ def main():
 
     (FIXTURE_DIR / "platemap_P1.csv").write_text(PLATEMAP_P1_CSV, encoding="utf-8")
     (FIXTURE_DIR / "platemap_P1.txt").write_text(PLATEMAP_P1_TXT, encoding="utf-8")
+    (FIXTURE_DIR / "platemap_P1_prefixed.txt").write_text(
+        PLATEMAP_P1_PREFIXED_TXT, encoding="utf-8"
+    )
     (FIXTURE_DIR / "platemap_P2.csv").write_text(PLATEMAP_P2_CSV, encoding="utf-8")
 
 

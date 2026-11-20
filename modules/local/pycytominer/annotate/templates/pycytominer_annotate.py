@@ -51,6 +51,24 @@ def write_versions(task_process: str):
         f.write(f"    pyarrow: {version('pyarrow')}\\n")
 
 
+def add_metadata_prefix(col: str) -> str:
+    """Add the Metadata_ prefix to a column name if it is not already present (as addMetadataPrefix in Nextflow)."""
+    return col if col.startswith("Metadata_") else "Metadata_" + col
+
+
+def find_platemap_column(columns: list[str], column: str) -> str | None:
+    """
+    Find a platemap column by name, with or without the Metadata_ prefix on either side,
+    as the create_analysis_groups subworkflow does (e.g. 'Well' matches a 'Metadata_Well' header).
+    Returns the platemap's own column name, or None if there is no match.
+    Nextflow rejects platemaps with two headers that are the same once prefixed, so there is at most one match.
+    """
+    for col in columns:
+        if add_metadata_prefix(col) == add_metadata_prefix(column):
+            return col
+    return None
+
+
 def count_unmatched_wells(
     profile_wells: pd.Series, platemap_wells: pd.Series
 ) -> dict[str, int]:
@@ -252,8 +270,12 @@ def main():
     # Reading the directory combines split parquet files into a single table.
     profiles_df = pd.read_parquet(parquet_dir, dtype_backend="pyarrow")
 
-    # check the well columns used for the join before annotating
-    if platemap_well_column not in platemap_df.columns:
+    # check the well columns used for the join before annotating;
+    # the platemap well column may be named with or without the Metadata_ prefix
+    well_column = find_platemap_column(
+        columns=platemap_df.columns, column=platemap_well_column
+    )
+    if well_column is None:
         print(
             f"The specified platemap_well_column '{platemap_well_column}' was not found in the platemap file.",
             file=sys.stderr,
@@ -271,14 +293,14 @@ def main():
     messages = []
     unmatched = count_unmatched_wells(
         profile_wells=profiles_df["Metadata_Well"],
-        platemap_wells=platemap_df[platemap_well_column],
+        platemap_wells=platemap_df[well_column],
     )
     n_unmatched_cells = sum(unmatched.values())
     if len(profiles_df) > 0 and n_unmatched_cells == len(profiles_df):
         print(
-            f"No wells in the profiles match the platemap's '{platemap_well_column}' column.\\n"
+            f"No wells in the profiles match the platemap's '{well_column}' column.\\n"
             f"Profile wells include: {example_values(profiles_df['Metadata_Well'])}\\n"
-            f"Platemap wells include: {example_values(platemap_df[platemap_well_column])}\\n"
+            f"Platemap wells include: {example_values(platemap_df[well_column])}\\n"
             "Check that the well formats match and that the platemap is the right one for this plate.",
             file=sys.stderr,
         )
@@ -289,8 +311,8 @@ def main():
     annotated_df = pycytominer.annotate(
         profiles=profiles_df,
         platemap=platemap_df,
-        # need to add Metadata_ prefix because of pycytominer parsing
-        join_on=[f"Metadata_{platemap_well_column}", "Metadata_Well"],
+        # pycytominer adds the Metadata_ prefix to unprefixed platemap columns
+        join_on=[add_metadata_prefix(well_column), "Metadata_Well"],
     )
     annotated_df, duplicate_messages = resolve_duplicate_metadata(annotated_df)
     messages = messages + duplicate_messages + find_identical_metadata(annotated_df)

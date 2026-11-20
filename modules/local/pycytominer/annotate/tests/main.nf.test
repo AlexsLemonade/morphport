@@ -116,6 +116,55 @@ nextflow_process {
         }
     }
 
+    test("prefixed platemap well header - matches an unprefixed well column name") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'platemap_P1_prefixed.txt',
+                    ['Metadata_cell_line'])}
+                input[1] = 'Well'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert process.out.warnings == []
+            def annotated = path(process.out.result[0][1]).parquet
+            assert annotated.rowCount == 8
+            // the Metadata_Well header is the same as the profiles' column, so it is kept once
+            assert annotated.columnNames == ['Metadata_Well'] + p1PlatemapColumns +
+                (p1ProfileMetadata - 'Metadata_Well') + p1Features
+            assert columnValues(annotated, 'Metadata_Well') == p1Wells
+            assert columnValues(annotated, 'Metadata_cell_line') == p1CellLines
+        }
+    }
+
+    test("prefixed well column name - matches an unprefixed platemap header") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'platemap_P1.csv',
+                    ['Metadata_cell_line'])}
+                input[1] = 'Metadata_well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert process.out.warnings == []
+            def annotated = path(process.out.result[0][1]).parquet
+            assert annotated.rowCount == 8
+            // the platemap well column is dropped, as with the unprefixed name
+            assert annotated.columnNames == p1PlatemapColumns + p1ProfileMetadata + p1Features
+            assert columnValues(annotated, 'Metadata_Well') == p1Wells
+            assert columnValues(annotated, 'Metadata_cell_line') == p1CellLines
+        }
+    }
+
     test("duplicated metadata columns - resolved and reported") {
 
         when {
