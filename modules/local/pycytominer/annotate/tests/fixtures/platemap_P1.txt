@@ -1,5 +1,5 @@
-Well	cell_line	treatment	dose	note
-A01	lineA	DMSO	010
-A02	lineA	drugA	1	NA
-A03	lineB	DMSO	010
-A04	lineB	drugA	1	null
+plate_map_name	Well	cell_line	treatment	dose	note
+layout_1	A01	lineA	DMSO	010
+layout_1	A02	lineA	drugA	1	NA
+layout_1	A03	lineB	DMSO	010
+layout_1	A04	lineB	drugA	1	null

@@ -104,9 +104,10 @@ nextflow_process {
             assert process.out.warnings == []
             def annotated = path(process.out.result[0][1]).parquet
             assert annotated.rowCount == 8
-            // the shared well column is kept once, in the platemap's position
-            assert annotated.columnNames == ['Metadata_Well'] + p1PlatemapColumns +
+            // plate_map_name is kept; the shared well column is kept once, in the platemap's position
+            assert annotated.columnNames == ['Metadata_plate_map_name', 'Metadata_Well'] + p1PlatemapColumns +
                 (p1ProfileMetadata - 'Metadata_Well') + p1Features
+            assert columnValues(annotated, 'Metadata_plate_map_name') == ['layout_1'] * 8
             assert columnValues(annotated, 'Metadata_Well') == p1Wells
             assert columnValues(annotated, 'Metadata_cell_line') == p1CellLines
             assert columnValues(annotated, 'Metadata_treatment') == p1Treatments
@@ -155,6 +156,52 @@ nextflow_process {
                 'Columns Metadata_treatment_platemap, Metadata_treatment differ only in missing values; coalesced into Metadata_treatment.',
                 'Columns Metadata_perturbation, Metadata_treatment have identical values.',
             ]
+        }
+    }
+
+    test("unmatched wells - dropped and reported") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P4', ['profiles_P4_unmatched.parquet'], 'platemap_P1.csv', ['Metadata_cell_line'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def annotated = path(process.out.result[0][1]).parquet
+            // only the 4 cells in wells A01 and A02 are kept
+            assert annotated.rowCount == 4
+            assert columnValues(annotated, 'Metadata_Well') == ['A01', 'A01', 'A02', 'A02']
+
+            def (process_name, plateId, warnings) = process.out.warnings[0]
+            assert process_name == 'PYCYTOMINER_ANNOTATE'
+            assert plateId == 'P4'
+            assert path(warnings).readLines() == [
+                'Wells with profiles but no platemap row were dropped: A06 (3 cells), (missing) (1 cell).',
+            ]
+        }
+    }
+
+    test("no wells match the platemap - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P5', ['profiles_P5_no_match.parquet'], 'platemap_P1.csv', ['Metadata_cell_line'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("No wells in the profiles match the platemap's 'well_position' column.") }
+            assert process.stdout.any { line -> line.contains("Profile wells include: A1, A2, A3, A4") }
+            assert process.stdout.any { line -> line.contains("Platemap wells include: A01, A02, A03, A04, A05") }
         }
     }
 

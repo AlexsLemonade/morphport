@@ -28,7 +28,8 @@ Platemaps for P1, with the same layout in two formats:
   in the note column, a blank value and a row with the trailing field missing become '_NA_',
   while the NA-like strings 'NA' and 'null' are kept as text.
   It also lists well A05, which has no cells, so it adds no rows.
-- platemap_P1.txt: tab-delimited, with the well column Well (the same name as in the profiles)
+- platemap_P1.txt: tab-delimited, with the well column Well (the same name as in the profiles),
+  and a plate_map_name column first, as in Cell Painting Gallery platemaps
 
 Plate P2, for resolving duplicated metadata columns, with 1 cell in each of wells A01 to A04:
 
@@ -46,6 +47,13 @@ Plate P2, for resolving duplicated metadata columns, with 1 cell in each of well
 Plate P3, with no Metadata_Well column (only Image_Metadata_Well), 1 cell in each of wells A01 to A04:
 
 - profiles_P3_no_well.parquet
+
+Plates for unmatched wells (wells with profiles but no platemap row), both used with platemap_P1.csv:
+
+- profiles_P4_unmatched.parquet: 2 cells in each of wells A01 and A02 (in the platemap),
+  3 cells in well A06 (not in the platemap), and 1 cell with no well value
+- profiles_P5_no_match.parquet: 1 cell in each of wells A1 to A4, without the zero padding the platemap uses,
+  so no well matches
 
 Usage (from the repository root):
 
@@ -109,6 +117,30 @@ def plate_p3_profiles() -> pl.DataFrame:
     )
 
 
+def plate_p4_profiles() -> pl.DataFrame:
+    """Plate P4: wells A01 and A02 match platemap_P1.csv; A06 and a missing well do not."""
+    wells = ["A01", "A01", "A02", "A02", "A06", "A06", "A06", None]
+    return pl.DataFrame(
+        {
+            "Metadata_Plate": ["P4"] * len(wells),
+            "Metadata_Well": wells,
+            "Cells_AreaShape_Area": [float(100 + row) for row in range(len(wells))],
+        }
+    )
+
+
+def plate_p5_profiles() -> pl.DataFrame:
+    """Plate P5: wells without zero padding, so none match platemap_P1.csv."""
+    wells = ["A1", "A2", "A3", "A4"]
+    return pl.DataFrame(
+        {
+            "Metadata_Plate": ["P5"] * len(wells),
+            "Metadata_Well": wells,
+            "Cells_AreaShape_Area": [100.0, 101.0, 102.0, 103.0],
+        }
+    )
+
+
 # Platemaps are written as literal text, to control whitespace, blank values, and missing fields.
 PLATEMAP_P1_CSV = (
     # byte order mark, as written by Excel
@@ -124,11 +156,11 @@ PLATEMAP_P1_CSV = (
 )
 
 PLATEMAP_P1_TXT = (
-    "Well\tcell_line\ttreatment\tdose\tnote\n"
-    "A01\tlineA\tDMSO\t010\t\n"
-    "A02\tlineA\tdrugA\t1\tNA\n"
-    "A03\tlineB\tDMSO\t010\t\n"
-    "A04\tlineB\tdrugA\t1\tnull\n"
+    "plate_map_name\tWell\tcell_line\ttreatment\tdose\tnote\n"
+    "layout_1\tA01\tlineA\tDMSO\t010\t\n"
+    "layout_1\tA02\tlineA\tdrugA\t1\tNA\n"
+    "layout_1\tA03\tlineB\tDMSO\t010\t\n"
+    "layout_1\tA04\tlineB\tdrugA\t1\tnull\n"
 )
 
 PLATEMAP_P2_CSV = (
@@ -150,6 +182,8 @@ def main():
     )
     plate_p2_profiles().write_parquet(FIXTURE_DIR / "profiles_P2.parquet")
     plate_p3_profiles().write_parquet(FIXTURE_DIR / "profiles_P3_no_well.parquet")
+    plate_p4_profiles().write_parquet(FIXTURE_DIR / "profiles_P4_unmatched.parquet")
+    plate_p5_profiles().write_parquet(FIXTURE_DIR / "profiles_P5_no_match.parquet")
 
     (FIXTURE_DIR / "platemap_P1.csv").write_text(PLATEMAP_P1_CSV, encoding="utf-8")
     (FIXTURE_DIR / "platemap_P1.txt").write_text(PLATEMAP_P1_TXT, encoding="utf-8")
