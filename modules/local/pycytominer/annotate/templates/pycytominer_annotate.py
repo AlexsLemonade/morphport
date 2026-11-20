@@ -7,10 +7,16 @@ with a column matching the well identifier in the parquet metadata (e.g. Metadat
 The delimiter is chosen by file extension, matching readPlatemap in the create_analysis_groups subworkflow.
 The annotated output is written in parquet format.
 
-All platemap metadata columns (except plate_map_name) are added to the parquet file by pycytominer annotate as 'Metadata_'-prefixed columns
+All platemap columns (including plate_map_name, if present) except the well column are added to the parquet file
+by pycytominer annotate as 'Metadata_'-prefixed columns.
 We also ensure that all columns specified in the meta.platemap_columns variable from Nextflow are present.
 Any listed metadata column absent from the platemap is filled with '_Absent_' to ensure it is available for downstream steps.
 Platemap values are read as literal text with whitespace stripped; blank values are filled with '_NA_' before merging.
+
+Profiles are joined to the platemap by well, matching values exactly (after the platemap's whitespace is stripped).
+Cells in unmatched wells (wells with profiles but no platemap row, including cells with no well value)
+are dropped by the join; they are reported in the warnings file with the number of cells dropped from each well.
+If no profile well matches the platemap (e.g. A1 vs A01), the process fails.
 
 After annotation, metadata columns that duplicate each other are checked:
 - Columns whose names differ only by the _platemap suffix pycytominer adds on name collisions,
@@ -43,6 +49,48 @@ def write_versions(task_process: str):
         f.write(f"    pycytominer: {version('pycytominer')}\\n")
         f.write(f"    pandas: {version('pandas')}\\n")
         f.write(f"    pyarrow: {version('pyarrow')}\\n")
+
+
+def count_unmatched_wells(
+    profile_wells: pd.Series, platemap_wells: pd.Series
+) -> dict[str, int]:
+    """
+    Count the cells in each profile well that has no platemap row.
+    Wells are compared as text, exactly; cells with no well value are counted under '(missing)'.
+    Returns a dict of well to cell count, with wells sorted and '(missing)' last.
+    """
+    platemap_well_set = set(platemap_wells)
+    counts = profile_wells.astype("string[pyarrow]").value_counts(dropna=False)
+    unmatched = {}
+    n_missing = 0
+    for well, n_cells in counts.items():
+        if pd.isna(well):
+            n_missing = int(n_cells)
+        elif well not in platemap_well_set:
+            unmatched[well] = int(n_cells)
+    unmatched = dict(sorted(unmatched.items()))
+    if n_missing > 0:
+        unmatched["(missing)"] = n_missing
+    return unmatched
+
+
+def format_unmatched_wells(unmatched: dict[str, int]) -> str:
+    """Format the unmatched wells and their cell counts as a warning message."""
+    wells = []
+    for well, n_cells in unmatched.items():
+        cell_label = "cell" if n_cells == 1 else "cells"
+        wells.append(f"{well} ({n_cells} {cell_label})")
+    return (
+        "Wells with profiles but no platemap row were dropped: "
+        + ", ".join(wells)
+        + "."
+    )
+
+
+def example_values(values: pd.Series, n: int = 5) -> str:
+    """Return the first n distinct non-missing values, sorted, as a comma-separated string."""
+    distinct = sorted(values.dropna().astype(str).unique())
+    return ", ".join(distinct[:n])
 
 
 def is_metadata_column(col: str) -> bool:
@@ -204,35 +252,54 @@ def main():
     # Reading the directory combines split parquet files into a single table.
     profiles_df = pd.read_parquet(parquet_dir, dtype_backend="pyarrow")
 
-    try:
-        annotated_df = pycytominer.annotate(
-            profiles=profiles_df,
-            platemap=platemap_df,
-            # need to add Metadata_ prefix because of pycytominer parsing
-            join_on=[f"Metadata_{platemap_well_column}", "Metadata_Well"],
+    # check the well columns used for the join before annotating
+    if platemap_well_column not in platemap_df.columns:
+        print(
+            f"The specified platemap_well_column '{platemap_well_column}' was not found in the platemap file.",
+            file=sys.stderr,
         )
-        annotated_df, messages = resolve_duplicate_metadata(annotated_df)
-        messages += find_identical_metadata(annotated_df)
-        if messages:
-            with open(f"{plate_id}_metadata_warnings.txt", "w") as f:
-                for message in messages:
-                    print(f"WARNING: {message}", file=sys.stderr)
-                    f.write(f"{message}\\n")
-        annotated_df.to_parquet(f"{plate_id}_annotated.parquet", index=False)
-    except KeyError as ke:
-        print("Error during pycytominer annotation.", file=sys.stderr)
-        if ke.args[0] == f"Metadata_{platemap_well_column}":
-            print(
-                f"The specified platemap_well_column '{platemap_well_column}' was not found in the platemap file.",
-                file=sys.stderr,
-            )
-        elif ke.args[0] == "Metadata_Well":
-            print(
-                "The expected 'Metadata_Well' column was not found in the parquet file metadata.",
-                file=sys.stderr,
-            )
-        else:
-            raise
+        sys.exit(1)
+    if "Metadata_Well" not in profiles_df.columns:
+        print(
+            "The expected 'Metadata_Well' column was not found in the parquet file metadata.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # cells in wells with no platemap row are dropped by the join: report them,
+    # and fail if no cells match, which usually means a different well format (e.g. A1 vs A01)
+    messages = []
+    unmatched = count_unmatched_wells(
+        profile_wells=profiles_df["Metadata_Well"],
+        platemap_wells=platemap_df[platemap_well_column],
+    )
+    n_unmatched_cells = sum(unmatched.values())
+    if len(profiles_df) > 0 and n_unmatched_cells == len(profiles_df):
+        print(
+            f"No wells in the profiles match the platemap's '{platemap_well_column}' column.\\n"
+            f"Profile wells include: {example_values(profiles_df['Metadata_Well'])}\\n"
+            f"Platemap wells include: {example_values(platemap_df[platemap_well_column])}\\n"
+            "Check that the well formats match and that the platemap is the right one for this plate.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if unmatched:
+        messages.append(format_unmatched_wells(unmatched))
+
+    annotated_df = pycytominer.annotate(
+        profiles=profiles_df,
+        platemap=platemap_df,
+        # need to add Metadata_ prefix because of pycytominer parsing
+        join_on=[f"Metadata_{platemap_well_column}", "Metadata_Well"],
+    )
+    annotated_df, duplicate_messages = resolve_duplicate_metadata(annotated_df)
+    messages = messages + duplicate_messages + find_identical_metadata(annotated_df)
+    if messages:
+        with open(f"{plate_id}_metadata_warnings.txt", "w") as f:
+            for message in messages:
+                print(f"WARNING: {message}", file=sys.stderr)
+                f.write(f"{message}\\n")
+    annotated_df.to_parquet(f"{plate_id}_annotated.parquet", index=False)
 
     write_versions(task_process)
 
