@@ -53,12 +53,13 @@ def main():
     group_tag = group_meta["group_tag"]
     aggregate_level = group_meta["aggregate_level"]
     plate_ids = group_meta["plate_ids"]
-    n_components_req = int("${pca_components}")
-    n_neighbors = int("${umap_neighbors}")
-    min_dist = float("${umap_min_dist}")
-    random_seed = int("${random_seed}")
-    max_nan_fraction = float("${max_nan_fraction}")
-    min_rows = int("${min_rows}")
+    options = json.loads(r"""${options_json}""")
+    n_components_req = int(options["pca_components"])
+    n_neighbors = int(options["umap_neighbors"])
+    min_dist = float(options["umap_min_dist"])
+    random_seed = int(options["seed"])
+    max_nan_fraction = float(options["max_nan_fraction"])
+    min_rows = int(options["min_rows"])
     task_cpus = int("${task.cpus}")
     task_process = "${task.process}"
 
@@ -72,7 +73,8 @@ def main():
 
     # ---- Load and concatenate input parquets -------------------------------
     # stageAs places all input parquets in input_parquet/ (numbered to avoid name collisions).
-    parquet_paths = list(parquet_dir.glob("*.parquet"))
+    # Sort so the row order of the output does not depend on the filesystem.
+    parquet_paths = sorted(parquet_dir.glob("*.parquet"))
     if not parquet_paths:
         raise RuntimeError(f"No input parquet files found in {parquet_dir}/.")
 
@@ -158,8 +160,10 @@ def main():
 
     # ---- Skip groups that are too small to embed ---------------------------
     if n_rows_clean < min_rows:
+        # name the pipeline parameter (embedding_min_rows) rather than this module's
+        # min_rows input, so users know which setting to change
         skip_reason = (
-            f"n_rows_clean ({n_rows_clean}) < min_rows ({min_rows})"
+            f"n_rows ({n_rows_clean}) < embedding_min_rows ({min_rows})"
             if n_rows_clean > 0
             else "no rows survived NaN filtering"
         )
@@ -214,7 +218,9 @@ def main():
     if metadata_cols:
         frames.append(df_metadata)
     frames.append(pl.DataFrame(pcs, schema=pc_names))
-    frames.append(pl.DataFrame(umap_emb, schema=umap_names))
+    # UMAP coordinates are only used for plotting, so store them as float32
+    # (umap-learn returns float32 or float64 depending on its version)
+    frames.append(pl.DataFrame(umap_emb.astype(np.float32), schema=umap_names))
     out_df = pl.concat(frames, how="horizontal")
     out_df.write_parquet(f"embeddings_{group_tag}.parquet")
 

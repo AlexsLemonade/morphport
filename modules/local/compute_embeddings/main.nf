@@ -11,19 +11,21 @@ process COMPUTE_EMBEDDINGS {
 
     input:
     tuple val(meta), val(plate_metas), path(parquets, stageAs: 'input_parquet/input*.parquet'), path(features_file)
-    val(pca_components)
-    val(umap_neighbors)
-    val(umap_min_dist)
-    val(random_seed)
-    val(max_nan_fraction)
-    val(min_rows)
+    // Map of named embedding options; see meta.yml for the required keys
+    val(options)
 
     output:
     tuple val(meta), path("embeddings_${meta.group_tag}.parquet"), path("embeddings_summary_${meta.group_tag}.json"), emit: result
     path "versions.yml", emit: versions, topic: versions
 
     script:
+    // Every option must be given; other keys are ignored
+    def option_keys = ['pca_components', 'umap_neighbors', 'umap_min_dist', 'seed', 'max_nan_fraction', 'min_rows']
+    def missing_keys = option_keys - options.keySet()
+    assert !missing_keys
+        : "COMPUTE_EMBEDDINGS: options is missing keys ${missing_keys}"
     meta_json = groovy.json.JsonOutput.toJson(meta)
+    options_json = groovy.json.JsonOutput.toJson(options)
     template 'compute_embeddings.py'
 
     stub:

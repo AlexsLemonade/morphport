@@ -1,0 +1,328 @@
+nextflow_process {
+
+    name "Test Process COMPUTE_EMBEDDINGS"
+    script "../main.nf"
+    process "COMPUTE_EMBEDDINGS"
+    tag "modules"
+    tag "modules_local"
+    tag "compute_embeddings"
+
+    // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
+    // - profiles_P1.parquet: 6 wells, with one all-NaN row (A05) and one row with a single NaN (A06)
+    // - profiles_P2.parquet: 6 wells without NaNs, and without the Metadata_timepoint column
+    // - profiles_all_nan.parquet: 3 wells of plate P3 with every feature NaN
+    // - features.txt: feat_a..feat_d; feat_e, which is NaN in every row, is not selected
+    // - features_empty.txt: no features
+
+    // Shared group and plate metadata, interpolated into each test's input as Groovy source text.
+    // Tests that need different values add them with `+ [key: value]`.
+    def groupMeta = """[
+        project: 'test', aggregate_level: 'well', grouping_name: 'by_cell_line',
+        grouping_column: 'Metadata_cell_line', group: 'U2-OS', subgroup_values: [:],
+        group_id: 'cell_line=U2-OS', group_tag: 'well__by_cell_line__cell_line=U2-OS', plate_ids: ['P1', 'P2'],
+    ]"""
+    def plateMetas = "[[plate_id: 'P1'], [plate_id: 'P2']]"
+
+    // Output columns in file order, before the PC and UMAP columns
+    def metadataColumns = ['Metadata_Plate', 'Metadata_Well', 'Metadata_cell_line', 'Metadata_timepoint']
+
+    test("max_nan_fraction 0.5 - drops all-NaN rows and fills the rest") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    ${plateMetas},
+                    [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, embeddings, summary) = process.out.result[0]
+            assert meta.group_tag == 'well__by_cell_line__cell_line=U2-OS'
+            def summaryJson = path(summary).json
+            // explained variance ratios are calculated values, so they are checked separately
+            def evr = summaryJson.pca.remove('explained_variance_ratio')
+            assert summaryJson == [
+                group_tag: 'well__by_cell_line__cell_line=U2-OS',
+                aggregate_level: 'well',
+                grouping_name: 'by_cell_line',
+                grouping_column: 'Metadata_cell_line',
+                group: 'U2-OS',
+                subgroup_values: [:],
+                source_plate_ids: ['P1', 'P2'],
+                n_plates: 2,
+                n_parquets_read: 2,
+                n_rows_input: 12,
+                n_rows_dropped_nan: 1,
+                n_rows_nan_filled: 1,
+                max_nan_fraction: 0.5,
+                n_rows_output: 11,
+                n_features_input: 4,
+                min_rows: 5,
+                pca: [n_components_requested: 3, n_components: 3],
+                umap: [n_neighbors_requested: 5, n_neighbors: 5, min_dist: 0.1, random_seed: 2026],
+            ]
+            // one ratio per component, in decreasing order, summing to at most 1
+            assert evr.size() == 3
+            assert evr == evr.sort(false).reverse()
+            assert evr.sum() <= 1 + 1e-9
+            with(path(embeddings).parquet) {
+                assert rowCount == 11
+                assert columnNames == metadataColumns + ['PC1', 'PC2', 'PC3', 'UMAP1', 'UMAP2']
+                assert schema == [
+                    Metadata_Plate: String, Metadata_Well: String, Metadata_cell_line: String, Metadata_timepoint: String,
+                    PC1: Double, PC2: Double, PC3: Double, UMAP1: Float, UMAP2: Float,
+                ]
+                // rows in input order, without the dropped all-NaN row (P1 A05)
+                assert rows.collect { row -> "${row[0]}_${row[1]}".toString() } == [
+                    'P1_A01', 'P1_A02', 'P1_A03', 'P1_A04', 'P1_A06',
+                    'P2_A01', 'P2_A02', 'P2_A03', 'P2_A04', 'P2_A05', 'P2_A06',
+                ]
+                // P2 has no timepoint column, so its rows have nulls
+                assert rows.collect { row -> row[3] } == ['24h'] * 5 + [null] * 6
+                // every PC and UMAP value is present
+                assert rows.every { row -> row[4..8].every { value -> value != null && !value.isNaN() } }
+            }
+            def versions = path(process.out.versions[0]).yaml
+            assert versions['COMPUTE_EMBEDDINGS'].keySet() == ['python', 'polars', 'numpy', 'scikit-learn', 'umap-learn'] as Set
+        }
+    }
+
+    test("max_nan_fraction 0 - drops every row with a NaN") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    ${plateMetas},
+                    [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0, min_rows: 5,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, embeddings, summary) = process.out.result[0]
+            with(path(summary).json) {
+                assert max_nan_fraction == 0.0
+                assert n_rows_input == 12
+                assert n_rows_dropped_nan == 2
+                assert n_rows_nan_filled == 0
+                assert n_rows_output == 10
+                assert !containsKey('skipped')
+            }
+            with(path(embeddings).parquet) {
+                assert rowCount == 10
+                assert !rows.collect { row -> "${row[0]}_${row[1]}".toString() }.any { id -> id in ['P1_A05', 'P1_A06'] }
+            }
+        }
+    }
+
+    test("large pca_components and umap_neighbors - capped to the data") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    ${plateMetas},
+                    [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = [
+                    pca_components: 50, umap_neighbors: 15, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, embeddings, summary) = process.out.result[0]
+            with(path(summary).json) {
+                // capped at the number of features
+                assert pca.n_components_requested == 50
+                assert pca.n_components == 4
+                assert pca.explained_variance_ratio.size() == 4
+                // capped at one less than the number of rows
+                assert umap.n_neighbors_requested == 15
+                assert umap.n_neighbors == 10
+            }
+            with(path(embeddings).parquet) {
+                assert rowCount == 11
+                assert columnNames == metadataColumns + ['PC1', 'PC2', 'PC3', 'PC4', 'UMAP1', 'UMAP2']
+            }
+        }
+    }
+
+    test("skip - fewer rows than min_rows") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    ${plateMetas},
+                    [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 12,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, embeddings, summary) = process.out.result[0]
+            with(path(summary).json) {
+                // rows are counted (after NaN filtering) before skipping
+                assert n_rows_input == 12
+                assert n_rows_output == 11
+                assert min_rows == 12
+                assert skipped == true
+                assert skip_reason == 'n_rows (11) < embedding_min_rows (12)'
+                assert !containsKey('pca')
+                assert !containsKey('umap')
+            }
+            // metadata only, for the rows that survived NaN filtering
+            with(path(embeddings).parquet) {
+                assert rowCount == 11
+                assert columnNames == metadataColumns
+            }
+        }
+    }
+
+    test("skip - every row dropped") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta} + [plate_ids: ['P3']],
+                    [[plate_id: 'P3']],
+                    [file("${moduleDir}/tests/fixtures/profiles_all_nan.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, embeddings, summary) = process.out.result[0]
+            with(path(summary).json) {
+                assert n_rows_input == 3
+                assert n_rows_dropped_nan == 3
+                assert n_rows_output == 0
+                assert skipped == true
+                assert skip_reason == 'no rows survived NaN filtering'
+            }
+            with(path(embeddings).parquet) {
+                assert rowCount == 0
+                assert columnNames == metadataColumns
+            }
+        }
+    }
+
+    test("empty features file - fails") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    ${plateMetas},
+                    [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
+                    file("${moduleDir}/tests/fixtures/features_empty.txt"),
+                ]
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("Feature list features_empty.txt is empty.") }
+        }
+    }
+
+    test("options missing a key - fails") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    ${plateMetas},
+                    [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("options is missing keys [min_rows]") }
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    ${plateMetas},
+                    [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert snapshot(process.out).match()
+        }
+    }
+}

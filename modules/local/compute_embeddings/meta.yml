@@ -46,31 +46,23 @@ input:
         type: file
         description: Normalized, partitioned parquet files for this group (one per source plate per partition).
         pattern: "*.parquet"
-  - - pca_components:
-        type: integer
-        description: Number of PCA components requested; capped at min(n_rows, n_features) at runtime.
-  - - umap_neighbors:
-        type: integer
-        description: UMAP n_neighbors; capped at n_rows - 1 for small groups.
-  - - umap_min_dist:
-        type: float
-        description: UMAP min_dist.
-  - - random_seed:
-        type: integer
-        description: Random seed passed to PCA and UMAP as random_state.
-  - - max_nan_fraction:
-        type: float
+  - - options:
+        type: map
         description: |
-          Per-row NaN tolerance, expressed as a fraction of feature columns in [0.0, 1.0].
-          Rows whose NaN fraction exceeds this threshold are dropped; surviving rows with
-          any NaN values have those entries filled with 0 before PCA.
-          Default of 0 drops any row with a NaN.
-  - - min_rows:
-        type: integer
-        description: |
-          Minimum number of rows (after NaN filtering) required to compute PCA + UMAP.
-          Groups with fewer rows are skipped: a metadata-only parquet is emitted and the
-          summary JSON records skipped=true with the reason.
+          Named embedding options. Every key is required; other keys are ignored.
+            pca_components: Number of PCA components requested; capped at min(n_rows, n_features) at runtime.
+            umap_neighbors: UMAP n_neighbors; capped at n_rows - 1 for small groups.
+            umap_min_dist: UMAP min_dist.
+            seed: Random seed passed to PCA and UMAP as random_state.
+            max_nan_fraction: Per-row NaN tolerance, expressed as a fraction of feature columns in [0.0, 1.0].
+              Rows whose NaN fraction exceeds this threshold are dropped; surviving rows with
+              any NaN values have those entries filled with 0 before PCA.
+              0 drops any row with a NaN.
+            min_rows: Minimum number of rows (after NaN filtering) required to compute PCA + UMAP.
+              Groups with fewer rows are skipped: a metadata-only parquet is emitted and the
+              summary JSON records skipped=true with the reason.
+          e.g. [ pca_components:50, umap_neighbors:15, umap_min_dist:0.1, seed:1674,
+                 max_nan_fraction:0.0, min_rows:15 ]
 
 output:
   - result:

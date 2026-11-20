@@ -180,12 +180,14 @@ workflow MORPHPORT {
 
     COMPUTE_EMBEDDINGS(
         ch_feature_selected.has_features,
-        params.embedding_pca_components,
-        params.embedding_umap_neighbors,
-        params.embedding_umap_min_dist,
-        params.random_seed,
-        params.profile_max_nan_fraction,
-        params.embedding_min_rows,
+        [
+            pca_components: params.embedding_pca_components,
+            umap_neighbors: params.embedding_umap_neighbors,
+            umap_min_dist: params.embedding_umap_min_dist,
+            seed: params.random_seed,
+            max_nan_fraction: params.profile_max_nan_fraction,
+            min_rows: params.embedding_min_rows,
+        ],
     )
 
     // cluster the profiles on either the feature-selected profiles or their PCs;
