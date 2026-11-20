@@ -82,12 +82,8 @@ workflow MORPHPORT {
     COSMICQC_FILTER(ch_pre_cosmicqc, file(params.cosmicqc_filter_file))
 
     ch_filtered = COSMICQC_FILTER.out.result.map { meta, parquet, summary ->
+        // skipped conditions are reported through the warnings topic
         def stats = new groovy.json.JsonSlurper().parse(summary)
-        if (stats.cosmicqc_filtering.skipped_conditions) {
-            stats.cosmicqc_filtering.skipped_conditions.each { condition, features ->
-                log.debug("coSMicQC [${meta.plate_id}]: skipped condition '${condition}' — features not found in parquet: ${features.join(', ')}")
-            }
-        }
         [
             meta + [
                 cosmicqc_cells_input: stats.cosmicqc_filtering.cells_input,
