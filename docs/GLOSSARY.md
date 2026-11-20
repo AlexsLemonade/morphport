@@ -82,6 +82,15 @@ _Avoid_: aggregation level, level (on its own), data type
 Normalizing each plate's profiles, separately for each aggregate level, to that plate's reference profiles (all of its profiles by default), so that features are on a comparable scale across plates.
 _Avoid_: normalization (on its own, when reference normalization could be meant)
 
+### Quality control
+
+**Edge well**:
+A well in the outermost row or column of its plate.
+
+**Outlier condition**:
+A named set of feature z-score thresholds; a cell that is beyond every threshold in the set is an outlier and is removed before analysis.
+_Avoid_: condition (on its own), filter
+
 ### Partitions
 
 **Partition**:

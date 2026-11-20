@@ -105,8 +105,10 @@ These files are intermediate outputs and are only published with `--publish_opti
     The first column is the cell's row index in the annotated input.
   - `cosmicqc_summary_<plate_id>.json`: Filtering summary for the plate, including:
     - `filter_settings`: the filter conditions used (from `--cosmicqc_filter_file`).
-    - `cosmicqc_filtering`: cell counts before and after outlier removal, the fraction of cells removed, the number of outliers found by each condition, and any conditions skipped because their features were not present.
+    - `cosmicqc_filtering`: cell counts before and after outlier removal, the fraction of cells removed, the number of outliers found by each condition, and any conditions skipped, with the reason and the features involved.
     - `edge_filtering`: whether edge wells were included, the inferred plate size, the edge wells removed, and cell counts before and after edge well removal.
+  - `<plate_id>_cosmicqc_warnings.txt`: Warnings about skipped outlier conditions, cells with missing feature values that were not evaluated, plates with no cells, and plates with every cell removed.
+    This file is only present if there were any warnings for the plate.
 
 </details>
 

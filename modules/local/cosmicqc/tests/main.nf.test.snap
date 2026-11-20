@@ -1,0 +1,19 @@
+{
+    "stub": {
+        "content": [
+            {
+                "plate_id": "P1",
+                "edge_wells_included": false
+            },
+            "cosmicqc_summary_P1.json:md5,c62cbcd8739668dfe200745acb31f62b",
+            [
+                "versions.yml:md5,4335a4f22e3aacb3d9e3c28286a720ae"
+            ]
+        ],
+        "timestamp": "2026-11-20T14:16:47.384116928",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.10.5"
+        }
+    }
+}

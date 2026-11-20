@@ -1,0 +1,329 @@
+nextflow_process {
+
+    name "Test Process COSMICQC_FILTER"
+    script "../main.nf"
+    process "COSMICQC_FILTER"
+    tag "modules"
+    tag "modules_local"
+    tag "cosmicqc"
+
+    // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
+    // - profiles_P1.parquet: a 96-well plate with 5 cells in each of wells A01, B02, C03, D06, G11, H06, and E12,
+    //   where A01, H06, and E12 are edge wells, with designed outliers (cells 7 and 15) and NaN values
+    // - profiles_P1_no_image_number.parquet: the same plate without Metadata_ImageNumber
+    // - profiles_P1_empty.parquet: the same columns with no rows
+    // - settings_main.json: outlier conditions for profiles_P1.parquet, three of which are skipped
+    // - settings_all_skipped.json: only the two skipped outlier conditions
+    // - settings_remove_all.json: outlier conditions that together flag every cell
+    // - settings_none.json: no outlier conditions
+    // - settings_invalid.json: a threshold of 0, a boolean threshold, and a repeated condition name
+
+    // Input tuple and settings file, as Groovy source text; closures because moduleDir is only defined inside a test.
+    def processInputs = { fixtureDir, parquet, settings, edgeWellsIncluded -> """
+        input[0] = [
+            [plate_id: 'P1', edge_wells_included: ${edgeWellsIncluded}],
+            file('${fixtureDir}/${parquet}'),
+        ]
+        input[1] = file('${settings}')
+    """ }
+
+    // P1 columns, in file order
+    def p1Columns = [
+        'Metadata_cell_line', 'Metadata_treatment',
+        'Metadata_Plate', 'Metadata_Well', 'Metadata_ImageNumber', 'Metadata_ObjectNumber',
+        'Cells_AreaShape_EulerNumber',
+        'Cells_Intensity_IntegratedIntensity_CorrDNA', 'Cells_Intensity_MeanIntensity_Mito',
+        'Cytoplasm_AreaShape_Area', 'Nuclei_AreaShape_Eccentricity', 'Nuclei_AreaShape_Solidity',
+        'Nuclei_Intensity_IntegratedIntensity_CorrDNA', 'Nuclei_Intensity_MassDisplacement_CorrDNA',
+    ]
+    def p1Wells = ['A01', 'B02', 'C03', 'D06', 'G11', 'H06', 'E12']
+
+    // Values of a named column, from the rows of a parquet file
+    def columnValues = { parquet, column ->
+        def index = parquet.columnNames.toList().indexOf(column)
+        parquet.rows.collect { row -> row[index] }
+    }
+
+    // Cell ids ('<well>:<object number>') from the rows of a parquet file
+    def cellIds = { parquet ->
+        [columnValues(parquet, 'Metadata_Well'), columnValues(parquet, 'Metadata_ObjectNumber')]
+            .transpose()
+            .collect { well, object -> "${well}:${object}".toString() }
+    }
+
+    test("main settings with edge wells removed - removes outliers and reports skipped conditions") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1.parquet',
+                    "${moduleDir}/tests/fixtures/settings_main.json", false)
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, parquet, summary) = process.out.result[0]
+            assert meta.plate_id == 'P1'
+
+            // edge wells A01, H06, and E12 (15 cells) and outlier cells 7 (B02:3) and 15 (D06:1) are removed
+            def filtered = path(parquet).parquet
+            with(filtered) {
+                assert rowCount == 18
+                assert columnNames == p1Columns
+            }
+            assert columnValues(filtered, 'Metadata_Well').unique() == ['B02', 'C03', 'D06', 'G11']
+            assert !cellIds(filtered).any { cell -> cell in ['B02:3', 'D06:1'] }
+            // cells with NaN in a threshold feature are not flagged by that condition, and no other condition flags them
+            assert cellIds(filtered).containsAll(['D06:4', 'G11:5'])
+
+            // one row per outlier cell, indexed by its row in the input, with every condition that flagged it
+            assert path(process.out.outliers[0]).linesGzip == [
+                ',Metadata_Plate,Metadata_Well,Metadata_ImageNumber,Metadata_ObjectNumber,cosmicqc_condition',
+                '7,P1,B02,2,3,bright;clustered',
+                '15,P1,D06,4,1,large_cytoplasm',
+            ]
+
+            // read outside with(), where names (including moduleDir) resolve to keys of the JSON map first
+            def settings = path("${moduleDir}/tests/fixtures/settings_main.json").json
+            with(path(summary).json) {
+                assert plate_id == 'P1'
+                assert filter_settings == settings
+                assert cosmicqc_filtering.cells_input == 20
+                assert cosmicqc_filtering.cells_output == 18
+                assert cosmicqc_filtering.fraction_removed == 0.1
+                // 'irregular' flags no cells; the string metadata columns must not break that case
+                assert cosmicqc_filtering.condition_outlier_counts == [clustered: 1, bright: 1, irregular: 0, large_cytoplasm: 1]
+                assert cosmicqc_filtering.skipped_conditions == [
+                    missing_feature: [reason: 'missing_features', features: ['Cells_AreaShape_Eccentricity']],
+                    no_mito: [reason: 'all_nan', features: ['Cells_Intensity_MeanIntensity_Mito']],
+                    // each feature has values, but no cell has values for both
+                    eccentric_cytoplasm: [
+                        reason: 'no_complete_cells',
+                        features: ['Cytoplasm_AreaShape_Area', 'Nuclei_AreaShape_Eccentricity'],
+                    ],
+                ]
+                assert edge_filtering.edge_wells_included == false
+                assert edge_filtering.plate_size == 96
+                // a corner well, a well on an edge row only, and a well on an edge column only
+                assert edge_filtering.wells_removed == 3
+                assert edge_filtering.edge_wells == ['A01', 'E12', 'H06']
+                assert edge_filtering.cells_input == 35
+                assert edge_filtering.cells_output == 20
+            }
+
+            def (process_name, plateId, warnings) = process.out.warnings[0]
+            assert process_name == 'COSMICQC_FILTER'
+            assert plateId == 'P1'
+            assert path(warnings).readLines() == [
+                "Outlier condition 'large_cytoplasm': 2 cell(s) with missing values in Cytoplasm_AreaShape_Area not evaluated by this condition.",
+                "Outlier condition 'missing_feature' was skipped; features not found in the profiles: Cells_AreaShape_Eccentricity.",
+                "Outlier condition 'no_mito' was skipped; features with missing values in every cell: Cells_Intensity_MeanIntensity_Mito.",
+                "Outlier condition 'eccentric_cytoplasm' was skipped; no cell has values for all of these features: Cytoplasm_AreaShape_Area, Nuclei_AreaShape_Eccentricity.",
+            ]
+        }
+    }
+
+    test("main settings with edge wells included - keeps every well") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1.parquet',
+                    "${moduleDir}/tests/fixtures/settings_main.json", true)
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, parquet, summary) = process.out.result[0]
+
+            // only outlier cells 7 (B02:3) and 15 (D06:1) are removed
+            def filtered = path(parquet).parquet
+            assert filtered.rowCount == 33
+            assert columnValues(filtered, 'Metadata_Well').unique() == p1Wells
+            assert !cellIds(filtered).any { cell -> cell in ['B02:3', 'D06:1'] }
+
+            with(path(summary).json) {
+                assert cosmicqc_filtering.cells_input == 35
+                assert cosmicqc_filtering.cells_output == 33
+                assert edge_filtering.edge_wells_included == true
+                assert edge_filtering.plate_size == null
+                assert edge_filtering.wells_removed == 0
+                assert edge_filtering.edge_wells == []
+                assert edge_filtering.cells_input == 35
+                assert edge_filtering.cells_output == 35
+            }
+        }
+    }
+
+    test("every outlier condition skipped - keeps every cell and warns") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1.parquet',
+                    "${moduleDir}/tests/fixtures/settings_all_skipped.json", true)
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, parquet, summary) = process.out.result[0]
+            assert path(parquet).parquet.rowCount == 35
+            assert path(process.out.outliers[0]).linesGzip.size() == 1
+            with(path(summary).json) {
+                assert cosmicqc_filtering.cells_output == 35
+                assert cosmicqc_filtering.condition_outlier_counts == [:]
+                assert cosmicqc_filtering.skipped_conditions.keySet() == ['missing_feature', 'no_mito'] as Set
+            }
+            assert path(process.out.warnings[0][2]).readLines() == [
+                "Outlier condition 'missing_feature' was skipped; features not found in the profiles: Cells_AreaShape_Eccentricity.",
+                "Outlier condition 'no_mito' was skipped; features with missing values in every cell: Cells_Intensity_MeanIntensity_Mito.",
+                'Every outlier condition was skipped, so no outlier cells were removed.',
+            ]
+        }
+    }
+
+    test("empty plate with edge wells removed - passes through and warns") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1_empty.parquet',
+                    "${moduleDir}/tests/fixtures/settings_main.json", false)
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, parquet, summary) = process.out.result[0]
+            with(path(parquet).parquet) {
+                assert rowCount == 0
+                assert columnNames == p1Columns
+            }
+            assert path(process.out.outliers[0]).linesGzip.size() == 1
+            def settings = path("${moduleDir}/tests/fixtures/settings_main.json").json
+            with(path(summary).json) {
+                assert cosmicqc_filtering.cells_input == 0
+                assert cosmicqc_filtering.cells_output == 0
+                assert cosmicqc_filtering.fraction_removed == 'NA'
+                assert cosmicqc_filtering.condition_outlier_counts == [:]
+                // every condition is skipped for having no cells, with one warning for the plate
+                assert cosmicqc_filtering.skipped_conditions.keySet() == settings.collect { condition -> condition.name } as Set
+                assert cosmicqc_filtering.skipped_conditions.values().every { skip -> skip == [reason: 'no_cells', features: []] }
+                // there are no wells to infer the plate format from, so no edge wells are removed
+                assert edge_filtering.edge_wells_included == false
+                assert edge_filtering.plate_size == null
+                assert edge_filtering.wells_removed == 0
+            }
+            assert path(process.out.warnings[0][2]).readLines() == [
+                'The plate has no cells, so no outlier conditions were applied.',
+            ]
+        }
+    }
+
+    test("every cell flagged - removes every cell and warns") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1.parquet',
+                    "${moduleDir}/tests/fixtures/settings_remove_all.json", true)
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, parquet, summary) = process.out.result[0]
+            assert path(parquet).parquet.rowCount == 0
+            // header and one row per cell
+            assert path(process.out.outliers[0]).linesGzip.size() == 36
+            with(path(summary).json) {
+                assert cosmicqc_filtering.cells_input == 35
+                assert cosmicqc_filtering.cells_output == 0
+                assert cosmicqc_filtering.fraction_removed == 1.0
+            }
+            assert path(process.out.warnings[0][2]).readLines() == [
+                'Every cell was removed as an outlier, so no cells remain for this plate.',
+            ]
+        }
+    }
+
+    test("no outlier conditions - keeps every cell without warnings") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1.parquet',
+                    "${moduleDir}/tests/fixtures/settings_none.json", true)
+            }
+        }
+
+        then {
+            assert process.success
+            def (_meta, parquet, summary) = process.out.result[0]
+            assert path(parquet).parquet.rowCount == 35
+            with(path(summary).json) {
+                assert cosmicqc_filtering.cells_output == 35
+                assert cosmicqc_filtering.condition_outlier_counts == [:]
+                assert cosmicqc_filtering.skipped_conditions == [:]
+            }
+            assert process.out.warnings == []
+        }
+    }
+
+    test("invalid settings - fails and reports every problem") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1.parquet',
+                    "${moduleDir}/tests/fixtures/settings_invalid.json", true)
+            }
+        }
+
+        then {
+            assert process.failed
+            def expected = [
+                'Invalid outlier condition settings in settings_invalid.json:',
+                "- Outlier condition 1 ('clustered'): threshold for 'Nuclei_Intensity_MassDisplacement_CorrDNA' must be a non-zero number, got 0.",
+                "- Outlier condition 2 ('bright'): threshold for 'Nuclei_Intensity_IntegratedIntensity_CorrDNA' must be a non-zero number, got true.",
+                "- Outlier condition name 'clustered' is used more than once.",
+            ]
+            expected.each { message ->
+                assert process.stdout.any { line -> line.contains(message) }
+            }
+        }
+    }
+
+    test("missing required metadata - fails") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1_no_image_number.parquet',
+                    "${moduleDir}/tests/fixtures/settings_main.json", true)
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line ->
+                line.contains("Input parquet file is missing required metadata columns: {'Metadata_ImageNumber'}")
+            }
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1.parquet',
+                    "${moduleDir}/tests/fixtures/settings_main.json", false)
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, parquet, summary) = process.out.result[0]
+            assert new File(parquet).name == 'filtered_P1.parquet'
+            assert new File(process.out.outliers[0]).name == 'cosmicqc_outliers_P1.csv.gz'
+            assert snapshot(meta, summary, process.out.versions).match()
+        }
+    }
+}

@@ -1,0 +1,14 @@
+[
+    {
+        "name": "below_mean",
+        "thresholds": {
+            "Cells_AreaShape_EulerNumber": -0.001
+        }
+    },
+    {
+        "name": "above_mean",
+        "thresholds": {
+            "Cells_AreaShape_EulerNumber": 0.001
+        }
+    }
+]
