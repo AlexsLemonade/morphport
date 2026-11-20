@@ -32,6 +32,15 @@ Outlier condition settings:
     - irregular: flags no cells
     - large_cytoplasm: flags cell 15; cells 18 and 24 are NaN and not evaluated
     - missing_feature: uses Cells_AreaShape_Eccentricity, which is not in the plate, so it is skipped
+    - no_mito: uses Cells_Intensity_MeanIntensity_Mito, which is NaN in every cell, so it is skipped
+- settings_all_skipped.json: missing_feature and no_mito only, so every condition is skipped
+- settings_remove_all.json: below_mean and above_mean, with thresholds of -0.001 and 0.001 on
+  Nuclei_AreaShape_Solidity, so together they flag every cell
+- settings_none.json: an empty list, so no outlier conditions are applied
+
+Plate P1_empty, with the same columns as P1 and no rows:
+
+- profiles_P1_empty.parquet
 
 Usage (from the repository root):
 
@@ -112,12 +121,23 @@ SETTINGS_MAIN = [
     {"name": "irregular", "thresholds": {"Nuclei_AreaShape_Solidity": -10}},
     {"name": "large_cytoplasm", "thresholds": {"Cytoplasm_AreaShape_Area": 2}},
     {"name": "missing_feature", "thresholds": {"Cells_AreaShape_Eccentricity": 2}},
+    {"name": "no_mito", "thresholds": {"Cells_Intensity_MeanIntensity_Mito": 2}},
+]
+
+SETTINGS_ALL_SKIPPED = [
+    {"name": "missing_feature", "thresholds": {"Cells_AreaShape_Eccentricity": 2}},
+    {"name": "no_mito", "thresholds": {"Cells_Intensity_MeanIntensity_Mito": 2}},
+]
+
+SETTINGS_REMOVE_ALL = [
+    {"name": "below_mean", "thresholds": {"Nuclei_AreaShape_Solidity": -0.001}},
+    {"name": "above_mean", "thresholds": {"Nuclei_AreaShape_Solidity": 0.001}},
 ]
 
 
 def write_json(data, name: str) -> None:
     with open(FIXTURE_DIR / name, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(data, f, indent=4)
         f.write("\n")
 
 
@@ -127,7 +147,11 @@ def main() -> None:
     p1.drop(columns="Metadata_ImageNumber").to_parquet(
         FIXTURE_DIR / "profiles_P1_no_image_number.parquet", index=False
     )
+    p1.head(0).to_parquet(FIXTURE_DIR / "profiles_P1_empty.parquet", index=False)
     write_json(SETTINGS_MAIN, "settings_main.json")
+    write_json(SETTINGS_ALL_SKIPPED, "settings_all_skipped.json")
+    write_json(SETTINGS_REMOVE_ALL, "settings_remove_all.json")
+    write_json([], "settings_none.json")
 
 
 if __name__ == "__main__":

@@ -28,5 +28,11 @@
         "thresholds": {
             "Cells_AreaShape_Eccentricity": 2
         }
+    },
+    {
+        "name": "no_mito",
+        "thresholds": {
+            "Cells_Intensity_MeanIntensity_Mito": 2
+        }
     }
 ]
