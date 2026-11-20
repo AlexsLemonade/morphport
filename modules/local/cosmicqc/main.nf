@@ -16,6 +16,7 @@ process COSMICQC_FILTER {
     output:
     tuple val(meta), path("filtered_${meta.plate_id}.parquet"), path("cosmicqc_summary_${meta.plate_id}.json"), emit: result
     path "cosmicqc_outliers_${meta.plate_id}.csv.gz", emit: outliers
+    tuple val(task.process), val(meta.plate_id), path("*_cosmicqc_warnings.txt"), emit: warnings, optional: true, topic: warnings
     path "versions.yml", emit: versions, topic: versions
 
     script:

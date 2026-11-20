@@ -116,6 +116,55 @@ def find_edge_wells(wells: list[str]) -> tuple[int, set[str]]:
     return plate_size, edge_wells
 
 
+def plural(count: int, singular: str, plural_form: str | None = None) -> str:
+    """Return the singular word for a count of 1, and the plural otherwise."""
+    if count == 1:
+        return singular
+    return plural_form if plural_form else f"{singular}s"
+
+
+def find_skip_reason(df: pd.DataFrame, features: list[str]) -> dict | None:
+    """
+    Return why an outlier condition with these features can't be scored on the cells in df,
+    as {"reason": ..., "features": [...]}, or None if it can be scored.
+    Reasons, checked in order:
+    - no_cells: df has no cells
+    - missing_features: some features are not columns of df
+    - all_nan: some features have missing values in every cell
+    """
+    if len(df) == 0:
+        return {"reason": "no_cells", "features": []}
+    missing = [feature for feature in features if feature not in df.columns]
+    if missing:
+        return {"reason": "missing_features", "features": missing}
+    all_nan = [feature for feature in features if df[feature].isna().all()]
+    if all_nan:
+        return {"reason": "all_nan", "features": all_nan}
+    return None
+
+
+def format_skip_warning(name: str, skip: dict) -> str:
+    """Format a warning message for a skipped outlier condition."""
+    features = ", ".join(skip["features"])
+    if skip["reason"] == "missing_features":
+        detail = f"features not found in the profiles: {features}"
+    else:
+        detail = f"features with missing values in every cell: {features}"
+    return f"Outlier condition '{name}' was skipped; {detail}."
+
+
+def count_missing_values(
+    df: pd.DataFrame, features: list[str]
+) -> tuple[int, list[str]]:
+    """
+    Return the number of cells with a missing value in any of the features,
+    and the features that have missing values.
+    """
+    missing = df[features].isna()
+    nan_features = [feature for feature in features if missing[feature].any()]
+    return int(missing.any(axis=1).sum()), nan_features
+
+
 def main():
     # capture input variables from Nextflow
     parquet_file = "${parquet_file}"
@@ -147,10 +196,11 @@ def main():
     # optionally drop wells on the border of the plate before coSMicQC outlier detection.
     # edge wells are identified based on a standard 96-, 384-, or 1536-well plate layout,
     # inferred from the wells present.
+    # an empty plate has no wells to infer the plate format from, so edge filtering is skipped
     cells_before_edge_filter = len(df)
     plate_size = None
     removed_edge_wells = []
-    if not edge_wells_included:
+    if not edge_wells_included and cells_before_edge_filter > 0:
         plate_size, edge_wells = find_edge_wells(df["Metadata_Well"].unique())
         removed_edge_wells = sorted(edge_wells)
         df = df[~df["Metadata_Well"].isin(removed_edge_wells)]
@@ -159,22 +209,49 @@ def main():
     # population coSMicQC's outlier detection uses
     cell_count = len(df)
 
+    warning_messages = []
+    if cells_before_edge_filter == 0:
+        warning_messages.append(
+            "The plate has no cells, so no outlier conditions were applied."
+        )
+    elif cell_count == 0:
+        warning_messages.append(
+            "No cells remain after removing edge wells, so no outlier conditions were applied."
+        )
+
     # apply the filter conditions and collect outliers for summary output
     outlier_dataframes = []
     condition_outlier_counts = {}
     skipped_conditions = {}
     for condition in filter_conditions:
-        missing = [f for f in condition["thresholds"] if f not in df.columns]
-        if missing:
-            skipped_conditions[condition["name"]] = missing
+        name = condition["name"]
+        features = list(condition["thresholds"])
+        # coSMicQC fails with no cells, so conditions that can't be scored are skipped
+        skip = find_skip_reason(df, features)
+        if skip:
+            skipped_conditions[name] = skip
+            if skip["reason"] != "no_cells":
+                warning_messages.append(format_skip_warning(name, skip))
             continue
+        # coSMicQC drops cells with missing values before scoring, so they are never flagged
+        nan_cells, nan_features = count_missing_values(df, features)
+        if nan_cells > 0:
+            warning_messages.append(
+                f"Outlier condition '{name}': {nan_cells} {plural(nan_cells, 'cell')} with missing values"
+                f" in {', '.join(nan_features)} {plural(nan_cells, 'was', 'were')} not evaluated and kept."
+            )
         outliers = cosmicqc.find_outliers(
             df=df,
             metadata_columns=metadata_cols,
             feature_thresholds=condition["thresholds"],
         )
-        outlier_dataframes.append((condition["name"], outliers))
-        condition_outlier_counts[condition["name"]] = len(outliers)
+        outlier_dataframes.append((name, outliers))
+        condition_outlier_counts[name] = len(outliers)
+
+    if cell_count > 0 and filter_conditions and not condition_outlier_counts:
+        warning_messages.append(
+            "Every outlier condition was skipped, so no outlier cells were removed."
+        )
 
     # add a column with the condition name to each outlier dataframe
     # drop empty dataframes to avoid concatenation errors
@@ -204,6 +281,10 @@ def main():
     # "NA" when there were no cells to compute a fraction from (bare NaN isn't valid JSON and
     # can't be parsed downstream by Nextflow's JsonSlurper, so we use a quoted string instead)
     fraction_removed = len(outlier_indices) / cell_count if cell_count > 0 else "NA"
+    if cell_count > 0 and len(df_filtered) == 0:
+        warning_messages.append(
+            "Every cell was removed as an outlier, so no cells remain for this plate."
+        )
 
     # create a QC summary object
     qc_summary = {
@@ -233,6 +314,12 @@ def main():
     outlier_summary.to_csv(f"cosmicqc_outliers_{plate_id}.csv.gz", index=True)
     with open(f"cosmicqc_summary_{plate_id}.json", "w") as f:
         json.dump(qc_summary, f, indent=2)
+    # the warnings file is only written when there are warnings
+    if warning_messages:
+        with open(f"{plate_id}_cosmicqc_warnings.txt", "w") as f:
+            for message in warning_messages:
+                print(f"WARNING: {message}", file=sys.stderr)
+                f.write(f"{message}\\n")
 
     write_versions(task_process)
 

@@ -50,7 +50,8 @@ output:
           description: |
             JSON file with the filter settings applied, a "cosmicqc_filtering" block
             (cells input, cells output, fraction removed, per-condition counts, and
-            any filters skipped due to missing features), and an "edge_filtering"
+            skipped conditions, each with a reason (missing_features, all_nan, or no_cells)
+            and the features involved), and an "edge_filtering"
             block (whether edge-well removal was applied, the inferred plate size,
             the wells removed, and cells input/output before and after edge-well
             removal)
@@ -63,6 +64,22 @@ output:
             metadata columns and a cosmicqc_condition column naming the condition(s)
             that flagged each cell
           pattern: "cosmicqc_outliers_*.csv.gz"
+  - warnings:
+      - task.process:
+          type: string
+          description: Name of the process that produced the warnings
+      - meta.plate_id:
+          type: string
+          description: Plate identifier the warnings apply to
+      - "*_cosmicqc_warnings.txt":
+          type: file
+          description: |
+            Optional text file of warnings, one per line: skipped outlier conditions,
+            cells with missing values that were not evaluated, an empty plate, and plates
+            with every cell removed.
+            Only created when there is something to report.
+            Also sent to the `warnings` topic channel.
+          pattern: "*_cosmicqc_warnings.txt"
   - versions:
       - versions.yml:
           type: file
