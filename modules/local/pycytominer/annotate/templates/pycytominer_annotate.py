@@ -221,7 +221,7 @@ def main():
         annotated_df.to_parquet(f"{plate_id}_annotated.parquet", index=False)
     except KeyError as ke:
         print("Error during pycytominer annotation.", file=sys.stderr)
-        if ke.args[0] == f"Metadata_{platemap_well_column}:":
+        if ke.args[0] == f"Metadata_{platemap_well_column}":
             print(
                 f"The specified platemap_well_column '{platemap_well_column}' was not found in the platemap file.",
                 file=sys.stderr,
