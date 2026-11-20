@@ -154,6 +154,8 @@ def find_skip_reason(df: pd.DataFrame, features: list[str]) -> dict | None:
     - no_cells: df has no cells
     - missing_features: some features are not columns of df
     - all_nan: some features have missing values in every cell
+    - no_complete_cells: every cell has a missing value in at least one of the features
+      (coSMicQC drops those cells before scoring, so none would be left)
     """
     if len(df) == 0:
         return {"reason": "no_cells", "features": []}
@@ -163,6 +165,9 @@ def find_skip_reason(df: pd.DataFrame, features: list[str]) -> dict | None:
     all_nan = [feature for feature in features if df[feature].isna().all()]
     if all_nan:
         return {"reason": "all_nan", "features": all_nan}
+    if df[features].dropna().empty:
+        nan_features = [feature for feature in features if df[feature].isna().any()]
+        return {"reason": "no_complete_cells", "features": nan_features}
     return None
 
 
@@ -171,8 +176,10 @@ def format_skip_warning(name: str, skip: dict) -> str:
     features = ", ".join(skip["features"])
     if skip["reason"] == "missing_features":
         detail = f"features not found in the profiles: {features}"
-    else:
+    elif skip["reason"] == "all_nan":
         detail = f"features with missing values in every cell: {features}"
+    else:
+        detail = f"no cell has values for all of these features: {features}"
     return f"Outlier condition '{name}' was skipped; {detail}."
 
 
@@ -269,7 +276,7 @@ def main():
         if nan_cells > 0:
             warning_messages.append(
                 f"Outlier condition '{name}': {nan_cells} cell(s) with missing values"
-                f" in {', '.join(nan_features)} not evaluated and kept."
+                f" in {', '.join(nan_features)} not evaluated by this condition."
             )
         outliers = cosmicqc.find_outliers(
             df=df,
