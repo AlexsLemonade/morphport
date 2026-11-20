@@ -37,12 +37,10 @@ nextflow_process {
                     [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
                 ]
-                input[1] = 3
-                input[2] = 5
-                input[3] = 0.1
-                input[4] = 2026
-                input[5] = 0.5
-                input[6] = 5
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
                 """
             }
         }
@@ -111,12 +109,10 @@ nextflow_process {
                     [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
                 ]
-                input[1] = 3
-                input[2] = 5
-                input[3] = 0.1
-                input[4] = 2026
-                input[5] = 0
-                input[6] = 5
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0, min_rows: 5,
+                ]
                 """
             }
         }
@@ -150,12 +146,10 @@ nextflow_process {
                     [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
                 ]
-                input[1] = 50
-                input[2] = 15
-                input[3] = 0.1
-                input[4] = 2026
-                input[5] = 0.5
-                input[6] = 5
+                input[1] = [
+                    pca_components: 50, umap_neighbors: 15, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
                 """
             }
         }
@@ -190,12 +184,10 @@ nextflow_process {
                     [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
                 ]
-                input[1] = 3
-                input[2] = 5
-                input[3] = 0.1
-                input[4] = 2026
-                input[5] = 0.5
-                input[6] = 12
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 12,
+                ]
                 """
             }
         }
@@ -232,12 +224,10 @@ nextflow_process {
                     [file("${moduleDir}/tests/fixtures/profiles_all_nan.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
                 ]
-                input[1] = 3
-                input[2] = 5
-                input[3] = 0.1
-                input[4] = 2026
-                input[5] = 0.5
-                input[6] = 5
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
                 """
             }
         }
@@ -270,12 +260,10 @@ nextflow_process {
                     [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
                     file("${moduleDir}/tests/fixtures/features_empty.txt"),
                 ]
-                input[1] = 3
-                input[2] = 5
-                input[3] = 0.1
-                input[4] = 2026
-                input[5] = 0.5
-                input[6] = 5
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
                 """
             }
         }
@@ -283,6 +271,31 @@ nextflow_process {
         then {
             assert process.failed
             assert process.stdout.any { line -> line.contains("Feature list features_empty.txt is empty.") }
+        }
+    }
+
+    test("options missing a key - fails") {
+
+        when {
+            process {
+                """
+                input[0] = [
+                    ${groupMeta},
+                    ${plateMetas},
+                    [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
+                    file("${moduleDir}/tests/fixtures/features.txt"),
+                ]
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5,
+                ]
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("options is missing keys [min_rows]") }
         }
     }
 
@@ -299,12 +312,10 @@ nextflow_process {
                     [file("${moduleDir}/tests/fixtures/profiles_P1.parquet"), file("${moduleDir}/tests/fixtures/profiles_P2.parquet")],
                     file("${moduleDir}/tests/fixtures/features.txt"),
                 ]
-                input[1] = 3
-                input[2] = 5
-                input[3] = 0.1
-                input[4] = 2026
-                input[5] = 0.5
-                input[6] = 5
+                input[1] = [
+                    pca_components: 3, umap_neighbors: 5, umap_min_dist: 0.1,
+                    seed: 2026, max_nan_fraction: 0.5, min_rows: 5,
+                ]
                 """
             }
         }
