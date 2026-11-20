@@ -7,6 +7,7 @@ a compressed CSV of outlier indices, and a JSON summary of settings and results.
 """
 
 import json
+import math
 import re
 import sys
 from importlib.metadata import version
@@ -38,25 +39,54 @@ PLATE_FORMATS = {
 }
 
 
-def validate_filter_conditions(conditions, source):
-    """Validate the structure of the cosmicqc filter conditions loaded from a JSON file"""
+def is_valid_threshold(value) -> bool:
+    """
+    Whether a value is usable as a z-score threshold: a finite, non-zero number.
+    Booleans are excluded even though Python treats them as integers, and zero is excluded
+    because coSMicQC treats it as negative, flagging every cell below the mean.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(value) and value != 0
+
+
+def validate_filter_conditions(conditions) -> list[str]:
+    """
+    Check the structure of the outlier conditions loaded from the settings file.
+    Returns a list of error messages, so that every problem can be reported at once.
+    """
     if not isinstance(conditions, list):
-        raise ValueError(f"{source}: must be a JSON array of condition objects")
-    for i, condition in enumerate(conditions):
-        prefix = f"{source} entry {i}"
+        return ["The settings file must be a JSON array of outlier condition objects."]
+    errors = []
+    for position, condition in enumerate(conditions, start=1):
+        label = f"Outlier condition {position}"
         if not isinstance(condition, dict) or {"name", "thresholds"} - condition.keys():
-            raise ValueError(f"{prefix}: must have 'name' and 'thresholds' keys")
+            errors.append(f"{label}: must have 'name' and 'thresholds' keys.")
+            continue
         if not isinstance(condition["name"], str) or not condition["name"]:
-            raise ValueError(f"{prefix}: 'name' must be a non-empty string")
+            errors.append(f"{label}: 'name' must be a non-empty string.")
+        else:
+            label = f"{label} ('{condition['name']}')"
         if not isinstance(condition["thresholds"], dict) or not condition["thresholds"]:
-            raise ValueError(
-                f"{prefix}: 'thresholds' must be a non-empty dict of feature: z-score pairs"
+            errors.append(
+                f"{label}: 'thresholds' must be a non-empty mapping of feature names to z-scores."
             )
+            continue
         for feature, value in condition["thresholds"].items():
-            if not isinstance(value, (int, float)):
-                raise ValueError(
-                    f"{prefix}: threshold for '{feature}' must be a number, got {type(value).__name__}"
+            if not is_valid_threshold(value):
+                errors.append(
+                    f"{label}: threshold for '{feature}' must be a non-zero number, got {json.dumps(value)}."
                 )
+    # outlier counts and skips are reported by name, so names must be unique
+    names = [
+        condition["name"]
+        for condition in conditions
+        if isinstance(condition, dict) and isinstance(condition.get("name"), str)
+    ]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    for name in duplicates:
+        errors.append(f"Outlier condition name '{name}' is used more than once.")
+    return errors
 
 
 def write_versions(task_process: str):
@@ -175,7 +205,15 @@ def main():
 
     with open(filter_settings_file) as f:
         filter_conditions = json.load(f)
-    validate_filter_conditions(filter_conditions, filter_settings_file)
+    settings_errors = validate_filter_conditions(filter_conditions)
+    if settings_errors:
+        print(
+            f"Invalid outlier condition settings in {filter_settings_file}:",
+            file=sys.stderr,
+        )
+        for message in settings_errors:
+            print(f"- {message}", file=sys.stderr)
+        sys.exit(1)
 
     df = pd.read_parquet(parquet_file)
     # cosmicqc returns outliers as a CytoDataFrame, which scans text columns for image file names;
