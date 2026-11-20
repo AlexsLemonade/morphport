@@ -72,7 +72,8 @@ def main():
 
     # ---- Load and concatenate input parquets -------------------------------
     # stageAs places all input parquets in input_parquet/ (numbered to avoid name collisions).
-    parquet_paths = list(parquet_dir.glob("*.parquet"))
+    # Sort so the row order of the output does not depend on the filesystem.
+    parquet_paths = sorted(parquet_dir.glob("*.parquet"))
     if not parquet_paths:
         raise RuntimeError(f"No input parquet files found in {parquet_dir}/.")
 
