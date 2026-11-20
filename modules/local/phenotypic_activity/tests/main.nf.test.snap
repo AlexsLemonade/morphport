@@ -22,14 +22,16 @@
                     "DMSO"
                 ],
                 "reference_normalized": true,
-                "reference_normalization_method": "mad_robustize"
+                "reference_normalization_method": "mad_robustize",
+                "plate_normalization_method": "mad_robustize",
+                "plate_normalization_reference_profiles": "all"
             },
             "phenotypic_activity_summary_well__cell_type__cell_type=lineA.json:md5,0d0f0ccd8cccb4e505fe810344c25483",
             [
                 "versions.yml:md5,4d86db9542d935e7a0ae9431a9a9ac96"
             ]
         ],
-        "timestamp": "2026-11-11T10:45:00.611765987",
+        "timestamp": "2026-11-19T10:15:34.030248269",
         "meta": {
             "nf-test": "0.9.5",
             "nextflow": "26.10.5"

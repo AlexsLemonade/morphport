@@ -1,0 +1,81 @@
+nextflow_function {
+
+    name "Test Function plateNormalizationSettings"
+    script "../morphport.nf"
+    tag "workflows"
+    tag "workflows_morphport"
+
+    test("plateNormalizationSettings: values from agreeing partition metas are returned") {
+
+        function "plateNormalizationSettings"
+
+        when {
+            function {
+                """
+                input[0] = 'well__treatments'
+                input[1] = [
+                    [plate_id: 'p1', plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'],
+                    [plate_id: 'p2', plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                plate_normalization_method: 'mad_robustize',
+                plate_normalization_reference_profiles: 'all',
+            ]
+        }
+    }
+
+    test("plateNormalizationSettings: partition metas without the keys give null") {
+
+        function "plateNormalizationSettings"
+
+        when {
+            function {
+                """
+                input[0] = 'well__treatments'
+                input[1] = [
+                    [plate_id: 'p1'],
+                    [plate_id: 'p2'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == [
+                plate_normalization_method: null,
+                plate_normalization_reference_profiles: null,
+            ]
+        }
+    }
+
+    test("plateNormalizationSettings: disagreeing values are an error") {
+
+        function "plateNormalizationSettings"
+
+        when {
+            function {
+                """
+                input[0] = 'well__treatments'
+                input[1] = [
+                    [plate_id: 'p1', plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all'],
+                    [plate_id: 'p2', plate_normalization_method: 'standardize', plate_normalization_reference_profiles: 'all'],
+                ]
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = (function.stdout + function.stderr).join('\n')
+            assert output.contains("'well__treatments'")
+            assert output.contains("plate_normalization_method")
+        }
+    }
+}

@@ -1,7 +1,3 @@
-plate,project,source,batch,parquet_path,platemaps_dir,cytotable_preset
-MP00000001,test-project,test,Round_1,tests/data/test-project/test/workspace/profiles/Round_1_Assay_Plate1/MP00000001/MP00000001_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,skip
-MP00000002,test-project,test,Round_1,tests/data/test-project/test/workspace/profiles/Round_1_Assay_Plate2/MP00000002/MP00000002_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,skip
-MP00000003,test-project,test,Round_1,tests/data/test-project/test/workspace/profiles/Round_1_Assay_Plate1/MP00000003/MP00000003_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,skip
-MP00000004,test-project,test,Round_1,tests/data/test-project/test/workspace/profiles/Round_1_Assay_Plate2/MP00000004/MP00000004_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,skip
-MP00000005,test-project,test,Round_1,tests/data/test-project/test/workspace/profiles/Round_1_Assay_Plate1/MP00000005/MP00000005_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,skip
-MP00000006,test-project,test,Round_1,tests/data/test-project/test/workspace/profiles/Round_1_Assay_Plate2/MP00000006/MP00000006_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,skip
+plate,project,source,batch,parquet_path,platemaps_dir,platemap_file,cytotable_preset
+plate_1,test-project,test,batch_1,tests/data/test-project/test/workspace/profiles/batch_1_platemap_A/plate_1/plate_1_converted.parquet,tests/data/test-project/test/workspace/metadata/platemaps,,skip
+plate_2,test-project,test,batch_1,tests/data/test-project/test/workspace/profiles/batch_1_platemap_A/plate_2/plate_2_converted.parquet,,tests/data/test-project/test/workspace/metadata/platemaps/batch_1/platemap/platemap_A.txt,skip

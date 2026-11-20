@@ -247,6 +247,7 @@ The reference is a single column: there is currently no way to define it by more
 To compare within each value of another column, such as a timepoint, add that column to `subgroup_columns` (or use it as the `grouping_column`): each timepoint's wells are then compared with that timepoint's reference wells.
 
 Reference wells serve as the baseline for the comparisons and are not compared themselves.
+Groups with `reference_values` are normalized to their reference wells (reference normalization) and scored for phenotypic activity; see the [output documentation](output.md#reference-normalization).
 
 `reference_values` is only valid if `comparison_column` is specified, and `reference_column` only together with `reference_values`; otherwise it is an **error**.
 The comparison column (and reference column, if different) is added to the partition columns, and must be present in every platemap the grouping uses (after `filter`); a missing column is an **error**.

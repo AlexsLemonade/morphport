@@ -29,6 +29,7 @@ nextflow_process {
         plate_ids: ['P1', 'P2'],
         comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
         reference_normalized: true, reference_normalization_method: 'mad_robustize',
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
     // Group metadata for comparing treatments within a group that pools two cell types
@@ -39,6 +40,7 @@ nextflow_process {
         plate_ids: ['P1'],
         comparison_column: 'Metadata_treatment', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
         reference_normalized: true, reference_normalization_method: 'mad_robustize',
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
     // Group metadata for comparing cell types within a treatment
@@ -49,6 +51,7 @@ nextflow_process {
         plate_ids: ['P1'],
         comparison_column: 'Metadata_cell_type', reference_column: 'Metadata_treatment', reference_values: ['DMSO'],
         reference_normalized: true, reference_normalization_method: 'mad_robustize',
+        plate_normalization_method: 'mad_robustize', plate_normalization_reference_profiles: 'all',
     ]"""
 
     // Scoring options; uses a smaller null than the pipeline default, to keep the tests fast
@@ -125,6 +128,8 @@ nextflow_process {
             assert summary.positive_match_columns == ['Metadata_treatment', 'Metadata_cell_type']
             assert summary.negative_match_columns == ['Metadata_cell_type']
             assert summary.reference_normalization_method == 'mad_robustize'
+            assert summary.plate_normalization_method == 'mad_robustize'
+            assert summary.plate_normalization_reference_profiles == 'all'
             assert summary.n_wells_input == 35
             assert summary.n_features_input == 44
             // Cells_Baseline_B's one missing value is in the dropped drugSingle well, so it is kept

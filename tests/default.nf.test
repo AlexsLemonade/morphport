@@ -10,7 +10,7 @@ nextflow_pipeline {
             params {
                 outdir = "$outputDir"
                 // minimal synthetic data from scripts/generate_test_data.py (see tests/data/README.md)
-                input = TestSamplesheet.withAbsolutePaths("$projectDir/tests/data/samplesheet_minimal.csv", "$projectDir", "$launchDir")
+                input = TestSamplesheet.withAbsolutePaths("$projectDir/tests/data/samplesheet.csv", "$projectDir", "$launchDir")
             }
         }
 
@@ -19,14 +19,47 @@ nextflow_pipeline {
             // File contents are not snapshotted: numeric results (normalization, embeddings, clustering)
             // can vary slightly across platforms and container engines.
             def stable_path = getAllFilesFromDir(params.outdir, relative: true, includeDir: true, ignore: ['pipeline_info/*.{html,json,txt}'])
-            // Embedding and clustering summaries: 3 per group, for the 4 groups in tests/data/analysis_groups_minimal.yml
-            // (neuroblastoma at both aggregate levels, u2os_anchor at the cell level, all_cell_lines at the well level)
+            // Embedding and clustering summaries: 3 per group, for the 5 groups in tests/data/analysis_groups.yml
+            // (all_wells at both aggregate levels, and the 3 drug_vs_dmso cell lines at the well level)
             def analysis_summaries = getAllFilesFromDir(params.outdir, include: ['**/embeddings_summary_*.json', '**/clustering_*_summary_*.json'])
+            // Reference normalization and phenotypic activity summaries for the drug_vs_dmso groups:
+            // mixed is normalized and scored; dmso_only has no drug wells, so it is normalized but has nothing to score;
+            // one_dmso has one DMSO well per plate, so normalization skips it and it is not scored
+            def reference_summaries = getAllFilesFromDir(params.outdir, include: ['**/reference_normalization_summary_*.json'])
+                .collectEntries { summary -> [(summary.name): path(summary.toString()).json.skipped] }
+            def activity_summaries = getAllFilesFromDir(params.outdir, include: ['**/phenotypic_activity_summary_*.json'])
+                .collectEntries { summary -> [(summary.name): path(summary.toString()).json.skipped] }
+            // The edge well filter (on by default) removes the 4 corner wells of each 384-well test plate,
+            // as reported in the coSMicQC summary, and none of their cells remain in the filtered profiles
+            def expected_edge_wells = ['A01', 'A24', 'P01', 'P24']
+            def plate_ids = ['plate_1', 'plate_2']
             assert workflow.success
             assertAll(
+                { plate_ids.each { plate_id ->
+                    def edge_filtering = path("$outputDir/test-project/cell/cosmicqc/cosmicqc_summary_${plate_id}.json").json.edge_filtering
+                    assert edge_filtering.edge_wells_included == false
+                    assert edge_filtering.plate_size == 384
+                    assert edge_filtering.edge_wells == expected_edge_wells
+                } },
+                { plate_ids.each { plate_id ->
+                    def filtered = path("$outputDir/test-project/cell/cosmicqc/filtered_${plate_id}.parquet").parquet
+                    def well_idx = filtered.columnNames.toList().indexOf('Metadata_Well')
+                    def wells = filtered.rows.collect { row -> row[well_idx] as String }.unique()
+                    assert wells.size() > 0
+                    assert wells.intersect(expected_edge_wells).isEmpty() : "edge wells remain in filtered_${plate_id}.parquet"
+                } },
                 // every group has enough data to be embedded and clustered, so none are skipped
-                { assert analysis_summaries.size() == 12 },
+                { assert analysis_summaries.size() == 15 },
                 { analysis_summaries.each { summary -> assert !path(summary.toString()).json.skipped : "${summary.name} was skipped" } },
+                { assert reference_summaries == [
+                    'reference_normalization_summary_well__drug_vs_dmso__cell_line=mixed.json': false,
+                    'reference_normalization_summary_well__drug_vs_dmso__cell_line=dmso_only.json': false,
+                    'reference_normalization_summary_well__drug_vs_dmso__cell_line=one_dmso.json': true,
+                ] },
+                { assert activity_summaries == [
+                    'phenotypic_activity_summary_well__drug_vs_dmso__cell_line=mixed.json': false,
+                    'phenotypic_activity_summary_well__drug_vs_dmso__cell_line=dmso_only.json': true,
+                ] },
                 { assert snapshot(
                     // pipeline versions.yml file from which Nextflow version is removed because we test pipelines on multiple Nextflow versions
                     removeNextflowVersion("$outputDir/pipeline_info/morphport_software_versions.yml"),

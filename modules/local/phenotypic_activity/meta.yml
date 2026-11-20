@@ -41,7 +41,9 @@ input:
             group_id:'cell_type=lineA', group_tag:'well__cell_type__cell_type=lineA',
             plate_ids:['plate_001','plate_002'], comparison_column:'Metadata_treatment',
             reference_column:'Metadata_treatment', reference_values:['DMSO'],
-            reference_normalized:true, reference_normalization_method:'mad_robustize' ]
+            reference_normalized:true, reference_normalization_method:'mad_robustize',
+            plate_normalization_method:'mad_robustize', plate_normalization_reference_profiles:'all' ]
+          The normalization keys are reported in the summary (null if absent).
     - profiles:
         type: file
         description: |

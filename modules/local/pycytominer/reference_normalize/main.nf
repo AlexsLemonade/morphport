@@ -1,7 +1,7 @@
 // Normalizes the per-well profiles of one analysis group to the group's comparison reference wells
 // (reference normalization), separately for each plate, using pycytominer.normalize.
-// Takes and emits the same tuple shape as PYCYTOMINER_FEATURE_SELECT, so downstream modules can
-// read either feature-selected or reference-normalized profiles.
+// Takes the feature selection output without its per-plate metas, and emits the group meta,
+// one reference-normalized parquet, and the features kept.
 process PYCYTOMINER_REFERENCE_NORMALIZE {
     tag "${meta_in.group_tag}"
     label 'process_low'
@@ -15,12 +15,11 @@ process PYCYTOMINER_REFERENCE_NORMALIZE {
     }
 
     input:
-    tuple val(meta_in), val(plate_metas), path(parquets, stageAs: 'input_parquet/input*.parquet'), path(features_file)
+    tuple val(meta_in), path(parquets, stageAs: 'input_parquet/input*.parquet'), path(features_file)
     val(normalize_method)
 
     output:
     tuple val(meta),
-        val(plate_metas),
         path("reference_normalized_${meta_in.group_tag}.parquet"),
         path("reference_normalized_features_${meta_in.group_tag}.txt"),
         emit: result
@@ -33,8 +32,6 @@ process PYCYTOMINER_REFERENCE_NORMALIZE {
         : "PYCYTOMINER_REFERENCE_NORMALIZE: group ${meta_in.group_tag} has no comparison_column, reference_column, or reference_values"
     meta = meta_in + [reference_normalized: true, reference_normalization_method: normalize_method]
     meta_json = groovy.json.JsonOutput.toJson(meta_in)
-    // per-plate metas carry each plate's normalization settings, which the group meta does not
-    plate_metas_json = groovy.json.JsonOutput.toJson(plate_metas)
     template 'pycytominer_reference_normalize.py'
 
     stub:

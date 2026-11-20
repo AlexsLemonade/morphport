@@ -1,5 +1,6 @@
 # Analysis groups for stub runs; see docs/analysis_groups_format.md for the format.
-# The stub platemaps don't have these columns, so every plate gets the value '_Absent_'.
+# Stub platemap columns: gene_allele (both platemaps), treatment (platemap_001 only), plate_map_name (both).
+# The stub_* columns are in neither platemap, so every plate gets the value '_Absent_'.
 default:
   - name: stub_condition
     grouping_column: stub_condition
@@ -8,3 +9,14 @@ cell:
   - name: stub_target
     grouping_column: stub_target
     groups: one_per_value
+well:
+  # Drug compared with DMSO within each allele, on platemap_001 (the only stub platemap with a treatment column):
+  # the 'wt' group has DMSO reference wells, so it is reference normalized and scored for phenotypic activity;
+  # the 'mut' group has none, so it skips both steps
+  - name: drug_vs_dmso
+    grouping_column: gene_allele
+    groups: one_per_value
+    filter:
+      plate_map_name: [platemap_001]
+    comparison_column: treatment
+    reference_values: [DMSO]
