@@ -218,7 +218,9 @@ def main():
     if metadata_cols:
         frames.append(df_metadata)
     frames.append(pl.DataFrame(pcs, schema=pc_names))
-    frames.append(pl.DataFrame(umap_emb, schema=umap_names))
+    # UMAP coordinates are only used for plotting, so store them as float32
+    # (umap-learn returns float32 or float64 depending on its version)
+    frames.append(pl.DataFrame(umap_emb.astype(np.float32), schema=umap_names))
     out_df = pl.concat(frames, how="horizontal")
     out_df.write_parquet(f"embeddings_{group_tag}.parquet")
 

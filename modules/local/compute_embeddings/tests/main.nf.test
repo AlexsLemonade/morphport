@@ -81,7 +81,7 @@ nextflow_process {
                 assert columnNames == metadataColumns + ['PC1', 'PC2', 'PC3', 'UMAP1', 'UMAP2']
                 assert schema == [
                     Metadata_Plate: String, Metadata_Well: String, Metadata_cell_line: String, Metadata_timepoint: String,
-                    PC1: Double, PC2: Double, PC3: Double, UMAP1: Double, UMAP2: Double,
+                    PC1: Double, PC2: Double, PC3: Double, UMAP1: Float, UMAP2: Float,
                 ]
                 // rows in input order, without the dropped all-NaN row (P1 A05)
                 assert rows.collect { row -> "${row[0]}_${row[1]}".toString() } == [
