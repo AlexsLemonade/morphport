@@ -34,5 +34,12 @@
         "thresholds": {
             "Cells_Intensity_MeanIntensity_Mito": 2
         }
+    },
+    {
+        "name": "eccentric_cytoplasm",
+        "thresholds": {
+            "Cytoplasm_AreaShape_Area": 2,
+            "Nuclei_AreaShape_Eccentricity": 2
+        }
     }
 ]

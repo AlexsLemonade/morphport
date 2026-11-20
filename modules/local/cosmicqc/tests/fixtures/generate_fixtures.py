@@ -23,6 +23,8 @@ Plate P1, a per-cell plate as PYCYTOMINER_ANNOTATE writes it, with 5 cells in ea
       Nuclei_Intensity_IntegratedIntensity_CorrDNA, so it is flagged by two outlier conditions
     - cell 15 (D06) is extreme in Cytoplasm_AreaShape_Area
     - cells 18 (D06) and 24 (G11) are NaN in Cytoplasm_AreaShape_Area
+    - Nuclei_AreaShape_Eccentricity has values only in cells 18 and 24, so no cell has values
+      for both it and Cytoplasm_AreaShape_Area
     - Cells_Intensity_MeanIntensity_Mito is NaN in every cell
     - Cells_AreaShape_EulerNumber alternates between 1 and 0; with only two values, its mean lies
       between them, so no cell has a z-score of 0
@@ -36,6 +38,8 @@ Outlier condition settings:
     - large_cytoplasm: flags cell 15; cells 18 and 24 are NaN and not evaluated
     - missing_feature: uses Cells_AreaShape_Eccentricity, which is not in the plate, so it is skipped
     - no_mito: uses Cells_Intensity_MeanIntensity_Mito, which is NaN in every cell, so it is skipped
+    - eccentric_cytoplasm: uses Cytoplasm_AreaShape_Area and Nuclei_AreaShape_Eccentricity,
+      which no cell has values for both of, so it is skipped
 - settings_all_skipped.json: missing_feature and no_mito only, so every condition is skipped
 - settings_remove_all.json: below_mean and above_mean, with thresholds of -0.001 and 0.001 on
   Cells_AreaShape_EulerNumber, so together they flag every cell
@@ -93,6 +97,7 @@ def plate_p1_profiles() -> pd.DataFrame:
             ),
             "Cells_Intensity_MeanIntensity_Mito": [float("nan")] * n_rows,
             "Cytoplasm_AreaShape_Area": pattern(n_rows, 300.0, 5.0, 1),
+            "Nuclei_AreaShape_Eccentricity": [float("nan")] * n_rows,
             "Nuclei_AreaShape_Solidity": pattern(n_rows, 0.90, 0.01, 2),
             "Nuclei_Intensity_IntegratedIntensity_CorrDNA": pattern(
                 n_rows, 20.0, 1.0, 3
@@ -106,6 +111,7 @@ def plate_p1_profiles() -> pd.DataFrame:
     )
     df.loc[LARGE_CYTOPLASM_CELL, "Cytoplasm_AreaShape_Area"] = 3000.0
     df.loc[CYTOPLASM_NAN_CELLS, "Cytoplasm_AreaShape_Area"] = float("nan")
+    df.loc[CYTOPLASM_NAN_CELLS, "Nuclei_AreaShape_Eccentricity"] = 0.5
     text_columns = [
         "Metadata_cell_line",
         "Metadata_treatment",
@@ -128,6 +134,13 @@ SETTINGS_MAIN = [
     {"name": "large_cytoplasm", "thresholds": {"Cytoplasm_AreaShape_Area": 2}},
     {"name": "missing_feature", "thresholds": {"Cells_AreaShape_Eccentricity": 2}},
     {"name": "no_mito", "thresholds": {"Cells_Intensity_MeanIntensity_Mito": 2}},
+    {
+        "name": "eccentric_cytoplasm",
+        "thresholds": {
+            "Cytoplasm_AreaShape_Area": 2,
+            "Nuclei_AreaShape_Eccentricity": 2,
+        },
+    },
 ]
 
 SETTINGS_ALL_SKIPPED = [

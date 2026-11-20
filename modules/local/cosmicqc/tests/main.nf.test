@@ -12,7 +12,7 @@ nextflow_process {
     //   where A01, H06, and E12 are edge wells, with designed outliers (cells 7 and 15) and NaN values
     // - profiles_P1_no_image_number.parquet: the same plate without Metadata_ImageNumber
     // - profiles_P1_empty.parquet: the same columns with no rows
-    // - settings_main.json: outlier conditions for profiles_P1.parquet, two of which are skipped
+    // - settings_main.json: outlier conditions for profiles_P1.parquet, three of which are skipped
     // - settings_all_skipped.json: only the two skipped outlier conditions
     // - settings_remove_all.json: outlier conditions that together flag every cell
     // - settings_none.json: no outlier conditions
@@ -33,7 +33,7 @@ nextflow_process {
         'Metadata_Plate', 'Metadata_Well', 'Metadata_ImageNumber', 'Metadata_ObjectNumber',
         'Cells_AreaShape_EulerNumber',
         'Cells_Intensity_IntegratedIntensity_CorrDNA', 'Cells_Intensity_MeanIntensity_Mito',
-        'Cytoplasm_AreaShape_Area', 'Nuclei_AreaShape_Solidity',
+        'Cytoplasm_AreaShape_Area', 'Nuclei_AreaShape_Eccentricity', 'Nuclei_AreaShape_Solidity',
         'Nuclei_Intensity_IntegratedIntensity_CorrDNA', 'Nuclei_Intensity_MassDisplacement_CorrDNA',
     ]
     def p1Wells = ['A01', 'B02', 'C03', 'D06', 'G11', 'H06', 'E12']
@@ -96,6 +96,11 @@ nextflow_process {
                 assert cosmicqc_filtering.skipped_conditions == [
                     missing_feature: [reason: 'missing_features', features: ['Cells_AreaShape_Eccentricity']],
                     no_mito: [reason: 'all_nan', features: ['Cells_Intensity_MeanIntensity_Mito']],
+                    // each feature has values, but no cell has values for both
+                    eccentric_cytoplasm: [
+                        reason: 'no_complete_cells',
+                        features: ['Cytoplasm_AreaShape_Area', 'Nuclei_AreaShape_Eccentricity'],
+                    ],
                 ]
                 assert edge_filtering.edge_wells_included == false
                 assert edge_filtering.plate_size == 96
@@ -113,6 +118,7 @@ nextflow_process {
                 "Outlier condition 'large_cytoplasm': 2 cell(s) with missing values in Cytoplasm_AreaShape_Area not evaluated by this condition.",
                 "Outlier condition 'missing_feature' was skipped; features not found in the profiles: Cells_AreaShape_Eccentricity.",
                 "Outlier condition 'no_mito' was skipped; features with missing values in every cell: Cells_Intensity_MeanIntensity_Mito.",
+                "Outlier condition 'eccentric_cytoplasm' was skipped; no cell has values for all of these features: Cytoplasm_AreaShape_Area, Nuclei_AreaShape_Eccentricity.",
             ]
         }
     }
