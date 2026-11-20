@@ -1,0 +1,32 @@
+[
+    {
+        "name": "clustered",
+        "thresholds": {
+            "Nuclei_Intensity_MassDisplacement_CorrDNA": 2
+        }
+    },
+    {
+        "name": "bright",
+        "thresholds": {
+            "Nuclei_Intensity_IntegratedIntensity_CorrDNA": 2
+        }
+    },
+    {
+        "name": "irregular",
+        "thresholds": {
+            "Nuclei_AreaShape_Solidity": -10
+        }
+    },
+    {
+        "name": "large_cytoplasm",
+        "thresholds": {
+            "Cytoplasm_AreaShape_Area": 2
+        }
+    },
+    {
+        "name": "missing_feature",
+        "thresholds": {
+            "Cells_AreaShape_Eccentricity": 2
+        }
+    }
+]
