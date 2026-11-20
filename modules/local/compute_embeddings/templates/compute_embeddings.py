@@ -160,7 +160,7 @@ def main():
     # ---- Skip groups that are too small to embed ---------------------------
     if n_rows_clean < min_rows:
         skip_reason = (
-            f"n_rows_clean ({n_rows_clean}) < min_rows ({min_rows})"
+            f"n_rows ({n_rows_clean}) < embedding_min_rows ({min_rows})"
             if n_rows_clean > 0
             else "no rows survived NaN filtering"
         )
