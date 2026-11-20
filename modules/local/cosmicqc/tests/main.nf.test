@@ -8,8 +8,8 @@ nextflow_process {
     tag "cosmicqc"
 
     // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
-    // - profiles_P1.parquet: a 96-well plate with 5 cells in each of wells A01, B02, C03, D06, G11, and H12,
-    //   with designed outliers (cells 7 and 15) and NaN values
+    // - profiles_P1.parquet: a 96-well plate with 5 cells in each of wells A01, B02, C03, D06, G11, H06, and E12,
+    //   where A01, H06, and E12 are edge wells, with designed outliers (cells 7 and 15) and NaN values
     // - profiles_P1_no_image_number.parquet: the same plate without Metadata_ImageNumber
     // - profiles_P1_empty.parquet: the same columns with no rows
     // - settings_main.json: outlier conditions for profiles_P1.parquet, two of which are skipped
@@ -35,7 +35,7 @@ nextflow_process {
         'Cytoplasm_AreaShape_Area', 'Nuclei_AreaShape_Solidity',
         'Nuclei_Intensity_IntegratedIntensity_CorrDNA', 'Nuclei_Intensity_MassDisplacement_CorrDNA',
     ]
-    def p1Wells = ['A01', 'B02', 'C03', 'D06', 'G11', 'H12']
+    def p1Wells = ['A01', 'B02', 'C03', 'D06', 'G11', 'H06', 'E12']
 
     // Values of a named column, from the rows of a parquet file
     def columnValues = { parquet, column ->
@@ -64,7 +64,7 @@ nextflow_process {
             def (meta, parquet, summary) = process.out.result[0]
             assert meta.plate_id == 'P1'
 
-            // edge wells A01 and H12 (10 cells) and outlier cells 7 (B02:3) and 15 (D06:1) are removed
+            // edge wells A01, H06, and E12 (15 cells) and outlier cells 7 (B02:3) and 15 (D06:1) are removed
             def filtered = path(parquet).parquet
             with(filtered) {
                 assert rowCount == 18
@@ -72,7 +72,7 @@ nextflow_process {
             }
             assert columnValues(filtered, 'Metadata_Well').unique() == ['B02', 'C03', 'D06', 'G11']
             assert !cellIds(filtered).any { cell -> cell in ['B02:3', 'D06:1'] }
-            // cells with NaN in a threshold feature are not flagged, so they are kept
+            // cells with NaN in a threshold feature are not flagged by that condition, and no other condition flags them
             assert cellIds(filtered).containsAll(['D06:4', 'G11:5'])
 
             // one row per outlier cell, indexed by its row in the input, with every condition that flagged it
@@ -98,9 +98,10 @@ nextflow_process {
                 ]
                 assert edge_filtering.edge_wells_included == false
                 assert edge_filtering.plate_size == 96
-                assert edge_filtering.wells_removed == 2
-                assert edge_filtering.edge_wells == ['A01', 'H12']
-                assert edge_filtering.cells_input == 30
+                // a corner well, a well on an edge row only, and a well on an edge column only
+                assert edge_filtering.wells_removed == 3
+                assert edge_filtering.edge_wells == ['A01', 'E12', 'H06']
+                assert edge_filtering.cells_input == 35
                 assert edge_filtering.cells_output == 20
             }
 
@@ -108,7 +109,7 @@ nextflow_process {
             assert process_name == 'COSMICQC_FILTER'
             assert plateId == 'P1'
             assert path(warnings).readLines() == [
-                "Outlier condition 'large_cytoplasm': 2 cell(s) with missing values in Cytoplasm_AreaShape_Area not evaluated and kept.",
+                "Outlier condition 'large_cytoplasm': 2 cell(s) with missing values in Cytoplasm_AreaShape_Area not evaluated by this condition.",
                 "Outlier condition 'missing_feature' was skipped; features not found in the profiles: Cells_AreaShape_Eccentricity.",
                 "Outlier condition 'no_mito' was skipped; features with missing values in every cell: Cells_Intensity_MeanIntensity_Mito.",
             ]
@@ -130,19 +131,19 @@ nextflow_process {
 
             // only outlier cells 7 (B02:3) and 15 (D06:1) are removed
             def filtered = path(parquet).parquet
-            assert filtered.rowCount == 28
+            assert filtered.rowCount == 33
             assert columnValues(filtered, 'Metadata_Well').unique() == p1Wells
             assert !cellIds(filtered).any { cell -> cell in ['B02:3', 'D06:1'] }
 
             with(path(summary).json) {
-                assert cosmicqc_filtering.cells_input == 30
-                assert cosmicqc_filtering.cells_output == 28
+                assert cosmicqc_filtering.cells_input == 35
+                assert cosmicqc_filtering.cells_output == 33
                 assert edge_filtering.edge_wells_included == true
                 assert edge_filtering.plate_size == null
                 assert edge_filtering.wells_removed == 0
                 assert edge_filtering.edge_wells == []
-                assert edge_filtering.cells_input == 30
-                assert edge_filtering.cells_output == 30
+                assert edge_filtering.cells_input == 35
+                assert edge_filtering.cells_output == 35
             }
         }
     }
@@ -159,10 +160,10 @@ nextflow_process {
         then {
             assert process.success
             def (_meta, parquet, summary) = process.out.result[0]
-            assert path(parquet).parquet.rowCount == 30
+            assert path(parquet).parquet.rowCount == 35
             assert path(process.out.outliers[0]).linesGzip.size() == 1
             with(path(summary).json) {
-                assert cosmicqc_filtering.cells_output == 30
+                assert cosmicqc_filtering.cells_output == 35
                 assert cosmicqc_filtering.condition_outlier_counts == [:]
                 assert cosmicqc_filtering.skipped_conditions.keySet() == ['missing_feature', 'no_mito'] as Set
             }
@@ -225,9 +226,9 @@ nextflow_process {
             def (_meta, parquet, summary) = process.out.result[0]
             assert path(parquet).parquet.rowCount == 0
             // header and one row per cell
-            assert path(process.out.outliers[0]).linesGzip.size() == 31
+            assert path(process.out.outliers[0]).linesGzip.size() == 36
             with(path(summary).json) {
-                assert cosmicqc_filtering.cells_input == 30
+                assert cosmicqc_filtering.cells_input == 35
                 assert cosmicqc_filtering.cells_output == 0
                 assert cosmicqc_filtering.fraction_removed == 1.0
             }
@@ -249,9 +250,9 @@ nextflow_process {
         then {
             assert process.success
             def (_meta, parquet, summary) = process.out.result[0]
-            assert path(parquet).parquet.rowCount == 30
+            assert path(parquet).parquet.rowCount == 35
             with(path(summary).json) {
-                assert cosmicqc_filtering.cells_output == 30
+                assert cosmicqc_filtering.cells_output == 35
                 assert cosmicqc_filtering.condition_outlier_counts == [:]
                 assert cosmicqc_filtering.skipped_conditions == [:]
             }

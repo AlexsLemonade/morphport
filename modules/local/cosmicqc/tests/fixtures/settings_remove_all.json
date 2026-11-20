@@ -2,13 +2,13 @@
     {
         "name": "below_mean",
         "thresholds": {
-            "Nuclei_AreaShape_Solidity": -0.001
+            "Nuclei_Intensity_MassDisplacement_CorrDNA": -0.001
         }
     },
     {
         "name": "above_mean",
         "thresholds": {
-            "Nuclei_AreaShape_Solidity": 0.001
+            "Nuclei_Intensity_MassDisplacement_CorrDNA": 0.001
         }
     }
 ]

@@ -11,11 +11,12 @@ Generate the small fixtures for the coSMicQC filter module tests.
 
 Writes these files to the directory containing this script.
 
-Plate P1, a per-cell plate as PYCYTOMINER_ANNOTATE writes it, with 5 cells in each of 6 wells (30 rows):
+Plate P1, a per-cell plate as PYCYTOMINER_ANNOTATE writes it, with 5 cells in each of 7 wells (35 rows):
 
-- profiles_P1.parquet: wells A01, B02, C03, D06, G11, and H12.
-  H12 is the highest row and column, so the plate is inferred to be a 96-well plate,
-  and A01 and H12 are its edge wells; removing them leaves 20 cells.
+- profiles_P1.parquet: wells A01, B02, C03, D06, G11, H06, and E12.
+  The highest row is H and the highest column is 12, so the plate is inferred to be a 96-well plate.
+  Its edge wells are A01 (a corner), H06 (edge row only), and E12 (edge column only);
+  removing them leaves the 20 cells in the interior wells B02, C03, D06, and G11.
   Text metadata columns are pandas string[pyarrow] columns, as annotation writes them.
   Feature values follow a small repeating pattern, except:
     - cell 7 (B02) is extreme in both Nuclei_Intensity_MassDisplacement_CorrDNA and
@@ -35,7 +36,8 @@ Outlier condition settings:
     - no_mito: uses Cells_Intensity_MeanIntensity_Mito, which is NaN in every cell, so it is skipped
 - settings_all_skipped.json: missing_feature and no_mito only, so every condition is skipped
 - settings_remove_all.json: below_mean and above_mean, with thresholds of -0.001 and 0.001 on
-  Nuclei_AreaShape_Solidity, so together they flag every cell
+  Nuclei_Intensity_MassDisplacement_CorrDNA, so together they flag every cell
+  (cell 7 shifts that feature's mean away from the repeating values, so no cell has a z-score of 0)
 - settings_none.json: an empty list, so no outlier conditions are applied
 - settings_invalid.json: a threshold of 0, a boolean threshold, and a repeated condition name
 
@@ -54,7 +56,8 @@ import pathlib
 import pandas as pd
 
 FIXTURE_DIR = pathlib.Path(__file__).parent
-WELLS = ["A01", "B02", "C03", "D06", "G11", "H12"]
+# the designed cells below are in the interior wells, which come first after A01
+WELLS = ["A01", "B02", "C03", "D06", "G11", "H06", "E12"]
 CELLS_PER_WELL = 5
 
 # outlier cells, by row
@@ -74,7 +77,7 @@ def plate_p1_profiles() -> pd.DataFrame:
     df = pd.DataFrame(
         {
             "Metadata_cell_line": ["lineA"] * n_rows,
-            "Metadata_treatment": ["DMSO", "drugA"] * (n_rows // 2),
+            "Metadata_treatment": [["DMSO", "drugA"][row % 2] for row in range(n_rows)],
             "Metadata_Plate": ["P1"] * n_rows,
             "Metadata_Well": [well for well in WELLS for _ in range(CELLS_PER_WELL)],
             "Metadata_ImageNumber": [
@@ -143,8 +146,14 @@ SETTINGS_INVALID = [
 ]
 
 SETTINGS_REMOVE_ALL = [
-    {"name": "below_mean", "thresholds": {"Nuclei_AreaShape_Solidity": -0.001}},
-    {"name": "above_mean", "thresholds": {"Nuclei_AreaShape_Solidity": 0.001}},
+    {
+        "name": "below_mean",
+        "thresholds": {"Nuclei_Intensity_MassDisplacement_CorrDNA": -0.001},
+    },
+    {
+        "name": "above_mean",
+        "thresholds": {"Nuclei_Intensity_MassDisplacement_CorrDNA": 0.001},
+    },
 ]
 
 
