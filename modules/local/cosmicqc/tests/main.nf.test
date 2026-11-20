@@ -16,6 +16,7 @@ nextflow_process {
     // - settings_all_skipped.json: only the two skipped outlier conditions
     // - settings_remove_all.json: outlier conditions that together flag every cell
     // - settings_none.json: no outlier conditions
+    // - settings_invalid.json: a threshold of 0, a boolean threshold, and a repeated condition name
 
     // Input tuple and settings file, as Groovy source text; closures because moduleDir is only defined inside a test.
     def processInputs = { fixtureDir, parquet, settings, edgeWellsIncluded -> """
@@ -255,6 +256,29 @@ nextflow_process {
                 assert cosmicqc_filtering.skipped_conditions == [:]
             }
             assert process.out.warnings == []
+        }
+    }
+
+    test("invalid settings - fails and reports every problem") {
+
+        when {
+            process {
+                processInputs("${moduleDir}/tests/fixtures", 'profiles_P1.parquet',
+                    "${moduleDir}/tests/fixtures/settings_invalid.json", true)
+            }
+        }
+
+        then {
+            assert process.failed
+            def expected = [
+                'Invalid outlier condition settings in settings_invalid.json:',
+                "- Outlier condition 1 ('clustered'): threshold for 'Nuclei_Intensity_MassDisplacement_CorrDNA' must be a non-zero number, got 0.",
+                "- Outlier condition 2 ('bright'): threshold for 'Nuclei_Intensity_IntegratedIntensity_CorrDNA' must be a non-zero number, got true.",
+                "- Outlier condition name 'clustered' is used more than once.",
+            ]
+            expected.each { message ->
+                assert process.stdout.any { line -> line.contains(message) }
+            }
         }
     }
 

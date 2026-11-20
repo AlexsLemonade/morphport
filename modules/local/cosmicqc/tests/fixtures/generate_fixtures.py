@@ -37,6 +37,7 @@ Outlier condition settings:
 - settings_remove_all.json: below_mean and above_mean, with thresholds of -0.001 and 0.001 on
   Nuclei_AreaShape_Solidity, so together they flag every cell
 - settings_none.json: an empty list, so no outlier conditions are applied
+- settings_invalid.json: a threshold of 0, a boolean threshold, and a repeated condition name
 
 Plate P1_empty, with the same columns as P1 and no rows:
 
@@ -129,6 +130,18 @@ SETTINGS_ALL_SKIPPED = [
     {"name": "no_mito", "thresholds": {"Cells_Intensity_MeanIntensity_Mito": 2}},
 ]
 
+SETTINGS_INVALID = [
+    {
+        "name": "clustered",
+        "thresholds": {"Nuclei_Intensity_MassDisplacement_CorrDNA": 0},
+    },
+    {
+        "name": "bright",
+        "thresholds": {"Nuclei_Intensity_IntegratedIntensity_CorrDNA": True},
+    },
+    {"name": "clustered", "thresholds": {"Nuclei_AreaShape_Solidity": -2}},
+]
+
 SETTINGS_REMOVE_ALL = [
     {"name": "below_mean", "thresholds": {"Nuclei_AreaShape_Solidity": -0.001}},
     {"name": "above_mean", "thresholds": {"Nuclei_AreaShape_Solidity": 0.001}},
@@ -152,6 +165,7 @@ def main() -> None:
     write_json(SETTINGS_ALL_SKIPPED, "settings_all_skipped.json")
     write_json(SETTINGS_REMOVE_ALL, "settings_remove_all.json")
     write_json([], "settings_none.json")
+    write_json(SETTINGS_INVALID, "settings_invalid.json")
 
 
 if __name__ == "__main__":

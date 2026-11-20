@@ -1,0 +1,20 @@
+[
+    {
+        "name": "clustered",
+        "thresholds": {
+            "Nuclei_Intensity_MassDisplacement_CorrDNA": 0
+        }
+    },
+    {
+        "name": "bright",
+        "thresholds": {
+            "Nuclei_Intensity_IntegratedIntensity_CorrDNA": true
+        }
+    },
+    {
+        "name": "clustered",
+        "thresholds": {
+            "Nuclei_AreaShape_Solidity": -2
+        }
+    }
+]
