@@ -22,8 +22,8 @@ Writes to the directory containing this script:
   - feat_e is NaN in every row and is not in features.txt, so including it by mistake
     would change the NaN counts in the summary
 - profiles_all_nan.parquet: 3 wells of plate P3 with all of feat_a..feat_e NaN.
-
-The text fixtures (features.txt, features_empty.txt) are written by hand.
+- features.txt: the selected features feat_a..feat_d, one per line.
+- features_empty.txt: an empty feature list.
 
 Usage (from the repository root):
 
@@ -90,6 +90,10 @@ def main():
     write_profiles(
         all_nan_metadata, all_nan_values, "profiles_all_nan.parquet", n_all_nan
     )
+
+    # feature lists, as written by feature selection (one feature per line)
+    (FIXTURE_DIR / "features.txt").write_text("\n".join(FEATURES) + "\n")
+    (FIXTURE_DIR / "features_empty.txt").write_text("")
 
 
 if __name__ == "__main__":
