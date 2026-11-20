@@ -108,7 +108,7 @@ nextflow_process {
             assert process_name == 'COSMICQC_FILTER'
             assert plateId == 'P1'
             assert path(warnings).readLines() == [
-                "Outlier condition 'large_cytoplasm': 2 cells with missing values in Cytoplasm_AreaShape_Area were not evaluated and kept.",
+                "Outlier condition 'large_cytoplasm': 2 cell(s) with missing values in Cytoplasm_AreaShape_Area not evaluated and kept.",
                 "Outlier condition 'missing_feature' was skipped; features not found in the profiles: Cells_AreaShape_Eccentricity.",
                 "Outlier condition 'no_mito' was skipped; features with missing values in every cell: Cells_Intensity_MeanIntensity_Mito.",
             ]

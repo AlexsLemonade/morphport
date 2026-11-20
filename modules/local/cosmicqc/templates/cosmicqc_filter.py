@@ -146,13 +146,6 @@ def find_edge_wells(wells: list[str]) -> tuple[int, set[str]]:
     return plate_size, edge_wells
 
 
-def plural(count: int, singular: str, plural_form: str | None = None) -> str:
-    """Return the singular word for a count of 1, and the plural otherwise."""
-    if count == 1:
-        return singular
-    return plural_form if plural_form else f"{singular}s"
-
-
 def find_skip_reason(df: pd.DataFrame, features: list[str]) -> dict | None:
     """
     Return why an outlier condition with these features can't be scored on the cells in df,
@@ -275,8 +268,8 @@ def main():
         nan_cells, nan_features = count_missing_values(df, features)
         if nan_cells > 0:
             warning_messages.append(
-                f"Outlier condition '{name}': {nan_cells} {plural(nan_cells, 'cell')} with missing values"
-                f" in {', '.join(nan_features)} {plural(nan_cells, 'was', 'were')} not evaluated and kept."
+                f"Outlier condition '{name}': {nan_cells} cell(s) with missing values"
+                f" in {', '.join(nan_features)} not evaluated and kept."
             )
         outliers = cosmicqc.find_outliers(
             df=df,
