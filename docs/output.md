@@ -256,7 +256,7 @@ The reference-normalized profiles are not published, as they are only used by th
 - `<project>/well/phenotypic_activity/`
   - `phenotypic_activity_<group_tag>.parquet`: One row per test condition scored, with columns:
     - `Metadata_<comparison column>`: the test condition (e.g., the treatment).
-    - `n_wells`, `n_plates`: the number of wells scored for the test condition and the plates they are on.
+    - `n_wells`, `n_plates`: the number of wells scored for the test condition and the number of plates they are spread across.
     - `n_reference_wells`: the number of reference wells its wells were compared with.
     - `mean_average_precision`: the mean average precision (mAP).
     - `p_value`, `corrected_p_value`: the p-value for the mAP, and the p-value corrected for the number of test conditions in the group (Benjamini-Hochberg).
@@ -268,7 +268,7 @@ The reference-normalized profiles are not published, as they are only used by th
 Phenotypic activity measures whether the wells of each test condition (e.g., a treatment) are more similar to each other than to the reference wells (e.g., DMSO), using mean average precision (mAP) from [copairs](https://github.com/cytomining/copairs), on the reference-normalized profiles.
 For each well of a test condition, the other wells of that test condition and the reference wells are ranked by similarity, using the distance metric set by `--phenotypic_activity_distance_metric` (default `cosine`).
 Average precision measures how highly the wells of the same test condition rank, and the mAP is the mean across the test condition's wells.
-Wells are only compared with wells of the same cell type (more generally, the same values of the grouping, subgroup, and comparison columns other than the reference column), as in reference normalization.
+Wells are only compared with wells that have the same values of the grouping, subgroup, and comparison columns other than the reference column, as in reference normalization.
 
 Each mAP is tested against a null distribution of `--phenotypic_activity_null_size` draws (default 1,000,000), using the null method set by `--phenotypic_activity_null` (default `permutation`) and seeded with `--random_seed`.
 A test condition is called as active (`active` is `true`) when its corrected p-value is below `--phenotypic_activity_fdr_threshold` (default 0.05).
