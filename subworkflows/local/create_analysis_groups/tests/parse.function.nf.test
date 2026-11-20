@@ -1243,4 +1243,48 @@ nextflow_function {
             assert output.contains("missing the well column 'well_position'")
         }
     }
+
+    test("parsePlatemapColumns: a well listed more than once is an error") {
+
+        function "parsePlatemapColumns"
+
+        // A01 is listed twice and B02 three times (once with surrounding spaces, trimmed by readPlatemap)
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'duplicate_wells.txt')
+                platemap.text = 'well_position\\ttreatment\\nA01\\tdrugA\\nA01\\tDMSO\\nA02\\tdrugA\\nB02\\tdrugA\\nB02\\tdrugB\\n B02 \\tDMSO\\n'
+                input[0] = platemap.path
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert function.failed
+            def output = (function.stdout + function.stderr).join('\n')
+            assert output.contains("lists wells more than once in its 'well_position' column: A01, B02")
+        }
+    }
+
+    test("parsePlatemapColumns: blank well values are not duplicates") {
+
+        function "parsePlatemapColumns"
+
+        when {
+            function {
+                """
+                def platemap = new File(File.createTempDir('platemaps-'), 'blank_wells.txt')
+                platemap.text = 'well_position\\ttreatment\\nA01\\tdrugA\\n\\tdrugB\\n\\tDMSO\\n'
+                input[0] = platemap.path
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert function.success
+            assert function.result == ['Metadata_treatment']
+        }
+    }
 }
