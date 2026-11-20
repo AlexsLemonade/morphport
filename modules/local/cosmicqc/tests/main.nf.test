@@ -31,6 +31,7 @@ nextflow_process {
     def p1Columns = [
         'Metadata_cell_line', 'Metadata_treatment',
         'Metadata_Plate', 'Metadata_Well', 'Metadata_ImageNumber', 'Metadata_ObjectNumber',
+        'Cells_AreaShape_EulerNumber',
         'Cells_Intensity_IntegratedIntensity_CorrDNA', 'Cells_Intensity_MeanIntensity_Mito',
         'Cytoplasm_AreaShape_Area', 'Nuclei_AreaShape_Solidity',
         'Nuclei_Intensity_IntegratedIntensity_CorrDNA', 'Nuclei_Intensity_MassDisplacement_CorrDNA',

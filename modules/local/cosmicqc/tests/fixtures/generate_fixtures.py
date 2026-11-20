@@ -24,6 +24,8 @@ Plate P1, a per-cell plate as PYCYTOMINER_ANNOTATE writes it, with 5 cells in ea
     - cell 15 (D06) is extreme in Cytoplasm_AreaShape_Area
     - cells 18 (D06) and 24 (G11) are NaN in Cytoplasm_AreaShape_Area
     - Cells_Intensity_MeanIntensity_Mito is NaN in every cell
+    - Cells_AreaShape_EulerNumber alternates between 1 and 0; with only two values, its mean lies
+      between them, so no cell has a z-score of 0
 - profiles_P1_no_image_number.parquet: the same plate without the Metadata_ImageNumber column
 
 Outlier condition settings:
@@ -36,8 +38,7 @@ Outlier condition settings:
     - no_mito: uses Cells_Intensity_MeanIntensity_Mito, which is NaN in every cell, so it is skipped
 - settings_all_skipped.json: missing_feature and no_mito only, so every condition is skipped
 - settings_remove_all.json: below_mean and above_mean, with thresholds of -0.001 and 0.001 on
-  Nuclei_Intensity_MassDisplacement_CorrDNA, so together they flag every cell
-  (cell 7 shifts that feature's mean away from the repeating values, so no cell has a z-score of 0)
+  Cells_AreaShape_EulerNumber, so together they flag every cell
 - settings_none.json: an empty list, so no outlier conditions are applied
 - settings_invalid.json: a threshold of 0, a boolean threshold, and a repeated condition name
 
@@ -86,6 +87,7 @@ def plate_p1_profiles() -> pd.DataFrame:
                 for _ in range(CELLS_PER_WELL)
             ],
             "Metadata_ObjectNumber": list(range(1, CELLS_PER_WELL + 1)) * len(WELLS),
+            "Cells_AreaShape_EulerNumber": [float(row % 2) for row in range(n_rows)],
             "Cells_Intensity_IntegratedIntensity_CorrDNA": pattern(
                 n_rows, 50.0, 1.0, 0
             ),
@@ -146,14 +148,8 @@ SETTINGS_INVALID = [
 ]
 
 SETTINGS_REMOVE_ALL = [
-    {
-        "name": "below_mean",
-        "thresholds": {"Nuclei_Intensity_MassDisplacement_CorrDNA": -0.001},
-    },
-    {
-        "name": "above_mean",
-        "thresholds": {"Nuclei_Intensity_MassDisplacement_CorrDNA": 0.001},
-    },
+    {"name": "below_mean", "thresholds": {"Cells_AreaShape_EulerNumber": -0.001}},
+    {"name": "above_mean", "thresholds": {"Cells_AreaShape_EulerNumber": 0.001}},
 ]
 
 
