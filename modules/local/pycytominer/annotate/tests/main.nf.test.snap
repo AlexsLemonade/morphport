@@ -1,0 +1,47 @@
+{
+    "stub": {
+        "content": [
+            {
+                "0": [
+                    [
+                        {
+                            "plate_id": "P1",
+                            "platemap_columns": [
+                                "Metadata_cell_line"
+                            ]
+                        },
+                        "P1_annotated.parquet:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "1": [
+                    
+                ],
+                "2": [
+                    "versions.yml:md5,2f788407b1ea5fef62b7bb246baacab5"
+                ],
+                "result": [
+                    [
+                        {
+                            "plate_id": "P1",
+                            "platemap_columns": [
+                                "Metadata_cell_line"
+                            ]
+                        },
+                        "P1_annotated.parquet:md5,d41d8cd98f00b204e9800998ecf8427e"
+                    ]
+                ],
+                "versions": [
+                    "versions.yml:md5,2f788407b1ea5fef62b7bb246baacab5"
+                ],
+                "warnings": [
+                    
+                ]
+            }
+        ],
+        "timestamp": "2026-11-20T11:32:15.187741377",
+        "meta": {
+            "nf-test": "0.9.5",
+            "nextflow": "26.10.5"
+        }
+    }
+}

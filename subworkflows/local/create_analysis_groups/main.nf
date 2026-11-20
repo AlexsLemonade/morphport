@@ -922,7 +922,9 @@ def enumeratePlatePartitionKeys(meta, platemap_partition_values) {
 //
 // Parse the columns from a platemap file, excluding the well column.
 // Returns a list of column names with "Metadata_" prefix added if not already present.
-// The platemap is read with readPlatemap, so its checks apply; a missing well column is also an error.
+// The platemap is read with readPlatemap, so its checks apply.
+// A missing well column is also an error, as is a well listed more than once,
+// which would duplicate the well's cells when profiles are annotated. Blank well values are not checked.
 //
 def parsePlatemapColumns(platemap_path, platemap_well_column) {
     // every row has the same keys: the (Metadata_-prefixed) platemap columns
@@ -932,6 +934,17 @@ def parsePlatemapColumns(platemap_path, platemap_well_column) {
     if (!(well_column in columns)) {
         throw new Exception(
             "Platemap ${platemap_path} is missing the well column '${platemap_well_column}' (set by --platemap_well_column)."
+        )
+    }
+    def duplicate_wells = rows
+        .collect { row -> row[well_column] }
+        .findAll { well -> well }
+        .countBy { well -> well }
+        .findAll { _well, count -> count > 1 }
+        .keySet()
+    if (duplicate_wells) {
+        throw new Exception(
+            "Platemap ${platemap_path} lists wells more than once in its '${platemap_well_column}' column: ${duplicate_wells.join(', ')}"
         )
     }
     return columns.findAll { col -> col != well_column }

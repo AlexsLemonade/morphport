@@ -1,0 +1,327 @@
+nextflow_process {
+
+    name "Test Process PYCYTOMINER_ANNOTATE"
+    script "../main.nf"
+    process "PYCYTOMINER_ANNOTATE"
+    tag "modules"
+    tag "modules_local"
+    tag "pycytominer"
+    tag "pycytominer/annotate"
+
+    // Fixtures in tests/fixtures are written by tests/fixtures/generate_fixtures.py (see its docstring):
+    // - profiles_P1_part1/part2.parquet: plate P1 split in two files, 2 cells in each of wells A01 to A04
+    // - platemap_P1.csv and platemap_P1.txt: the P1 layout, with well columns well_position and Well
+    // - profiles_P2.parquet and platemap_P2.csv: plate P2, with duplicated metadata columns
+    // - profiles_P3_no_well.parquet: plate P3, with no Metadata_Well column
+
+    // Input tuples, as Groovy source text; closures because moduleDir is only defined inside a test.
+    def plateInput = { fixtureDir, plateId, parquets, platemap, platemapColumns -> """[
+        [plate_id: '${plateId}', platemap_columns: ${platemapColumns.inspect()}],
+        ${parquets.collect { parquet -> "file('${fixtureDir}/${parquet}')" }},
+        file('${fixtureDir}/${platemap}'),
+    ]""" }
+
+    def p1Parquets = ['profiles_P1_part1.parquet', 'profiles_P1_part2.parquet']
+
+    // P1 metadata columns, in output order: platemap columns, then profile metadata columns
+    def p1PlatemapColumns = ['Metadata_cell_line', 'Metadata_treatment', 'Metadata_dose', 'Metadata_note']
+    def p1ProfileMetadata = ['Metadata_Plate', 'Metadata_Well', 'Metadata_ImageNumber', 'Metadata_ObjectNumber']
+    def p1Features = ['Cells_AreaShape_Area', 'Nuclei_Intensity_MeanIntensity_DNA']
+
+    // Expected P1 platemap values per cell (2 cells per well, wells A01 to A04)
+    def perCell = { values -> values.collectMany { value -> [value, value] } }
+    def p1Wells = perCell(['A01', 'A02', 'A03', 'A04'])
+    def p1CellLines = perCell(['lineA', 'lineA', 'lineB', 'lineB'])
+    def p1Treatments = perCell(['DMSO', 'drugA', 'DMSO', 'drugA'])
+    def p1Doses = perCell(['010', '1', '010', '1'])
+    // blank values become '_NA_'; NA-like strings are kept as text
+    def p1Notes = perCell(['_NA_', 'NA', '_NA_', 'null'])
+
+    // Values of a named column, from the rows of a parquet file
+    def columnValues = { parquet, column ->
+        def index = parquet.columnNames.toList().indexOf(column)
+        parquet.rows.collect { row -> row[index] }
+    }
+
+    test("csv platemap - joins platemap columns to a split plate") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'platemap_P1.csv',
+                    ['Metadata_cell_line', 'treatment', 'Metadata_batch_note', 'site_group'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def (meta, parquet) = process.out.result[0]
+            assert meta.plate_id == 'P1'
+            // no duplicated metadata, so no warnings
+            assert process.out.warnings == []
+            with(path(parquet).parquet) {
+                // both parts are combined; the platemap well A05 has no cells, so it adds no rows
+                assert rowCount == 8
+                // the platemap well column is dropped; listed columns absent from the platemap are added
+                assert columnNames == p1PlatemapColumns +
+                    ['Metadata_batch_note', 'Metadata_site_group'] +
+                    p1ProfileMetadata + p1Features
+                assert schema == [
+                    Metadata_cell_line: String, Metadata_treatment: String, Metadata_dose: String, Metadata_note: String,
+                    Metadata_batch_note: String, Metadata_site_group: String,
+                    Metadata_Plate: String, Metadata_Well: String, Metadata_ImageNumber: Long, Metadata_ObjectNumber: Long,
+                    Cells_AreaShape_Area: Double, Nuclei_Intensity_MeanIntensity_DNA: Double,
+                ]
+            }
+            def annotated = path(parquet).parquet
+            assert columnValues(annotated, 'Metadata_Well') == p1Wells
+            assert columnValues(annotated, 'Metadata_cell_line') == p1CellLines
+            // whitespace around the header and value is stripped
+            assert columnValues(annotated, 'Metadata_treatment') == p1Treatments
+            assert columnValues(annotated, 'Metadata_dose') == p1Doses
+            assert columnValues(annotated, 'Metadata_note') == p1Notes
+            assert columnValues(annotated, 'Metadata_batch_note') == ['_Absent_'] * 8
+            assert columnValues(annotated, 'Metadata_site_group') == ['_Absent_'] * 8
+        }
+    }
+
+    test("txt platemap - joins on a well column named like the profiles'") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'platemap_P1.txt',
+                    ['Metadata_cell_line', 'Metadata_treatment'])}
+                input[1] = 'Well'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert process.out.warnings == []
+            def annotated = path(process.out.result[0][1]).parquet
+            assert annotated.rowCount == 8
+            // plate_map_name is kept; the shared well column is kept once, in the platemap's position
+            assert annotated.columnNames == ['Metadata_plate_map_name', 'Metadata_Well'] + p1PlatemapColumns +
+                (p1ProfileMetadata - 'Metadata_Well') + p1Features
+            assert columnValues(annotated, 'Metadata_plate_map_name') == ['layout_1'] * 8
+            assert columnValues(annotated, 'Metadata_Well') == p1Wells
+            assert columnValues(annotated, 'Metadata_cell_line') == p1CellLines
+            assert columnValues(annotated, 'Metadata_treatment') == p1Treatments
+            assert columnValues(annotated, 'Metadata_dose') == p1Doses
+            assert columnValues(annotated, 'Metadata_note') == p1Notes
+        }
+    }
+
+    test("prefixed platemap well header - matches an unprefixed well column name") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'platemap_P1_prefixed.txt',
+                    ['Metadata_cell_line'])}
+                input[1] = 'Well'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert process.out.warnings == []
+            def annotated = path(process.out.result[0][1]).parquet
+            assert annotated.rowCount == 8
+            // the Metadata_Well header is the same as the profiles' column, so it is kept once
+            assert annotated.columnNames == ['Metadata_Well'] + p1PlatemapColumns +
+                (p1ProfileMetadata - 'Metadata_Well') + p1Features
+            assert columnValues(annotated, 'Metadata_Well') == p1Wells
+            assert columnValues(annotated, 'Metadata_cell_line') == p1CellLines
+        }
+    }
+
+    test("prefixed well column name - matches an unprefixed platemap header") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'platemap_P1.csv',
+                    ['Metadata_cell_line'])}
+                input[1] = 'Metadata_well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert process.out.warnings == []
+            def annotated = path(process.out.result[0][1]).parquet
+            assert annotated.rowCount == 8
+            // the platemap well column is dropped, as with the unprefixed name
+            assert annotated.columnNames == p1PlatemapColumns + p1ProfileMetadata + p1Features
+            assert columnValues(annotated, 'Metadata_Well') == p1Wells
+            assert columnValues(annotated, 'Metadata_cell_line') == p1CellLines
+        }
+    }
+
+    test("duplicated metadata columns - resolved and reported") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P2', ['profiles_P2.parquet'], 'platemap_P2.csv',
+                    ['Metadata_cell_line', 'Metadata_treatment'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def annotated = path(process.out.result[0][1]).parquet
+            assert annotated.rowCount == 4
+            // - cell_line conflicts, so both columns are kept
+            // - treatment is coalesced and dose is identical as text, so each keeps one column with the profile's type
+            // - Metadata_Site_1 and Image_Metadata_Site are identical to Metadata_Site, so are dropped
+            // - Metadata_FOV_1 has no Metadata_FOV column, so it is kept
+            assert annotated.columnNames == [
+                'Metadata_cell_line_platemap', 'Metadata_perturbation',
+                'Metadata_Plate', 'Metadata_Well', 'Metadata_dose', 'Metadata_treatment', 'Metadata_cell_line',
+                'Metadata_Site', 'Metadata_FOV_1', 'Cells_AreaShape_Area',
+            ]
+            assert annotated.schema.Metadata_dose == Long
+            assert columnValues(annotated, 'Metadata_dose') == [10, 10, 1, 1]
+            // the missing A02 value is filled from the platemap
+            assert columnValues(annotated, 'Metadata_treatment') == ['DMSO', 'drugA', 'DMSO', 'drugA']
+            assert columnValues(annotated, 'Metadata_cell_line_platemap') == ['lineA', 'lineA', 'lineB', 'lineB']
+            assert columnValues(annotated, 'Metadata_cell_line') == ['lineA', 'lineA', 'lineB', 'lineC']
+
+            def (process_name, plateId, warnings) = process.out.warnings[0]
+            assert process_name == 'PYCYTOMINER_ANNOTATE'
+            assert plateId == 'P2'
+            assert path(warnings).readLines() == [
+                'Columns Metadata_cell_line_platemap, Metadata_cell_line have conflicting values; all were kept as is.',
+                'Columns Metadata_treatment_platemap, Metadata_treatment differ only in missing values; coalesced into Metadata_treatment.',
+                'Columns Metadata_perturbation, Metadata_treatment have identical values.',
+            ]
+        }
+    }
+
+    test("unmatched wells - dropped and reported") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P4', ['profiles_P4_unmatched.parquet'], 'platemap_P1.csv', ['Metadata_cell_line'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def annotated = path(process.out.result[0][1]).parquet
+            // only the 4 cells in wells A01 and A02 are kept
+            assert annotated.rowCount == 4
+            assert columnValues(annotated, 'Metadata_Well') == ['A01', 'A01', 'A02', 'A02']
+
+            def (process_name, plateId, warnings) = process.out.warnings[0]
+            assert process_name == 'PYCYTOMINER_ANNOTATE'
+            assert plateId == 'P4'
+            assert path(warnings).readLines() == [
+                'Wells with profiles but no platemap row were dropped: A06 (3 cells), (missing) (1 cell).',
+            ]
+        }
+    }
+
+    test("no wells match the platemap - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P5', ['profiles_P5_no_match.parquet'], 'platemap_P1.csv', ['Metadata_cell_line'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("No wells in the profiles match the platemap's 'well_position' column.") }
+            assert process.stdout.any { line -> line.contains("Profile wells include: A1, A2, A3, A4") }
+            assert process.stdout.any { line -> line.contains("Platemap wells include: A01, A02, A03, A04, A05") }
+        }
+    }
+
+    test("platemap well column missing from the platemap - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'platemap_P1.csv', ['Metadata_cell_line'])}
+                input[1] = 'wells'
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("The specified platemap_well_column 'wells' was not found in the platemap file.") }
+        }
+    }
+
+    test("no Metadata_Well column in the profiles - fails") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P3', ['profiles_P3_no_well.parquet'], 'platemap_P1.csv', ['Metadata_cell_line'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("The expected 'Metadata_Well' column was not found in the parquet file metadata.") }
+        }
+    }
+
+    test("platemap with an unsupported extension - fails") {
+
+        // a parquet file in place of the platemap
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'profiles_P2.parquet', ['Metadata_cell_line'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.failed
+            assert process.stdout.any { line -> line.contains("must have a .csv, .tsv, or .txt extension") }
+        }
+    }
+
+    test("stub") {
+
+        options "-stub"
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P1', p1Parquets, 'platemap_P1.csv', ['Metadata_cell_line'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            assert snapshot(process.out).match()
+        }
+    }
+}

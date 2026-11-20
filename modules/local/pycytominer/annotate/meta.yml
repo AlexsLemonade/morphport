@@ -56,8 +56,7 @@ output:
       - "*_metadata_warnings.txt":
           type: file
           description: |
-            Optional text file with warnings about duplicated metadata columns, one per line
-            (conflicting values, coalesced columns, or identical values under different names).
+            Optional text file of warnings about unmatched wells and duplicated metadata columns, one per line.
             Only created when there is something to report.
             Also sent to the `warnings` topic channel.
           pattern: "*_metadata_warnings.txt"

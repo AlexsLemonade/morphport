@@ -1,0 +1,5 @@
+well_position,cell_line,treatment,dose,perturbation
+A01,lineA,DMSO,10,DMSO
+A02,lineA,drugA,10,drugA
+A03,lineB,DMSO,1,DMSO
+A04,lineB,drugA,1,drugA

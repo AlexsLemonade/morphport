@@ -19,6 +19,10 @@ A multi-well plate of cells that was imaged; the unit of input to the pipeline.
 **Platemap**:
 The per-well metadata table (cell type, treatment, and so on) for a plate layout; several plates may share one platemap.
 
+**Unmatched well**:
+A well that has profiles but no row in its plate's platemap; its profiles cannot be annotated and are dropped.
+_Avoid_: missing well, unannotated well
+
 **Sample sheet**:
 The input table listing the plates to process, with one row per plate.
 Despite the name, each row is a plate, not a biological sample.
