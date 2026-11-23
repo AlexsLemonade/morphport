@@ -314,7 +314,12 @@ To use a different container from the default container or conda environment spe
 ### Custom Tool Arguments
 
 Many options for the tools used in this pipeline (CytoTable, coSMicQC, pycytominer, and the embedding and clustering steps) are exposed as pipeline parameters; see the parameter documentation for details.
-For example, quality control thresholds can be changed by providing a JSON file of coSMicQC filter settings with `--cosmicqc_filter_file` (the default is [`assets/cosmicqc_filter_settings.json`](../assets/cosmicqc_filter_settings.json)).
+For example, quality control thresholds can be changed by providing a JSON file of coSMicQC filter settings with `--cosmicqc_filter_file`.
+The feature names in the settings must match the channel names in the data.
+Two settings files are included with the pipeline:
+
+- [`assets/cosmicqc_filter_settings_jump.json`](../assets/cosmicqc_filter_settings_jump.json) (the default): for data with JUMP channel names (e.g. `CorrDNA`)
+- [`assets/cosmicqc_filter_settings_pccma.json`](../assets/cosmicqc_filter_settings_pccma.json): for PCCMA data, with PCCMA channel names (e.g. `DNA`); the default thresholds from the [PCCMA quality control](https://github.com/WayScience/pccma/blob/bc7d7dfc2185bc431a2d4a6a5108d52d53ee05bd/4.preprocess_features/qc_thresholds.yml), without its per-cell-line adjustments
 
 To learn how to provide additional arguments to a particular tool of the pipeline, please see the [customising tool arguments](https://nf-co.re/docs/running/configuration/nextflow-for-your-system#modifying-tool-arguments) section of the nf-core website.
 

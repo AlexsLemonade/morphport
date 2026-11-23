@@ -81,7 +81,7 @@
                     "format": "file-path",
                     "exists": true,
                     "description": "Path to JSON file specifying coSMicQC filter conditions and z-score thresholds.",
-                    "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings.json."
+                    "help_text": "Each entry in the JSON array defines a named condition with a dict of CellProfiler feature names to z-score thresholds. Positive thresholds flag cells above the z-score; negative thresholds flag cells below. Cells failing any condition are removed. Defaults to the reference thresholds bundled in assets/cosmicqc_filter_settings_jump.json."
                 },
                 "edge_well_filter": {
                     "type": ["string", "boolean"],
