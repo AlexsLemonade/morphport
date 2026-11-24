@@ -25,6 +25,7 @@ The platemap columns include `Cell_Line_Name` and `time_point`.
 Each plate has about 100 cells per well, with about 600 features in CellProfiler style, covering the `Nuclei`, `Cells`, and `Cytoplasm` compartments, the main measurement types (`AreaShape`, `Intensity`, `Texture`, `Granularity`, `RadialDistribution`, `Correlation`, and `Neighbors`, the last only for `Nuclei` and `Cells`), and all five imaging channels.
 Channel names (`AGP`, `DNA`, `ER`, `Mito`, and `RNA`) follow the PCCMA CellProfiler pipelines, not the JUMP names (e.g. `CorrDNA`) used by the default coSMicQC filter settings; use `assets/cosmicqc_filter_settings_pccma.json` for these data.
 Features measured in the same channel are correlated, as in real data.
+Features that measure nearly the same thing (e.g. a cell's area and perimeter, or a channel's mean and median intensity) are highly correlated even between single cells, so feature selection removes some of them, as it would in real data.
 
 Profiles are simulated with these effects:
 
@@ -36,6 +37,8 @@ The effects are randomly drawn, but with a fixed seed, so the data are the same 
 
 ## Files
 
+- `atlas_samplesheet.csv`: samplesheet for the atlas plates, used by the `test_full` profile
+- `atlas_analysis_groups.yml`: analysis groups for the atlas data: at the cell level, cells grouped by time point; at the well level, each cell line compared with `U2-OS` at each time point
 - `<project>/simulated/workspace/metadata/platemaps/<batch>/`: `barcode_platemap.csv` and the platemaps, copied from `assets/pccma/platemaps` (generated)
 - `<project>/simulated/workspace/profiles/<batch>/<plate>/<plate>_converted.parquet`: single-cell profiles (generated)
 
@@ -50,3 +53,11 @@ uv run scripts/generate_full_test_data.py
 ```
 
 To generate only some datasets, name them with `--dataset`, e.g. `--dataset atlas`.
+
+## Running the pipeline
+
+After generating the data, run the `test_full` profile from the repository root, as the samplesheet paths are relative to it:
+
+```bash
+nextflow run . -profile test_full,docker --outdir <OUTDIR>
+```

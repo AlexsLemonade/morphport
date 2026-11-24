@@ -1,0 +1,4 @@
+plate,project,source,batch,parquet_path,platemaps_dir,platemap_file,cytotable_preset
+BR00150695,pccma-atlas-simulated,simulated,Atlas,tests/data-full/pccma-atlas-simulated/simulated/workspace/profiles/Atlas/BR00150695/BR00150695_converted.parquet,tests/data-full/pccma-atlas-simulated/simulated/workspace/metadata/platemaps,,skip
+BR00150696,pccma-atlas-simulated,simulated,Atlas,tests/data-full/pccma-atlas-simulated/simulated/workspace/profiles/Atlas/BR00150696/BR00150696_converted.parquet,tests/data-full/pccma-atlas-simulated/simulated/workspace/metadata/platemaps,,skip
+BR00150697,pccma-atlas-simulated,simulated,Atlas,tests/data-full/pccma-atlas-simulated/simulated/workspace/profiles/Atlas/BR00150697/BR00150697_converted.parquet,tests/data-full/pccma-atlas-simulated/simulated/workspace/metadata/platemaps,,skip
