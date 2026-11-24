@@ -1,6 +1,6 @@
 # Simulated full-size test data
 
-This directory holds simulated Cell Painting datasets based on the Pediatric Cancer Cell Morphology Atlas (PCCMA) metadata in `assets/pccma`, for the `test_full` profiles.
+This directory holds simulated Cell Painting datasets based on the Pediatric Cancer Cell Morphology Atlas (PCCMA) metadata in `assets/pccma`, for the `test_full` and `test_full_screen` profiles.
 The plates and their layouts are the real PCCMA ones; the single-cell profiles are simulated by `scripts/generate_full_test_data.py`.
 Unlike the small synthetic data in `tests/data`, these data have a more complete feature set and structured effects. They are still smaller than a full run (fewer cells and features), but should allow exercising most modes of filtering and analysis in the workflow.
 They will be replaced by real data from the Cell Painting Gallery once it is available.
@@ -56,6 +56,8 @@ The effects are randomly drawn, but with a fixed seed, so the data are the same 
 
 - `atlas_samplesheet.csv`: samplesheet for the atlas plates, used by the `test_full` profile
 - `atlas_analysis_groups.yml`: analysis groups for the atlas data: at the cell level, cells grouped by time point; at the well level, each cell line compared with `U2-OS` at each time point
+- `screen_samplesheet.csv`: samplesheet for the screen plates, used by the `test_full_screen` profile
+- `screen_analysis_groups.yml`: analysis groups for the screen data, each split by cell line: at the cell level, DMSO and untreated wells together, and the compounds of the 3 mechanisms with the most compounds, each with DMSO; at the well level, every compound compared with DMSO, and the compounds of each mechanism with at least 5 compounds compared with DMSO
 - `<project>/simulated/workspace/metadata/platemaps/<batch>/`: `barcode_platemap.csv` and the platemaps, copied from `assets/pccma/platemaps`, with the simulated U2-OS screen plates added (generated)
 - `<project>/simulated/workspace/profiles/<batch>/<plate>/<plate>_converted.parquet`: single-cell profiles (generated)
 
@@ -73,8 +75,9 @@ To generate only some datasets, name them with `--dataset`, e.g. `--dataset atla
 
 ## Running the pipeline
 
-After generating the data, run the `test_full` profile from the repository root, as the samplesheet paths are relative to it:
+After generating the data, run the `test_full` profile (atlas) or the `test_full_screen` profile (screen) from the repository root, as the samplesheet paths are relative to it:
 
 ```bash
 nextflow run . -profile test_full,docker --outdir <OUTDIR>
+nextflow run . -profile test_full_screen,docker --outdir <OUTDIR>
 ```
