@@ -22,9 +22,11 @@ For each dataset, this script writes files in the Cell Painting Gallery layout u
 Datasets:
 
 - atlas: the 14 cell lines of the Atlas batch at 24, 48, and 72 h (one plate per time point)
-- (other datasets including drug treatment data will be added later)
+- screen: SK-N-AS cells treated with REPO1 compounds, from two plate layouts of the SK-N-AS_REPO1_Screen batch,
+  with three replicate plates of each, plus simulated U2-OS plates with the same layouts
+  (the real screen has only SK-N-AS; the U2-OS plates are included to test multiple cell lines in a screen)
 
-Well factor means are simulated first by combining dataset effects (e.g., cell line and time point), a plate offset, and well noise.
+Well factor means are simulated first by combining dataset effects (e.g., cell line, time point, or compound), a plate offset, and well noise.
 Each cell then adds its own noise to its well's mean, and a fixed matrix maps the result to features, plus feature noise.
 Features from the same channel share most of their mapping, so they are correlated, as in real data.
 Features that measure nearly the same thing (e.g. a cell's area and perimeter, or a channel's mean and median intensity)
@@ -35,7 +37,7 @@ Finally, values are transformed to a plausible range for each measurement
 Feature names follow CellProfiler conventions, with the PCCMA channel names (see CHANNELS),
 so use assets/cosmicqc_filter_settings_pccma.json for coSMicQC filtering.
 
-Random effects are drawn from generators seeded by --seed and a name (e.g. a cell line or plate barcode),
+Random effects are drawn from generators seeded by --seed and a name (e.g. a cell line, compound, or plate barcode),
 so each effect is the same in every dataset that uses it, and adding a dataset does not change the others.
 
 Usage (from the repository root):
@@ -57,9 +59,22 @@ import pandas as pd
 
 
 @dataclass(frozen=True)
+class DerivedPlate:
+    """
+    A plate that is not in the PCCMA platemaps, copied from a real plate's platemap with a different cell line.
+    Its barcode is made up, and its platemap is named after it.
+    """
+
+    plate: str
+    source_plate: str
+    cell_line: str
+
+
+@dataclass(frozen=True)
 class Dataset:
     """
     A simulated project: one batch of plates.
+    plates are real PCCMA plates; derived_plates are added to the batch with copies of real platemaps.
     Each dataset's well effects are set by the function for its name in WELL_EFFECTS.
     """
 
@@ -67,13 +82,14 @@ class Dataset:
     project: str
     batch: str
     plates: tuple[str, ...]
+    derived_plates: tuple[DerivedPlate, ...] = ()
 
 
 # Gallery source within each project, marking the data as simulated
 SOURCE = "simulated"
 
 # Mean cells per well (before dataset effects on cell counts), spread over the sites (images) in each well
-CELLS_PER_WELL = 100
+CELLS_PER_WELL = 50
 SITES_PER_WELL = 9
 
 # Latent factor model: number of latent dimensions, and standard deviations of each source of variation
@@ -96,6 +112,19 @@ CELL_LINE_SD = 0.5
 TIME_EFFECT_72H = 1.5
 GROWTH_RATE_SD = 0.3
 
+# Screen effects, in latent units: the fraction of test compounds that are active in every cell line,
+# and the chance that any other compound is active in each cell line (about 10% of compounds are active in each,
+# and about half of those active in one of two cell lines are active only in that one);
+# the range of active compounds' effect sizes, and the standard deviation of each cell line's log scale on them;
+# the weight of the shared mechanism of action direction in each active compound's effect direction;
+# and the size of the untreated wells' offset from DMSO
+SHARED_ACTIVE_FRACTION = 0.06
+CELL_LINE_ACTIVE_FRACTION = 0.04
+ACTIVE_EFFECT_RANGE = (0.5, 3.0)
+CELL_LINE_RESPONSE_SD = 0.3
+MECHANISM_WEIGHT = 0.5
+UNTREATED_EFFECT = 0.3
+
 # Imaging channels as named in the PCCMA CellProfiler pipelines (WayScience/pccma, 3.cp_analysis/pipeline/),
 # where CorrectIlluminationApply names each corrected image by its bare channel name (e.g. OrigDNA -> DNA).
 # These differ from the JUMP (cpg0016) names used elsewhere in the pipeline (e.g. CorrDNA).
@@ -115,6 +144,36 @@ DATASETS = [
         project="pccma-atlas-simulated",
         batch="Atlas",
         plates=("BR00150695", "BR00150696", "BR00150697"),
+    ),
+    # two layouts, each with three replicate plates; the Row O repeat plates (BR00149048, BR00149049) are left out
+    Dataset(
+        name="screen",
+        project="pccma-repo1-simulated",
+        batch="SK-N-AS_REPO1_Screen",
+        plates=(
+            "BR00148919",
+            "BR00148920",
+            "BR00148921",
+            "BR00148922",
+            "BR00148923",
+            "BR00148924",
+        ),
+        # simulated U2-OS plates with the same layouts, with made-up barcodes (SIM + the source barcode's number)
+        derived_plates=tuple(
+            DerivedPlate(
+                plate=f"SIM{source_plate.removeprefix('BR')}",
+                source_plate=source_plate,
+                cell_line="U2-OS",
+            )
+            for source_plate in (
+                "BR00148919",
+                "BR00148920",
+                "BR00148921",
+                "BR00148922",
+                "BR00148923",
+                "BR00148924",
+            )
+        ),
     ),
 ]
 
@@ -354,22 +413,71 @@ def transform_values(z: np.ndarray, features: list[Feature]) -> np.ndarray:
     return values
 
 
+def unit_vector(rng: np.random.Generator) -> np.ndarray:
+    """Return a random direction in the latent space."""
+    direction = rng.normal(0, 1, N_LATENT)
+    return direction / np.linalg.norm(direction)
+
+
+def cell_line_effects(cell_line: str, seed: int) -> tuple[np.ndarray, float]:
+    """Return a cell line's latent offset and growth rate, the same in every dataset."""
+    cell_line_rng = keyed_rng(seed, f"cell_line:{cell_line}")
+    offset = cell_line_rng.normal(0, CELL_LINE_SD, N_LATENT)
+    growth_rate = np.exp(cell_line_rng.normal(0, GROWTH_RATE_SD))
+    return offset, growth_rate
+
+
+def compound_effect(
+    compound: str, mechanisms: str, cell_line: str, seed: int
+) -> np.ndarray:
+    """
+    Return a test compound's latent effect in a cell line, the same wherever the compound is used in that cell line.
+    SHARED_ACTIVE_FRACTION of compounds are active in every cell line;
+    any other compound is active in each cell line with chance CELL_LINE_ACTIVE_FRACTION, and otherwise has no effect.
+    An active compound's effect size is drawn from ACTIVE_EFFECT_RANGE, then scaled for each cell line
+    (log scale with standard deviation CELL_LINE_RESPONSE_SD).
+    Its direction, the same in every cell line, combines a direction shared by its mechanisms of action
+    (MECHANISM_WEIGHT; mechanisms are separated by "|", and none means no shared direction) with its own.
+    """
+    compound_rng = keyed_rng(seed, f"compound:{compound}")
+    is_active_everywhere = compound_rng.random() < SHARED_ACTIVE_FRACTION
+    effect_size = compound_rng.uniform(*ACTIVE_EFFECT_RANGE)
+    own_direction = unit_vector(compound_rng)
+    response_rng = keyed_rng(seed, f"compound:{compound}:cell_line:{cell_line}")
+    is_active_in_cell_line = response_rng.random() < CELL_LINE_ACTIVE_FRACTION
+    response_scale = np.exp(response_rng.normal(0, CELL_LINE_RESPONSE_SD))
+    if not (is_active_everywhere or is_active_in_cell_line):
+        return np.zeros(N_LATENT)
+    mechanism_list = [m for m in mechanisms.split("|") if m]
+    if not mechanism_list:
+        direction = own_direction
+    else:
+        mechanism_direction = np.zeros(N_LATENT)
+        for mechanism in mechanism_list:
+            mechanism_direction = mechanism_direction + unit_vector(
+                keyed_rng(seed, f"mechanism:{mechanism}")
+            )
+        mechanism_direction = mechanism_direction / np.linalg.norm(mechanism_direction)
+        direction = (
+            MECHANISM_WEIGHT * mechanism_direction
+            + (1 - MECHANISM_WEIGHT) * own_direction
+        )
+    return effect_size * response_scale * direction / np.linalg.norm(direction)
+
+
 def atlas_well_effects(platemap: pd.DataFrame, seed: int) -> WellEffects:
     """
     Set atlas well effects: each cell line has its own latent offset, and the time point effect grows linearly
     from none at 24 h to TIME_EFFECT_72H at 72 h along a shared direction, scaled by each cell line's growth rate.
     Cell counts grow with time, from 0.75 to 1.25 times CELLS_PER_WELL.
     """
-    time_direction = keyed_rng(seed, "atlas:time").normal(0, 1, N_LATENT)
-    time_direction = time_direction / np.linalg.norm(time_direction)
+    time_direction = unit_vector(keyed_rng(seed, "atlas:time"))
     latent_means = np.zeros((len(platemap), N_LATENT))
     mean_cells = np.zeros(len(platemap))
     for i, (cell_line, time_point) in enumerate(
         zip(platemap["Cell_Line_Name"], platemap["time_point"].astype(int))
     ):
-        cell_line_rng = keyed_rng(seed, f"cell_line:{cell_line}")
-        cell_line_offset = cell_line_rng.normal(0, CELL_LINE_SD, N_LATENT)
-        growth_rate = np.exp(cell_line_rng.normal(0, GROWTH_RATE_SD))
+        cell_line_offset, growth_rate = cell_line_effects(cell_line, seed)
         time_fraction = (time_point - 24) / 48
         latent_means[i] = (
             cell_line_offset
@@ -379,15 +487,61 @@ def atlas_well_effects(platemap: pd.DataFrame, seed: int) -> WellEffects:
     return WellEffects(latent_means=latent_means, mean_cells=mean_cells)
 
 
+def screen_well_effects(platemap: pd.DataFrame, seed: int) -> WellEffects:
+    """
+    Set screen well effects: each well has its cell line's offset (without a time point effect);
+    test compounds add their effects in the cell line (see compound_effect), DMSO wells add none,
+    and untreated wells add a small offset (UNTREATED_EFFECT) along a fixed direction.
+    Cell counts do not vary with treatment, averaging CELLS_PER_WELL.
+    """
+    untreated_effect = UNTREATED_EFFECT * unit_vector(
+        keyed_rng(seed, "screen:untreated")
+    )
+    latent_means = np.zeros((len(platemap), N_LATENT))
+    for i, (cell_line, control_class, compound, mechanisms) in enumerate(
+        zip(
+            platemap["Cell_Line_Name"],
+            platemap["Treatment_Control_Class"],
+            platemap["compound_id"],
+            platemap["Treatment_Mechanism"].fillna(""),
+        )
+    ):
+        cell_line_offset, _growth_rate = cell_line_effects(cell_line, seed)
+        if control_class == "Treatment":
+            treatment_effect = compound_effect(
+                compound=compound,
+                mechanisms=mechanisms,
+                cell_line=cell_line,
+                seed=seed,
+            )
+        elif control_class == "NegCon":
+            treatment_effect = np.zeros(N_LATENT)
+        elif control_class == "Control":
+            treatment_effect = untreated_effect
+        else:
+            raise ValueError(
+                f"Unknown Treatment_Control_Class for well {platemap['well_position'].iloc[i]}: {control_class}"
+            )
+        latent_means[i] = cell_line_offset + treatment_effect
+    mean_cells = np.full(len(platemap), float(CELLS_PER_WELL))
+    return WellEffects(latent_means=latent_means, mean_cells=mean_cells)
+
+
 # Well effects function for each dataset in DATASETS, by dataset name.
 # Each takes a plate's platemap and --seed and returns the WellEffects (latent means and cell counts) for its wells.
 WELL_EFFECTS: dict[str, Callable[[pd.DataFrame, int], WellEffects]] = {
     "atlas": atlas_well_effects,
+    "screen": screen_well_effects,
 }
 
 
-def read_platemap(platemaps_dir: Path, batch: str, plate: str) -> pd.DataFrame:
-    """Read a plate's PCCMA platemap, found through the batch's barcode_platemap.csv."""
+def read_platemap(
+    platemaps_dir: Path, batch: str, plate: str, keep_default_na: bool = True
+) -> pd.DataFrame:
+    """
+    Read a plate's PCCMA platemap, found through the batch's barcode_platemap.csv.
+    With keep_default_na=False, values such as "None" and empty strings are kept as strings rather than read as missing.
+    """
     batch_dir = platemaps_dir / batch
     barcodes = pd.read_csv(batch_dir / "barcode_platemap.csv", dtype=str)
     match = barcodes.loc[barcodes["Assay_Plate_Barcode"] == plate, "Plate_Map_Name"]
@@ -396,8 +550,29 @@ def read_platemap(platemaps_dir: Path, batch: str, plate: str) -> pd.DataFrame:
             f"Plate {plate} must appear exactly once in {batch_dir / 'barcode_platemap.csv'}"
         )
     return pd.read_csv(
-        batch_dir / "platemap" / f"{match.iloc[0]}.txt", sep="\t", dtype=str
+        batch_dir / "platemap" / f"{match.iloc[0]}.txt",
+        sep="\t",
+        dtype=str,
+        keep_default_na=keep_default_na,
     )
+
+
+def derive_platemap(
+    platemaps_dir: Path,
+    batch: str,
+    derived: DerivedPlate,
+    keep_default_na: bool = True,
+) -> pd.DataFrame:
+    """Return a derived plate's platemap: its source plate's platemap, named for the derived plate, with its cell line."""
+    platemap = read_platemap(
+        platemaps_dir=platemaps_dir,
+        batch=batch,
+        plate=derived.source_plate,
+        keep_default_na=keep_default_na,
+    )
+    platemap["plate_map_name"] = derived.plate
+    platemap["Cell_Line_Name"] = derived.cell_line
+    return platemap
 
 
 def simulate_plate(
@@ -459,18 +634,38 @@ def simulate_plate(
 
 
 def write_platemaps(platemaps_dir: Path, dataset: Dataset, metadata_dir: Path) -> None:
-    """Copy the dataset's platemaps to the gallery layout, with barcode_platemap.csv limited to its plates."""
+    """
+    Copy the dataset's platemaps to the gallery layout, with barcode_platemap.csv limited to its plates,
+    and add the derived plates and their platemaps.
+    """
     batch_dir = platemaps_dir / dataset.batch
     out_dir = metadata_dir / "platemaps" / dataset.batch
     (out_dir / "platemap").mkdir(parents=True, exist_ok=True)
     barcodes = pd.read_csv(batch_dir / "barcode_platemap.csv", dtype=str)
     barcodes = barcodes[barcodes["Assay_Plate_Barcode"].isin(dataset.plates)]
-    barcodes.to_csv(out_dir / "barcode_platemap.csv", index=False)
     for platemap_name in barcodes["Plate_Map_Name"]:
         platemap_file = f"{platemap_name}.txt"
         (out_dir / "platemap" / platemap_file).write_bytes(
             (batch_dir / "platemap" / platemap_file).read_bytes()
         )
+    derived_barcodes = pd.DataFrame(
+        {
+            "Assay_Plate_Barcode": [d.plate for d in dataset.derived_plates],
+            "Plate_Map_Name": [d.plate for d in dataset.derived_plates],
+        }
+    )
+    for derived in dataset.derived_plates:
+        platemap = derive_platemap(
+            platemaps_dir=platemaps_dir,
+            batch=dataset.batch,
+            derived=derived,
+            keep_default_na=False,
+        )
+        platemap.to_csv(
+            out_dir / "platemap" / f"{derived.plate}.txt", sep="\t", index=False
+        )
+    barcodes = pd.concat([barcodes, derived_barcodes], ignore_index=True)
+    barcodes.to_csv(out_dir / "barcode_platemap.csv", index=False)
 
 
 def generate_dataset(
@@ -488,10 +683,17 @@ def generate_dataset(
         dataset=dataset,
         metadata_dir=workspace / "metadata",
     )
-    for plate in dataset.plates:
-        platemap = read_platemap(
+    platemaps = {
+        plate: read_platemap(
             platemaps_dir=platemaps_dir, batch=dataset.batch, plate=plate
         )
+        for plate in dataset.plates
+    }
+    for derived in dataset.derived_plates:
+        platemaps[derived.plate] = derive_platemap(
+            platemaps_dir=platemaps_dir, batch=dataset.batch, derived=derived
+        )
+    for plate, platemap in platemaps.items():
         well_effects = WELL_EFFECTS[dataset.name](platemap, seed)
         profiles = simulate_plate(
             plate=plate,
