@@ -57,7 +57,7 @@ The effects are randomly drawn, but with a fixed seed, so the data are the same 
 - `atlas_samplesheet.csv`: samplesheet for the atlas plates, used by the `test_full` profile
 - `atlas_analysis_groups.yml`: analysis groups for the atlas data: at the cell level, cells grouped by time point; at the well level, each cell line compared with `U2-OS` at each time point
 - `screen_samplesheet.csv`: samplesheet for the screen plates, used by the `test_full_screen` profile
-- `screen_analysis_groups.yml`: analysis groups for the screen data, each split by cell line: at the cell level, DMSO and untreated wells together, and the compounds of the 3 mechanisms with the most compounds, each with DMSO; at the well level, every compound compared with DMSO, and the compounds of each mechanism with at least 5 compounds compared with DMSO
+- `screen_analysis_groups.yml`: analysis groups for the screen data: all wells of each cell line, at both aggregate levels, with every compound and the untreated wells compared with DMSO at the well level
 - `<project>/simulated/workspace/metadata/platemaps/<batch>/`: `barcode_platemap.csv` and the platemaps, copied from `assets/pccma/platemaps`, with the simulated U2-OS screen plates added (generated)
 - `<project>/simulated/workspace/profiles/<batch>/<plate>/<plate>_converted.parquet`: single-cell profiles (generated)
 
