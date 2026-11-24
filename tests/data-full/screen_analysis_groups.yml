@@ -171,12 +171,10 @@ cell:
       - BRD-U48018661
     subgroup_columns: [Cell_Line_Name]
 well:
-  # Every compound compared with DMSO, for each cell line; untreated wells are left out
+  # Every compound, and the untreated wells, compared with DMSO, for each cell line
   - name: compounds_vs_dmso
     grouping_column: Cell_Line_Name
     groups: one_per_value
-    filter:
-      Treatment_Control_Class: [Treatment, NegCon]
     comparison_column: compound_id
     reference_values: [DMSO]
 
