@@ -45,7 +45,7 @@ Plate P2, for resolving duplicated metadata columns, with 1 cell in each of well
 - platemap_P2.csv: well_position, cell_line, treatment, dose, and perturbation, which has the same
   values as treatment under an unrelated name, so it is reported but not dropped
 
-Plate P3, with no Metadata_Well column (only Image_Metadata_Well), 1 cell in each of wells A01 to A04:
+Plate P3, with no well column (neither Metadata_Well nor an alternative name), 1 cell in each of 4 images:
 
 - profiles_P3_no_well.parquet
 
@@ -55,6 +55,13 @@ Plates for unmatched wells (wells with profiles but no platemap row), both used 
   3 cells in well A06 (not in the platemap), and 1 cell with no well value
 - profiles_P5_no_match.parquet: 1 cell in each of wells A1 to A4, without the zero padding the platemap uses,
   so no well matches
+
+Plate P6, with identifier columns named as by the CytoTable pycytominer preset (as in PCCMA profiles),
+used with platemap_P1.csv, with 1 cell in each of wells A01 to A04:
+
+- profiles_P6_pycytominer.parquet: Metadata_ImageNumber, Image_Metadata_Plate, Image_Metadata_Well,
+  Image_Metadata_Site, Metadata_Cells_Number_Object_Number, Metadata_Nuclei_Number_Object_Number,
+  and one feature
 
 Usage (from the repository root):
 
@@ -108,11 +115,11 @@ def plate_p2_profiles() -> pl.DataFrame:
 
 
 def plate_p3_profiles() -> pl.DataFrame:
-    """One cell per well for plate P3, with the well only in Image_Metadata_Well."""
+    """One cell in each of 4 images for plate P3, with no well column."""
     return pl.DataFrame(
         {
             "Metadata_Plate": ["P3"] * len(WELLS),
-            "Image_Metadata_Well": WELLS,
+            "Metadata_ImageNumber": [1, 2, 3, 4],
             "Cells_AreaShape_Area": [100.0, 101.0, 102.0, 103.0],
         }
     )
@@ -137,6 +144,21 @@ def plate_p5_profiles() -> pl.DataFrame:
         {
             "Metadata_Plate": ["P5"] * len(wells),
             "Metadata_Well": wells,
+            "Cells_AreaShape_Area": [100.0, 101.0, 102.0, 103.0],
+        }
+    )
+
+
+def plate_p6_profiles() -> pl.DataFrame:
+    """One cell per well for plate P6, with identifier columns named as by the CytoTable pycytominer preset."""
+    return pl.DataFrame(
+        {
+            "Metadata_ImageNumber": [1, 2, 3, 4],
+            "Image_Metadata_Plate": ["P6"] * len(WELLS),
+            "Image_Metadata_Well": WELLS,
+            "Image_Metadata_Site": [1, 1, 1, 1],
+            "Metadata_Cells_Number_Object_Number": [1, 1, 1, 1],
+            "Metadata_Nuclei_Number_Object_Number": [1, 1, 1, 1],
             "Cells_AreaShape_Area": [100.0, 101.0, 102.0, 103.0],
         }
     )
@@ -195,6 +217,7 @@ def main():
     plate_p3_profiles().write_parquet(FIXTURE_DIR / "profiles_P3_no_well.parquet")
     plate_p4_profiles().write_parquet(FIXTURE_DIR / "profiles_P4_unmatched.parquet")
     plate_p5_profiles().write_parquet(FIXTURE_DIR / "profiles_P5_no_match.parquet")
+    plate_p6_profiles().write_parquet(FIXTURE_DIR / "profiles_P6_pycytominer.parquet")
 
     (FIXTURE_DIR / "platemap_P1.csv").write_text(PLATEMAP_P1_CSV, encoding="utf-8")
     (FIXTURE_DIR / "platemap_P1.txt").write_text(PLATEMAP_P1_TXT, encoding="utf-8")
