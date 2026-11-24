@@ -315,7 +315,7 @@ nextflow_process {
 
         then {
             assert process.failed
-            assert process.stdout.any { line -> line.contains("The expected 'Metadata_Well' column was not found in the parquet file metadata (alternative names: Image_Metadata_Well).") }
+            assert process.stdout.any { line -> line.contains("The expected 'Metadata_Well' column or an accepted alternative was not found in the parquet file metadata.") }
         }
     }
 
