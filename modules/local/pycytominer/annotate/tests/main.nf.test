@@ -12,7 +12,8 @@ nextflow_process {
     // - profiles_P1_part1/part2.parquet: plate P1 split in two files, 2 cells in each of wells A01 to A04
     // - platemap_P1.csv and platemap_P1.txt: the P1 layout, with well columns well_position and Well
     // - profiles_P2.parquet and platemap_P2.csv: plate P2, with duplicated metadata columns
-    // - profiles_P3_no_well.parquet: plate P3, with no Metadata_Well column
+    // - profiles_P3_no_well.parquet: plate P3, with no well column
+    // - profiles_P6_pycytominer.parquet: plate P6, with identifier columns named as by the CytoTable pycytominer preset
 
     // Input tuples, as Groovy source text; closures because moduleDir is only defined inside a test.
     def plateInput = { fixtureDir, plateId, parquets, platemap, platemapColumns -> """[
@@ -271,7 +272,37 @@ nextflow_process {
         }
     }
 
-    test("no Metadata_Well column in the profiles - fails") {
+    test("pycytominer preset identifier columns - renamed to the standard names") {
+
+        when {
+            process {
+                """
+                input[0] = ${plateInput("${moduleDir}/tests/fixtures", 'P6', ['profiles_P6_pycytominer.parquet'], 'platemap_P1.csv', ['Metadata_cell_line'])}
+                input[1] = 'well_position'
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            // renaming is expected for these profiles, so it is not reported as a warning
+            assert process.out.warnings == []
+            def annotated = path(process.out.result[0][1]).parquet
+            assert annotated.rowCount == 4
+            // Image_Metadata_Plate, Image_Metadata_Well, and Metadata_Cells_Number_Object_Number are renamed;
+            // Image_Metadata_Site and Metadata_Nuclei_Number_Object_Number are kept as they are
+            assert annotated.columnNames == p1PlatemapColumns + [
+                'Metadata_ImageNumber', 'Metadata_Plate', 'Metadata_Well', 'Metadata_ObjectNumber',
+                'Metadata_Nuclei_Number_Object_Number', 'Image_Metadata_Site', 'Cells_AreaShape_Area',
+            ]
+            assert columnValues(annotated, 'Metadata_Plate') == ['P6'] * 4
+            assert columnValues(annotated, 'Metadata_Well') == ['A01', 'A02', 'A03', 'A04']
+            assert columnValues(annotated, 'Metadata_ObjectNumber') == [1, 1, 1, 1]
+            assert columnValues(annotated, 'Metadata_cell_line') == ['lineA', 'lineA', 'lineB', 'lineB']
+        }
+    }
+
+    test("no well column in the profiles - fails") {
 
         when {
             process {
@@ -284,7 +315,7 @@ nextflow_process {
 
         then {
             assert process.failed
-            assert process.stdout.any { line -> line.contains("The expected 'Metadata_Well' column was not found in the parquet file metadata.") }
+            assert process.stdout.any { line -> line.contains("The expected 'Metadata_Well' column or an accepted alternative was not found in the parquet file metadata.") }
         }
     }
 

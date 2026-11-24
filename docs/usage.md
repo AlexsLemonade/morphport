@@ -67,6 +67,9 @@ Any columns not in the table below are ignored.
 | `platemaps_dir`    | No       | Path to a directory laid out like a CPG `metadata/platemaps` directory, used to look up the platemap as described [above](#plates-on-the-cell-painting-gallery). Defaults to the CPG location for CPG projects.
 | `cytotable_preset` | No       | CytoTable preset used to convert the SQLite file to parquet: `cellprofiler_sqlite`, `cellprofiler_sqlite_cpg0016_jump` (default), or `cellprofiler_sqlite_pycytominer`. Use `skip` to skip conversion and read existing profiles from `parquet_path`.
 
+Existing parquet profiles need columns identifying each cell's plate, well, image, and object: `Metadata_Plate`, `Metadata_Well`, `Metadata_ImageNumber`, and `Metadata_ObjectNumber`, as written by the default CytoTable preset.
+The names written by the `cellprofiler_sqlite_pycytominer` preset (`Image_Metadata_Plate`, `Image_Metadata_Well`, and `Metadata_Cells_Number_Object_Number`) are also accepted.
+
 Projects whose names do not follow the CPG format (`cpgNNNN-...`) must provide `sqlite_path` (or `parquet_path`) and one of `platemap_file` or `platemaps_dir`.
 For example, a samplesheet mixing CPG data with local parquet profiles might look like this:
 
