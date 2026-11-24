@@ -1,3 +1,7 @@
+---
+Status: partly superseded by Decision-002 (reference normalization runs once per comparison set, not per analysis group)
+---
+
 # Reference normalization is a separate per-group step
 
 Plate normalization fits each plate to all of its wells by default, because some projects (such as the cell-line atlas) have no controls, but phenotypic activity and consensus similarity compare profiles to a comparison reference such as DMSO.

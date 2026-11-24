@@ -129,34 +129,51 @@ Per-well profiles that share a value are replicates of one test condition.
 It is set per grouping, and a grouping without one has no comparisons.
 _Avoid_: consensus column, replicate column (a platemap may have a replicate number column)
 
+**Comparison set columns**:
+The columns whose values separate a grouping's comparison sets: the grouping column (unless it is the comparison column) and the subgroup columns.
+For example, cell type when comparing treatments within each cell type, or treatment when comparing cell types within each treatment.
+Unlike annotation columns, they decide which wells are compared together.
+_Avoid_: context columns
+
+**Comparison set**:
+The test conditions of one comparison column, within one combination of comparison set column values in a project, that are measured against the same comparison reference.
+Groupings with the same comparison column, comparison reference, and comparison set columns share their comparison sets, which hold every test condition that any of them includes; a grouping that includes only some of them (e.g., the treatments of one mechanism of action) uses the shared results rather than its own.
+Comparing in the other direction (cell types within each treatment rather than treatments within each cell type) gives different comparison sets.
+An analysis group may include test conditions from several comparison sets (e.g., a group of cell types comparing treatments within each).
+_Avoid_: scoring set, activity set
+
 **Test condition**:
-One value of the comparison column combined with the grouping and subgroup column values that identify an analysis group (e.g., treatment `drugA` in the group for cell type `lineA`, or cell type `lineA` in the group for treatment `drugA`).
+One value of the comparison column within a comparison set (e.g., treatment `drugA` among the treatments compared within cell type `lineA`, or cell type `lineA` among the cell types compared within treatment `drugA`).
+A test condition belongs to its comparison set rather than to any one analysis group, so every analysis group that includes it shares its profiles and results.
 Comparison reference wells are never part of a test condition: when comparing treatments, DMSO is not a test condition, and when comparing cell types within `drugA`, the DMSO wells of `lineA` are not part of the `lineA` test condition.
 _Avoid_: comparison value, compared item, item, condition (on its own)
 
+**Annotation column**:
+A platemap column carried into the outputs for each test condition to describe it (e.g., mechanism of action, or a cell line's cancer type), without affecting which wells are compared or how they are scored.
+
 **Comparison reference**:
-The wells that the test conditions of an analysis group are measured against, chosen by their values in a single platemap column (usually a control such as DMSO in the `treatment` column).
+The wells that the test conditions of a comparison set are measured against, chosen by their values in a single platemap column (usually a control such as DMSO in the `treatment` column).
 A grouping sets it with `reference_values` (and `reference_column`, which defaults to the comparison column), and only together with a comparison column.
 _Avoid_: consensus reference, baseline, negative control (when referring to the wells chosen for this purpose)
 
 **Reference normalization**:
-Normalizing an analysis group's per-well profiles to its comparison reference wells, separately for each plate, so that each well describes a change from the reference on its own plate.
-Within each plate, each value of the columns that define the analysis group (other than the reference columns), such as each cell type, is normalized to its own reference wells.
-It is applied on top of plate normalization and only to groups with a comparison reference.
+Normalizing a comparison set's per-well profiles to its comparison reference wells, separately for each plate, so that each well describes a change from the reference on its own plate.
+Within each plate, each value of the comparison set columns (other than the reference columns), such as each cell type, is normalized to its own reference wells.
+It is applied on top of plate normalization and only to comparison sets with a comparison reference.
 _Avoid_: renormalization, DMSO normalization, centering (when referring to this step)
 
 **Consensus profile**:
-A single profile summarizing all the per-well profiles in an analysis group that share one value of the comparison column, pooled across every plate and batch in the group.
+A single profile summarizing all the per-well profiles of one test condition, pooled across every plate and batch in its comparison set.
 Consensus profiles are built only from per-well profiles, never span projects, and never include reference wells.
-When the group has a comparison reference, consensus profiles are built from reference-normalized profiles, so they describe a change from the reference; without one, they are built from the plate-normalized profiles as they are.
+When the comparison set has a comparison reference, consensus profiles are built from reference-normalized profiles, so they describe a change from the reference; without one, they are built from the plate-normalized profiles as they are.
 _Avoid_: signature, level 5 profile, treatment profile
 
 **Consensus similarity**:
-The pairwise similarity between the consensus profiles of one analysis group.
+The pairwise similarity between the consensus profiles of the test conditions in one analysis group.
 
 **Phenotypic activity**:
-Whether the per-well profiles of one test condition are more similar to each other than to the comparison reference wells, scored by mean average precision (mAP) within one analysis group.
-Profiles are compared only with others of the same cell type (more generally, the same values of the columns that define the analysis group other than the reference columns), and the score covers all of the test condition's profiles.
-A test condition is called as **active** when its mAP is significant after correcting for the number of test conditions in the group.
-It is defined only for groups with a comparison reference.
+Whether the per-well profiles of one test condition are more similar to each other than to the comparison reference wells, scored by mean average precision (mAP) within its comparison set.
+Profiles are compared only with others of the same cell type (more generally, the same comparison set column values other than the reference columns), and the score covers all of the test condition's profiles.
+A test condition is called as **active** when its mAP is significant after correcting for the number of test conditions in its comparison set.
+It is defined only for comparison sets with a comparison reference.
 _Avoid_: activity score, hit (when referring to a test condition called as active)
