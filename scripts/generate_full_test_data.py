@@ -27,6 +27,8 @@ Datasets:
 Well factor means are simulated first by combining dataset effects (e.g., cell line and time point), a plate offset, and well noise.
 Each cell then adds its own noise to its well's mean, and a fixed matrix maps the result to features, plus feature noise.
 Features from the same channel share most of their mapping, so they are correlated, as in real data.
+Features that measure nearly the same thing (e.g. a cell's area and perimeter, or a channel's mean and median intensity)
+form families that also share most of their noise, so they are highly correlated even between single cells.
 Finally, values are transformed to a plausible range for each measurement
 (e.g., positive areas, fractions from 0 to 1, correlations from -1 to 1).
 
@@ -79,10 +81,14 @@ SITES_PER_WELL = 9
 N_LATENT = 16
 PLATE_SD = 0.1
 WELL_SD = 0.1
-# Feature-specific noise, added to each feature after mapping from the latent space
+# Feature noise, added to each feature family after mapping from the latent space (shared by the family's features)
 FEATURE_NOISE_SD = 0.3
-# Weight of the shared channel (or shape) loadings in each feature's loadings, versus its own random loadings
-GROUP_LOADING_WEIGHT = 0.8
+# Weight of the shared channel (or shape) loadings in each feature family's loadings, versus the family's own random loadings
+GROUP_LOADING_WEIGHT = 0.6
+# Features in a family (see Measurement) share all but FAMILY_OWN_WEIGHT of their loadings,
+# and each adds its own noise, with standard deviation FAMILY_MEMBER_NOISE_SD, to the family's
+FAMILY_OWN_WEIGHT = 0.15
+FAMILY_MEMBER_NOISE_SD = 0.1
 
 # Atlas effects, in latent units: each cell line's offset (per latent dimension),
 # and the time point effect at 72 h (along a shared direction, scaled by each cell line's growth rate)
@@ -119,22 +125,26 @@ class Measurement:
     A CellProfiler measurement, before adding the compartment prefix.
     kind sets how simulated values are transformed: positive (log-normal around center),
     fraction (between 0 and 1), correlation (between -1 and 1), or count (non-negative integer).
+    family names the measurements that measure nearly the same thing (e.g. Area and Perimeter);
+    within a compartment, they share most of their loadings and noise. None means the measurement is its own family.
     """
 
     name: str
     group: str
     kind: str
     center: float
+    family: str | None = None
 
 
 @dataclass(frozen=True)
 class Feature:
-    """A simulated feature: its full name and how its values are generated."""
+    """A simulated feature: its full name, its family (see Measurement), and how its values are generated."""
 
     name: str
     group: str
     kind: str
     center: float
+    family: str
 
 
 @dataclass(frozen=True)
@@ -149,43 +159,59 @@ def channel_measurements() -> list[Measurement]:
     """Return the measurements made in each imaging channel."""
     measurements = []
     for ch in CHANNELS:
-        for name, kind, center in [
-            ("IntegratedIntensity", "positive", 50.0),
-            ("MeanIntensity", "fraction", 0.1),
-            ("StdIntensity", "fraction", 0.03),
-            ("MedianIntensity", "fraction", 0.1),
-            ("MinIntensity", "fraction", 0.02),
-            ("MaxIntensity", "fraction", 0.4),
-            ("LowerQuartileIntensity", "fraction", 0.06),
-            ("UpperQuartileIntensity", "fraction", 0.15),
-            ("MassDisplacement", "positive", 1.0),
-        ]:
-            measurements.append(Measurement(f"Intensity_{name}_{ch}", ch, kind, center))
-        for name, kind, center in [
-            ("AngularSecondMoment", "fraction", 0.2),
-            ("Contrast", "positive", 2.0),
-            ("Correlation", "correlation", 0.5),
-            ("Entropy", "positive", 5.0),
-            ("InverseDifferenceMoment", "fraction", 0.6),
-            ("SumAverage", "positive", 20.0),
-            ("Variance", "positive", 10.0),
+        # the typical intensity of the object: mean, median, and quartiles
+        level_family = f"Intensity_Level_{ch}"
+        for name, kind, center, family in [
+            ("IntegratedIntensity", "positive", 50.0, None),
+            ("MeanIntensity", "fraction", 0.1, level_family),
+            ("StdIntensity", "fraction", 0.03, None),
+            ("MedianIntensity", "fraction", 0.1, level_family),
+            ("MinIntensity", "fraction", 0.02, None),
+            ("MaxIntensity", "fraction", 0.4, None),
+            ("LowerQuartileIntensity", "fraction", 0.06, level_family),
+            ("UpperQuartileIntensity", "fraction", 0.15, level_family),
+            ("MassDisplacement", "positive", 1.0, None),
         ]:
             measurements.append(
-                Measurement(f"Texture_{name}_{ch}_3_00_256", ch, kind, center)
+                Measurement(f"Intensity_{name}_{ch}", ch, kind, center, family)
+            )
+        # how uniform the texture is
+        uniformity_family = f"Texture_Uniformity_{ch}"
+        for name, kind, center, family in [
+            ("AngularSecondMoment", "fraction", 0.2, uniformity_family),
+            ("Contrast", "positive", 2.0, None),
+            ("Correlation", "correlation", 0.5, None),
+            ("Entropy", "positive", 5.0, uniformity_family),
+            ("InverseDifferenceMoment", "fraction", 0.6, uniformity_family),
+            ("SumAverage", "positive", 20.0, None),
+            ("Variance", "positive", 10.0, None),
+        ]:
+            measurements.append(
+                Measurement(f"Texture_{name}_{ch}_3_00_256", ch, kind, center, family)
             )
         for scale in range(1, 5):
             measurements.append(
                 Measurement(f"Granularity_{scale}_{ch}", ch, "positive", 1.0)
             )
         for ring in range(1, 5):
+            # the fraction of intensity in each ring, as is and relative to the ring's area
+            ring_family = f"RadialDistribution_Frac_{ch}_{ring}of4"
             measurements.append(
                 Measurement(
-                    f"RadialDistribution_FracAtD_{ch}_{ring}of4", ch, "fraction", 0.25
+                    f"RadialDistribution_FracAtD_{ch}_{ring}of4",
+                    ch,
+                    "fraction",
+                    0.25,
+                    ring_family,
                 )
             )
             measurements.append(
                 Measurement(
-                    f"RadialDistribution_MeanFrac_{ch}_{ring}of4", ch, "positive", 1.0
+                    f"RadialDistribution_MeanFrac_{ch}_{ring}of4",
+                    ch,
+                    "positive",
+                    1.0,
+                    ring_family,
                 )
             )
             measurements.append(
@@ -206,21 +232,23 @@ def channel_measurements() -> list[Measurement]:
 
 def shape_measurements() -> list[Measurement]:
     """Return the shape measurements, which are not made in a channel."""
+    # the size of the object: area, perimeter, and lengths
+    size_family = "AreaShape_Size"
     measurements = [
-        Measurement(f"AreaShape_{name}", SHAPE_GROUP, kind, center)
-        for name, kind, center in [
-            ("Area", "positive", 300.0),
-            ("Perimeter", "positive", 70.0),
-            ("MajorAxisLength", "positive", 25.0),
-            ("MinorAxisLength", "positive", 15.0),
-            ("MaxFeretDiameter", "positive", 28.0),
-            ("MinFeretDiameter", "positive", 14.0),
-            ("EquivalentDiameter", "positive", 20.0),
-            ("Compactness", "positive", 1.2),
-            ("FormFactor", "fraction", 0.7),
-            ("Solidity", "fraction", 0.9),
-            ("Extent", "fraction", 0.7),
-            ("Eccentricity", "fraction", 0.6),
+        Measurement(f"AreaShape_{name}", SHAPE_GROUP, kind, center, family)
+        for name, kind, center, family in [
+            ("Area", "positive", 300.0, size_family),
+            ("Perimeter", "positive", 70.0, size_family),
+            ("MajorAxisLength", "positive", 25.0, size_family),
+            ("MinorAxisLength", "positive", 15.0, size_family),
+            ("MaxFeretDiameter", "positive", 28.0, size_family),
+            ("MinFeretDiameter", "positive", 14.0, size_family),
+            ("EquivalentDiameter", "positive", 20.0, size_family),
+            ("Compactness", "positive", 1.2, None),
+            ("FormFactor", "fraction", 0.7, None),
+            ("Solidity", "fraction", 0.9, None),
+            ("Extent", "fraction", 0.7, None),
+            ("Eccentricity", "fraction", 0.6, None),
         ]
     ]
     for n, m in [(0, 0), (2, 0), (2, 2), (4, 0), (4, 2)]:
@@ -232,13 +260,23 @@ def shape_measurements() -> list[Measurement]:
 
 def neighbor_measurements() -> list[Measurement]:
     """Return the neighbor measurements, which are not made in a channel."""
+    # the distances to the closest neighbors
+    distance_family = "Neighbors_Distance"
     return [
         Measurement("Neighbors_NumberOfNeighbors_Adjacent", SHAPE_GROUP, "count", 3.0),
         Measurement(
-            "Neighbors_FirstClosestDistance_Adjacent", SHAPE_GROUP, "positive", 20.0
+            "Neighbors_FirstClosestDistance_Adjacent",
+            SHAPE_GROUP,
+            "positive",
+            20.0,
+            distance_family,
         ),
         Measurement(
-            "Neighbors_SecondClosestDistance_Adjacent", SHAPE_GROUP, "positive", 30.0
+            "Neighbors_SecondClosestDistance_Adjacent",
+            SHAPE_GROUP,
+            "positive",
+            30.0,
+            distance_family,
         ),
     ]
 
@@ -255,8 +293,18 @@ def build_features() -> list[Feature]:
         if comp in NEIGHBOR_COMPARTMENTS:
             comp_measurements = measurements + neighbor_measurements()
         for m in comp_measurements:
-            features.append(Feature(f"{comp}_{m.name}", m.group, m.kind, m.center))
+            name = f"{comp}_{m.name}"
+            # families are within a compartment; a measurement without a family is its own
+            family = name if m.family is None else f"{comp}_{m.family}"
+            features.append(Feature(name, m.group, m.kind, m.center, family))
     return features
+
+
+def family_index(features: list[Feature]) -> np.ndarray:
+    """Return each feature's index in the sorted list of feature families."""
+    families = sorted({f.family for f in features})
+    index_of_family = {family: i for i, family in enumerate(families)}
+    return np.array([index_of_family[f.family] for f in features])
 
 
 def keyed_rng(seed: int, key: str) -> np.random.Generator:
@@ -266,15 +314,25 @@ def keyed_rng(seed: int, key: str) -> np.random.Generator:
 
 def build_loadings(features: list[Feature], seed: int) -> np.ndarray:
     """
-    Return the (features, N_LATENT) loading matrix, each feature's loadings combining its group's shared
-    loadings with its own; rows are scaled to unit length, so latent values contribute unit variance per cell.
+    Return the (features, N_LATENT) loading matrix.
+    Each feature family's loadings combine its group's shared loadings with the family's own,
+    and each feature's loadings combine its family's loadings with its own.
+    Rows are scaled to unit length, so latent values contribute unit variance per cell.
     """
     rng = keyed_rng(seed, "loadings")
     groups = sorted({f.group for f in features})
     group_loadings = {g: rng.normal(0, 1, N_LATENT) for g in groups}
-    shared = np.array([group_loadings[f.group] for f in features])
+    family_groups = {f.family: f.group for f in features}
+    family_loadings = {}
+    for family in sorted(family_groups):
+        loadings = GROUP_LOADING_WEIGHT * group_loadings[family_groups[family]] + (
+            1 - GROUP_LOADING_WEIGHT
+        ) * rng.normal(0, 1, N_LATENT)
+        family_loadings[family] = loadings / np.linalg.norm(loadings)
+    shared = np.array([family_loadings[f.family] for f in features])
     own = rng.normal(0, 1, (len(features), N_LATENT))
-    loadings = GROUP_LOADING_WEIGHT * shared + (1 - GROUP_LOADING_WEIGHT) * own
+    own = own / np.linalg.norm(own, axis=1, keepdims=True)
+    loadings = (1 - FAMILY_OWN_WEIGHT) * shared + FAMILY_OWN_WEIGHT * own
     return loadings / np.linalg.norm(loadings, axis=1, keepdims=True)
 
 
@@ -372,7 +430,14 @@ def simulate_plate(
     image_number = image_number[order]
 
     cell_latent = well_latent[well_index] + rng.normal(0, 1, (n, N_LATENT))
-    z = cell_latent @ loadings.T + rng.normal(0, FEATURE_NOISE_SD, (n, len(features)))
+    # feature noise is shared within each family, plus a little for each feature
+    families = family_index(features)
+    family_noise = rng.normal(0, FEATURE_NOISE_SD, (n, families.max() + 1))
+    z = (
+        cell_latent @ loadings.T
+        + family_noise[:, families]
+        + rng.normal(0, FAMILY_MEMBER_NOISE_SD, (n, len(features)))
+    )
     feature_values = pd.DataFrame(
         transform_values(z, features), columns=[f.name for f in features]
     )
