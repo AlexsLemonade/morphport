@@ -1,0 +1,12 @@
+# Analysis groups for the simulated REPO1 screen data (`test_full_screen` profile); see docs/analysis_groups_format.md for the format.
+# Platemap columns include Cell_Line_Name (SK-N-AS, and simulated U2-OS plates), compound_id (BRD IDs, DMSO, or untreated),
+# Treatment_Control_Class (Treatment, NegCon, or Control), and Treatment_Mechanism (mechanisms separated by |); see tests/data-full/README.md.
+# Compounds are identified by compound_id rather than name, as a few names cover more than one compound ID.
+default:
+  # All wells of each cell line, at both aggregate levels;
+  # per-well, every compound and the untreated wells are compared with DMSO (per-cell groups ignore the comparison)
+  - name: compounds_vs_dmso
+    grouping_column: Cell_Line_Name
+    groups: one_per_value
+    comparison_column: compound_id
+    reference_values: [DMSO]
