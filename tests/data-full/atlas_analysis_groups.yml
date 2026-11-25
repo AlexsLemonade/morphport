@@ -1,0 +1,14 @@
+# Analysis groups for the simulated atlas data (`test_full` profile); see docs/analysis_groups_format.md for the format.
+# Platemap columns include Cell_Line_Name and time_point; each plate is one time point (see tests/data-full/README.md).
+cell:
+  # All cell lines together, at each time point
+  - name: cell_lines_by_time
+    grouping_column: time_point
+    groups: one_per_value
+well:
+  # Each cell line compared with U2-OS, at each time point
+  - name: cell_lines_vs_u2os
+    grouping_column: time_point
+    groups: one_per_value
+    comparison_column: Cell_Line_Name
+    reference_values: [U2-OS]
