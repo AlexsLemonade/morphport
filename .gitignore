@@ -14,15 +14,24 @@ null/
 # keep updates to .gitignore below to prevent linting error
 .nf-test-*.nf
 stub/results/
+
+
+# agent files and local issue tracker
+.claude/settings.local.json
+.scratch/
+
 # synthetic test data from scripts/generate_test_data.py:
 # track the small metadata files, but not the profiles (to be hosted externally)
 !tests/data/
 tests/data/**/*.parquet
 
-.claude/settings.local.json
+# simulated full-size test data from scripts/generate_full_test_data.py:
+# track the samplesheets, analysis groups files, and README, but not the generated gallery layout
+tests/data-full/*
+!tests/data-full/README.md
+!tests/data-full/*.csv
+!tests/data-full/*.yml
 
-# local issue tracker for agent skills
-.scratch/
 
 # upstream PCCMA metadata copied by assets/pccma/scripts/build_source.py:
 # track only the provenance README (license notices are in assets/pccma/README.md)

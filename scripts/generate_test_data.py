@@ -26,7 +26,7 @@ Input paths in the samplesheet are relative to the current directory, as in the 
 
 Feature values are random, with no structure by cell line or other platemap columns.
 Feature names follow CellProfiler conventions, and include the features used by the coSMicQC filters
-in assets/cosmicqc_filter_settings.json.
+in assets/cosmicqc_filter_settings_jump.json.
 One feature is constant and one has many missing values, to exercise feature selection.
 Metadata column names follow the CytoTable cpg0016 JUMP preset used elsewhere in the pipeline
 (Metadata_Plate, Metadata_Well, Metadata_ImageNumber, Metadata_ObjectNumber).

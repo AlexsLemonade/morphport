@@ -1,0 +1,21 @@
+[
+    {
+        "name": "clustered_nuclei",
+        "thresholds": {
+            "Nuclei_Intensity_MassDisplacement_DNA": 0.1,
+            "Nuclei_Intensity_IntegratedIntensity_DNA": 1.5
+        }
+    },
+    {
+        "name": "low_solidity_nuclei",
+        "thresholds": {
+            "Nuclei_AreaShape_Solidity": -2.0
+        }
+    },
+    {
+        "name": "cells_multiple_nuclei",
+        "thresholds": {
+            "Cells_Intensity_IntegratedIntensity_DNA": 3.0
+        }
+    }
+]
