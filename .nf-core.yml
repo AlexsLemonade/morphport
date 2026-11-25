@@ -32,7 +32,7 @@ lint:
   # docs/agents contains Docker Go-template format strings, not Jinja
   template_strings:
     - docs/agents/dev-environment.md
-nf_core_version: 4.2.1
+nf_core_version: 4.2.2
 repository_type: pipeline
 template:
   author: Joshua A. Shapiro
