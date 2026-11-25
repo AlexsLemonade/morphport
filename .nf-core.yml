@@ -28,7 +28,9 @@ lint:
   multiqc_config: false
   pipeline_name_conventions: false
   readme: false
-nf_core_version: 4.2.1
+  template_strings:
+    - docs/agents/dev-environment.md
+nf_core_version: 4.2.2
 repository_type: pipeline
 template:
   author: Joshua A. Shapiro
@@ -44,4 +46,4 @@ template:
     - multiqc
     - fastqc
     - gpu
-  version: 0.1.0
+  version: 0.1.1dev
