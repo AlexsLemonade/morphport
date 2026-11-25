@@ -2,7 +2,7 @@
 
 This directory holds simulated Cell Painting datasets based on the Pediatric Cancer Cell Morphology Atlas (PCCMA) metadata in `assets/pccma`, for the `test_full` profiles.
 The plates and their layouts are the real PCCMA ones; the single-cell profiles are simulated by `scripts/generate_full_test_data.py`.
-Unlike the small synthetic data in `tests/data`, these data are full size and have structured effects, so the pipeline's outputs look like those of a real run.
+Unlike the small synthetic data in `tests/data`, these data have a more complete feature set and structured effects. They are still smaller than a full run (fewer cells and features), but should allow exercising most modes of filtering and analysis in the workflow.
 They will be replaced by real data from the Cell Painting Gallery once it is available.
 
 The data use the Cell Painting Gallery directory structure and start at the converted parquet stage, so plates use `cytotable_preset: skip`.
